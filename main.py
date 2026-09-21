@@ -719,7 +719,11 @@ def make_agent(routes, router=None, opponent_plan=None, **settings):
 # EXP239 native schedules: Yusuke Hayashi (yhay81), Shop Router 0913.
 # https://www.kaggle.com/code/yhay81/shop-router-0913
 # Ahmed Berat Ozer: V39 prefix/terminal, shared-action encoding and controllers.
-from route_tape import ROUTES as _ROUTES, SHOP_ROUTES as _R108_SHOP_ROUTES
+import os as _tape_os, importlib as _tape_imp
+_TAPE_MODULE = _tape_os.environ.get('KAGGICULTURE_TAPE', 'route_tape')
+_tape_pkg = _tape_imp.import_module(_TAPE_MODULE)
+_ROUTES = _tape_pkg.ROUTES
+_R108_SHOP_ROUTES = _tape_pkg.SHOP_ROUTES
 _SETTINGS={'hand_align': True, 'weed_repair': True, 'sell_lead': True, 'budget_guard': False, 'room_guard': False, 'clamp_sells': False, 'dead_stock': False, 'terminal_liquidation': False, 'front_run': False}
 
 # EXP241: fixed two-policy choice, learned with five whole-team held-out folds.

@@ -169,11 +169,12 @@ def patch(action, observation, configuration=None):
     ``_ASTRA_I1`` opening extension (one more growth refresh on the opening
     temporary wheat) and its late extra-wheat sale.
 
-    (The L1 milk/fertilizer front-loading experiment was fully investigated via
-    diagnose --xray: the unlucky version regressed ~-$442/seed and even the
-    guarded version regresses across the seed set. The milk+fert micro edge is
-    the lockstep seat-0 first-mover advantage, not recoverable by our own sell
-    ordering. L1 was therefore reverted; I1 remains, as it is validated to help.)
+    (Two experiments were fully investigated via diagnose --xray and reverted:
+      - L1 milk/fertilizer front-loading: a seat-0 first-mover micro edge, not
+        recoverable by our own sell ordering (regressed ~-$442/seed, guarded too).
+      - Weed-recovery: forcing an early pasture build after a weed-dig
+        desynchronizes the worker from the fixed route tape and costs ~-$28.9k
+        on the affected seed, far more than the recovered cow is worth.)
     """
     if not isinstance(observation, dict):
         return action

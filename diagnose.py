@@ -156,12 +156,28 @@ def load_public_agent(idx: int) -> Callable:
 # ---------------------------------------------------------------------------
 
 
+_TAPE_SELECTED = "v1"  # "v1" -> route_tape.py, "v2" -> route_tape_v2.py
+
+
+def _tape_module():
+    return "route_tape" if _TAPE_SELECTED == "v1" else "route_tape_v2"
+
+
 def _reload_main_if_needed(fresh: bool = False):
-    import main
+    import importlib
+    import os
+    # main reads the tape source from KAGGICULTURE_TAPE at import; set it before
+    # any (re)load so --tape selects which tape the freshly built chassis uses.
+    os.environ["KAGGICULTURE_TAPE"] = _tape_module()
+    import main  # noqa: F401
     if fresh:
-        import importlib
         importlib.reload(main)
-    return main
+    else:
+        # Enforce the tape even if main was imported earlier without the env set.
+        if os.environ.get("KAGGICULTURE_TAPE") != _tape_module():
+            importlib.reload(main)
+    import main as _main2
+    return _main2
 
 
 def load_old_agent(fresh: bool = False) -> Callable:
@@ -1768,7 +1784,13 @@ def cli():
     parser.add_argument("--xray", action="store_true",
                         help="Investigate a patch: per-step patch() moves, old-vs-new action "
                              "divergence, and day-by-day money for the same seed")
+    parser.add_argument("--tape", choices=["v1", "v2"], default="v1",
+                        help="Tape module to build main.py against: v1=route_tape.py "
+                             "(production), v2=route_tape_v2.py (experimental)")
     args = parser.parse_args()
+
+    global _TAPE_SELECTED
+    _TAPE_SELECTED = args.tape
 
     if args.replay_dir:
         run_dir = Path(args.replay_dir)
