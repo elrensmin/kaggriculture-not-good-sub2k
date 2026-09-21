@@ -48,6 +48,16 @@ Flags:
                      where agent.patch() directly rewrote the action, (2) every step
                      where the old and new games diverge (tagged PATCH-DIRECT vs
                      cascade), (3) day-by-day money curves. Use with --pa/--seed/--batch.
+    --graph          render PNG dashboards from SAVED replays, two images per game:
+                     (a) a 1×2 side-by-side, LEFT = our agent / RIGHT = the opponent,
+                     each a vertical stack (shed vs 100-cap + weeds, market prices with
+                     shop ticks AND realised-sale dots, per-day defect swimlane, end-of-day
+                     money) on a shared day axis; (b) a board montage (`_board.png`) with
+                     the market-price curve + one cell per day showing BOTH farms' 10×10
+                     maps (crops/animals/weeds/structures) and a money·shed·seeds·weeds
+                     readout, so you can correlate state with price action. Uses
+                     --replay-dir, or the most recent run dir. Per-game, never averaged.
+                     Headless Agg.
     --pa N[,M,...]   public agent indices (1-13), e.g. 1,2,3 or 1-6
     --batch N        number of seeds per opponent
     --seed S         deterministic: seeds S, S+1, ... S+(N-1) verbatim (omit = random)
@@ -1343,6 +1353,16 @@ def _new_run_dir() -> Path:
         idx += 1
 
 
+def _most_recent_run_dir() -> Optional[Path]:
+    """Newest diag-replays/run-N holding replay JSONs (for --graph without --replay-dir)."""
+    if not REPLAY_ROOT.exists():
+        return None
+    cands = sorted((p for p in REPLAY_ROOT.iterdir()
+                    if p.is_dir() and (p / "*.json").glob and list(p.glob("*.json"))),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    return cands[0] if cands else None
+
+
 def _parse_pa_arg(arg: str) -> List[int]:
     """Parse --pa '1' or '1,2,3' or '1-3'."""
     out = []
@@ -1718,6 +1738,557 @@ def xray_batch(pa_indices, seeds, run_dir):
     return saved
 
 
+# ---------------------------------------------------------------------------
+# --graph — matplotlib per-game dashboards from saved replays
+# ---------------------------------------------------------------------------
+# Goal: turn a single saved replay into PNG figures that surface SYSTEM-LEVEL
+# defects you can *see* at a specific step/day (per AGENTS.md anti-goal: never
+# trust cross-game averages). Reads the exact replay JSON `--old/--new/--compare`
+# writes, so no extra logging is required — every series below already exists in
+# each step's observation.
+
+# Products that crash straight to the $1 floor on oversupply (above_target > 1).
+# Highlighting them + shop-unlock ticks makes glut/scarcity timing visible at a glance.
+_SPIKEY_PRODUCTS = [p for p in PRODUCTS if MARKET_PARAMS[p].get("above_target", 0.0) > 1.0]
+_SHOP_TITLE = {k: " ".join(w.title() for w in k.split("_")) for k in SHOPS}
+
+
+def _tile_count_weeds(tiles):
+    n = 0
+    for row in tiles or []:
+        for t in row:
+            if isinstance(t, dict) and t.get("kind") == "WEED":
+                n += 1
+    return n
+
+
+def _collect_step_series(replay):
+    """One pass over a replay → per-step curves for BOTH seats + shared market.
+
+    Returns dict (plain lists, index = step number 0..n-1):
+      xs            step numbers              n_steps       number of steps
+      money[seat]   money per step, per seat  shed[seat]    shed total per seat
+      weeds[seat]   WEED count per seat       prices[p]     market price/step
+      shop_steps    [(step, frozenset)] where the unlocked-shop set grew
+    Prices/shops are shared by both players, so they are captured once (from the
+    seat-0 observation). Money/shed/weeds are captured per seat.
+    """
+    steps = replay["steps"]
+    xs = []
+    money, shed, weeds = {0: [], 1: []}, {0: [], 1: []}, {0: [], 1: []}
+    prices = {p: [] for p in PRODUCTS}
+    shop_sets = []
+    for idx, s in enumerate(steps):
+        for seat in (0, 1):
+            if seat >= len(s):
+                money[seat].append(0.0); shed[seat].append(0); weeds[seat].append(0)
+                if seat == 0:                      # keep axes length consistent
+                    xs.append(idx)
+                    for p in PRODUCTS:
+                        prices[p].append(MARKET_PARAMS[p]["base"])
+                    shop_sets.append(frozenset())
+                continue
+            o = s[seat].get("observation") or {}
+            farms = o.get("farms") or []
+            money[seat].append(farms[seat].get("money", 0.0) if seat < len(farms) else 0.0)
+            shed[seat].append(_shed_total(o.get("private") or {}))
+            me = farms[seat] if seat < len(farms) else {}
+            weeds[seat].append(_tile_count_weeds(me.get("tiles", [])))
+            if seat == 0:                          # shared market/town: read once
+                px = (o.get("market") or {}).get("prices") or {}
+                for p in PRODUCTS:
+                    prices[p].append(px.get(p, MARKET_PARAMS[p]["base"]))
+                town = o.get("town") or {}
+                shop_sets.append(frozenset(town.get("unlocked_shops") or []))
+                xs.append(idx)
+    shop_steps, prev = [], frozenset()
+    for i, ss in enumerate(shop_sets):
+        new = ss - prev
+        if new:
+            shop_steps.append((xs[i], new))
+        prev = ss
+    return {"xs": xs, "money": money, "shed": shed, "weeds": weeds,
+            "prices": prices, "shop_steps": shop_steps, "n_steps": len(steps)}
+
+
+def _draw_day_grid(ax, n_steps):
+    """Vertical gridlines + day labels along a step axis."""
+    for st in range(0, n_steps, TURNS_PER_DAY):
+        ax.axvline(st, color="0.75", lw=0.5, zorder=0)
+    ax.set_xticks(list(range(0, n_steps + 1, TURNS_PER_DAY)))
+    ax.set_xticklabels([d for d in range(n_steps // TURNS_PER_DAY + 1)])
+    ax.set_xlabel("day")
+
+
+def _plt():
+    """Import matplotlib lazily with the Agg backend so graphing works headless."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    return plt
+
+
+def _sell_series(replay, seat):
+    """Derive per-(day, product) realised sales straight from a replay's SELL orders.
+
+    The day-CSV pipeline's avg-price is only populated during a live run (it uses
+    a market commit audit that does not exist for saved replays). So for --graph
+    we re-quote every SELL order at the market price of the step it was submitted
+    on — the pre-sell price the agent actually decided to sell at. Returns a list
+    of {day, product, qty, avg, floor_qty, below_qty, base}.
+    """
+    from collections import defaultdict
+    agg = defaultdict(lambda: {"qty": 0, "revenue": 0.0, "floor": 0, "below": 0})
+    for idx, s in enumerate(replay["steps"]):
+        if seat >= len(s):
+            continue
+        ent = s[seat]
+        obs = ent.get("observation") or {}
+        act = ent.get("action") or {}
+        # The agent's own observation does NOT carry a "step" field (only seat 0's
+        # does); use the replay list index, which IS the step.
+        step = idx
+        px = (obs.get("market") or {}).get("prices") or {}
+        for order in act.get("market") or []:
+            if not order or order[0] != "SELL" or len(order) < 2:
+                continue
+            item = order[1]
+            if item not in PRODUCTS:
+                continue
+            qty = int(order[2]) if len(order) > 2 else 1
+            price = px.get(item, MARKET_PARAMS[item]["base"])
+            a = agg[(step // TURNS_PER_DAY, item)]
+            a["qty"] += qty
+            a["revenue"] += qty * price
+            a["floor"] += qty if price <= PRICE_FLOOR else 0
+            a["below"] += qty if price < MARKET_PARAMS[item]["base"] else 0
+    out = []
+    for (day, item), a in sorted(agg.items()):
+        out.append({"day": day, "product": item, "qty": a["qty"],
+                    "avg": a["revenue"] / max(a["qty"], 1),
+                    "floor_qty": a["floor"], "below_qty": a["below"],
+                    "base": MARKET_PARAMS[item]["base"]})
+    return out
+
+
+def _seat_sells(days: List[Dict[str, Any]], committed: bool, replay, seat: int):
+    """Per-day realised-sale markers for one seat.
+
+    Prefers committed per-day data from the replay's market audit (real units at
+    realised price). Replays without an audit fall back to re-quoting the request's
+    SELL orders (qty = requested, so it over-counts; the legend flags that).
+    Returns list of {day, product, qty, avg, floor, below}.
+    """
+    if committed:
+        sells = []
+        for d in days:
+            for p in PRODUCTS:
+                q = (d.get("sell_qty") or {}).get(p, 0)
+                if q <= 0:
+                    continue
+                sells.append({
+                    "day": d["day"], "product": p, "qty": q,
+                    "avg": d.get(f"avg_price_{p}", 0) or 0.0,
+                    "floor": (d.get("floor_sales") or {}).get(p, 0) > 0,
+                    "below": (d.get("below_base_sales") or {}).get(p, 0) > 0,
+                })
+        sells.sort(key=lambda r: (r["day"], r["product"]))
+        return sells
+    sells = _sell_series(replay, seat)
+    for r in sells:
+        r["floor"] = r["floor_qty"] > 0
+        r["below"] = r["below_qty"] > 0
+    return sells
+
+
+def _draw_seat_dashboard(fig, gs, data, days, sells, seat, header, committed):
+    """Draw the 4 stacked panels for ONE seat into a 4×1 GridSpec `gs`.
+
+    Panels, on a shared day axis so a defect lines up with the market action it
+    caused: (0) shed vs the 100-cap + weeds/overflow, (1) market prices with
+    shop-unlock ticks AND this seat's realised-sale dots (green ≥ base / orange
+    below-base / red floor, size ∝ qty), (2) a defect swimlane, (3) end-of-day
+    money. `data` is the once-computed shared series, `days`/`sells` are per-seat.
+    """
+    from matplotlib.lines import Line2D
+    plt = _plt()
+    xs, n = data["xs"], data["n_steps"]
+    by_day = {d["day"]: d for d in days}
+    day_axis = sorted(by_day)
+
+    # ---- Panel 0: shed vs cap + weeds (this seat) ----
+    ax = fig.add_subplot(gs[0])
+    ax.plot(xs, data["shed"][seat], color="#1f77b4", lw=1.1, label=f"shed total (seat {seat})")
+    ax.axhline(SHED_CAPACITY, color="#d62728", ls="--", lw=1.2, label=f"shed cap {SHED_CAPACITY}")
+    over = [i for i, v in enumerate(data["shed"][seat]) if v > SHED_CAPACITY]
+    if over:
+        ax.scatter([xs[i] for i in over], [data["shed"][seat][i] for i in over],
+                   color="#d62728", s=16, zorder=3,
+                   label=f"overflow days: {len(set(i // TURNS_PER_DAY for i in over))}")
+    axw = ax.twinx()
+    axw.fill_between(xs, data["weeds"][seat], 0, color="0.55", alpha=0.35)
+    axw.plot(xs, data["weeds"][seat], color="0.4", lw=0.7)
+    axw.set_ylabel("weeds (gray)"); axw.set_ylim(0, max(data["weeds"][seat] + [8]) * 1.2)
+    ax.set_ylabel("shed items")
+    ax.set_title(f"{header} — shed pressure vs cap + weeds", loc="left", fontsize=11)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.9)
+    ax.set_ylim(0, max(SHED_CAPACITY * 1.15, max(data["shed"][seat] + [0]) * 1.15, 1))
+    _draw_day_grid(ax, n)
+
+    # ---- Panel 1: market prices + shop ticks + this seat's realised-sale dots ----
+    ax = fig.add_subplot(gs[1])
+    # Distinct hue per product so every line is identifiable; spike-prone thicker.
+    price_color = {p: plt.cm.tab20(i) for p, i in zip(PRODUCTS, [0, 2, 4, 6, 8, 10, 12, 14, 16])}
+    for p in PRODUCTS:
+        lw = 2.0 if p in _SPIKEY_PRODUCTS else 1.1
+        ax.plot(xs, data["prices"][p], color=price_color[p], lw=lw, alpha=0.95, label=p.title())
+    for st, new in data["shop_steps"]:
+        ax.axvline(st, color="#2ca02c", lw=0.7, alpha=0.6, zorder=1)
+        ax.annotate(",".join(sorted(_SHOP_TITLE[k] for k in new)),
+                    (st, ax.get_ylim()[1]), xytext=(st + 1, ax.get_ylim()[1]),
+                    ha="left", va="top", fontsize=7, rotation=90, color="#2ca02c")
+    for rec in sells:
+        c = "#d62728" if rec["floor"] else ("#ff7f0e" if rec["below"] else "#2ca02c")
+        ax.scatter(rec["day"] * TURNS_PER_DAY + 12, rec["avg"],
+                   s=24 + rec["qty"] * 6, color=c, alpha=0.85, zorder=4,
+                   edgecolor="black", linewidth=0.4)
+    handles = [
+        Line2D([], [], marker="o", ls="none", color="#2ca02c", markersize=7, label="sold ≥ base"),
+        Line2D([], [], marker="o", ls="none", color="#ff7f0e", markersize=7, label="sold below base"),
+        Line2D([], [], marker="o", ls="none", color="#d62728", markersize=7, label=f"sold at floor ${PRICE_FLOOR}"),
+    ]
+    src = "committed units @ realised price" if committed else "requested units (no audit)"
+    leg_sell = ax.legend(handles=handles, loc="upper right", fontsize=8, framealpha=0.9,
+                         title=f"sales · {src} · size ∝ qty", title_fontsize=8)
+    ax.add_artist(leg_sell)
+    ax.legend(loc="lower left", fontsize=8, framealpha=0.9, ncol=2,
+              title="product (line colour)", title_fontsize=9)
+    ax.set_ylabel("market price ($)")
+    ax.set_title(f"{header} — market prices + shop ticks + realised-sale dots", loc="left", fontsize=11)
+    _draw_day_grid(ax, n)
+
+    # ---- Panel 2: defect swimlane (this seat) ----
+    def totals(d, key):
+        v = d.get(key)
+        return sum(v.values()) if isinstance(v, dict) else (v or 0)
+    rows = [
+        ("idle", "#1f77b4", [by_day.get(dy, {}).get("idle_turns", 0) for dy in day_axis]),
+        ("floor sales", "#d62728", [totals(by_day.get(dy, {}), "floor_sales") for dy in day_axis]),
+        ("below-base", "#ff7f0e", [totals(by_day.get(dy, {}), "below_base_sales") for dy in day_axis]),
+        ("escaped", "#8c564b", [by_day.get(dy, {}).get("animals_escaped", 0) for dy in day_axis]),
+        ("plants died", "#9467bd", [by_day.get(dy, {}).get("plants_died", 0) for dy in day_axis]),
+    ]
+    ax = fig.add_subplot(gs[2])
+    n_rows = len(rows)
+    for r, (label, color, vals) in enumerate(rows):
+        y = n_rows - 1 - r                     # idle on top, plants-died at bottom
+        nz = [(dx, v) for dx, v in zip(day_axis, vals) if v > 0]
+        if not nz:
+            continue
+        rowmax = max(v for _, v in nz)
+        top = {dx for dx, _ in sorted(nz, key=lambda t: t[1], reverse=True)[:3]}
+        for dx, v in nz:
+            ax.scatter(dx * TURNS_PER_DAY + 12, y, s=40 + (v / rowmax) * 260,
+                       color=color, alpha=0.35 + 0.6 * (v / rowmax), zorder=3)
+            if dx in top:
+                ax.text(dx * TURNS_PER_DAY + 12, y + 0.30, str(v), ha="center",
+                        va="bottom", fontsize=7, zorder=4)
+    ax.set_yticks([len(rows) - 1 - r for r in range(len(rows))])
+    ax.set_yticklabels([lbl for lbl, _, _ in rows])
+    ax.set_ylim(-0.6, n_rows + 0.15)
+    for sep in range(n_rows):                 # faint row separators for readability
+        ax.axhline(sep - 0.5, color="0.88", lw=0.6, zorder=1)
+    ax.set_title(f"{header} — defects by day (marker size/alpha ∝ count; number = worst days)",
+                 loc="left", fontsize=11)
+    _draw_day_grid(ax, n)
+
+    # ---- Panel 3: end-of-day money (this seat) ----
+    ax = fig.add_subplot(gs[3])
+    x = [dy * TURNS_PER_DAY for dy in day_axis]           # step axis, matches _draw_day_grid
+    em = [by_day.get(dy, {}).get("end_money", 0) for dy in day_axis]
+    ax.bar(x, em, width=TURNS_PER_DAY * 0.8, color="0.6")
+    ax.set_ylabel("closing cash ($)")
+    ax.set_ylim(0, max(em + [1]) * 1.15)
+    ax.set_title(f"{header} — end-of-day money (dips = land / animals / build spend)",
+                 loc="left", fontsize=9)
+    _draw_day_grid(ax, n)
+
+
+def plot_replay(path: Path, out_dir: Optional[Path] = None, seat: Optional[int] = None):
+    """Render one seat's PNG dashboard (single column). Writes `<stem>_single.png`."""
+    plt = _plt()
+    replay = load_replay(path)
+    seat = _agent_seat(replay) if seat is None else seat
+    data = _collect_step_series(replay)
+    if data["n_steps"] == 0:
+        return None
+    meta = replay.get("_diagnose_meta", {})
+    committed = bool(meta.get("audit"))
+    _, days, _ = replay_to_summary(replay, seat=seat)
+    sells = _seat_sells(days, committed, replay, seat)
+    fig = plt.figure(figsize=(14, 12))
+    gs = fig.add_gridspec(4, 1, height_ratios=[2.0, 3.4, 2.2, 1.0],
+                          hspace=0.5, top=0.94, bottom=0.05, left=0.08, right=0.96)
+    fig.suptitle(f"{meta.get('agent','?')} vs {meta.get('opponent','?')} · seed {meta.get('seed','?')}"
+                 f" · seat {seat}", fontsize=13, fontweight="bold")
+    _draw_seat_dashboard(fig, gs, data, days, sells, seat, f"seat {seat}", committed)
+    out_path = (out_dir or path.parent) / (path.stem + "_single.png")
+    fig.savefig(out_path, dpi=110)
+    plt.close(fig)
+    return out_path
+
+
+def plot_game(path: Path, out_dir: Optional[Path] = None):
+    """Render a 1×2 side-by-side dashboard: LEFT = agent under test, RIGHT = opponent.
+
+    Each side is the same 4-panel stack (shed, prices + realised-sale dots, defects,
+    money), so identical rows let you see the difference in play at a glance. Writes
+    `<stem>_graph.png` next to the JSON (or in `out_dir`); this is the --graph output.
+    """
+    plt = _plt()
+    replay = load_replay(path)
+    data = _collect_step_series(replay)
+    if data["n_steps"] == 0:
+        return None
+    meta = replay.get("_diagnose_meta", {})
+    agent_seat = _agent_seat(replay)
+    opp_seat = 1 - agent_seat
+    committed = bool(meta.get("audit"))
+    _, days_a, _ = replay_to_summary(replay, seat=agent_seat)
+    _, days_o, _ = replay_to_summary(replay, seat=opp_seat)
+    sells_a = _seat_sells(days_a, committed, replay, agent_seat)
+    sells_o = _seat_sells(days_o, committed, replay, opp_seat)
+    try:
+        final_us = data["money"][agent_seat][-1]
+        final_opp = data["money"][opp_seat][-1]
+    except IndexError:
+        final_us = final_opp = float("nan")
+    opp = meta.get("opponent", "opponent")
+    seed = meta.get("seed", "?")
+    tag = " (US WINS)" if final_us > final_opp else (" (OPP WINS)" if final_opp > final_us else " (TIE)")
+
+    fig = plt.figure(figsize=(28, 12.5))
+    outer = fig.add_gridspec(1, 2, wspace=0.33, top=0.92, bottom=0.05, left=0.05, right=0.98)
+    ga = outer[0].subgridspec(4, 1, height_ratios=[2.0, 3.4, 2.2, 1.0], hspace=0.5)
+    go = outer[1].subgridspec(4, 1, height_ratios=[2.0, 3.4, 2.2, 1.0], hspace=0.5)
+    fig.suptitle(f"{meta.get('agent','?')} vs {opp} · seed {seed} · "
+                 f"LEFT agent (seat {agent_seat}) · RIGHT opponent (seat {opp_seat}) · "
+                 f"final ${final_us:,.0f} vs ${final_opp:,.0f}{tag}",
+                 fontsize=13, fontweight="bold")
+    _draw_seat_dashboard(fig, ga, data, days_a, sells_a, agent_seat, f"US · seat {agent_seat}", committed)
+    _draw_seat_dashboard(fig, go, data, days_o, sells_o, opp_seat, f"OPPONENT · seat {opp_seat}", committed)
+
+    out_path = (out_dir or path.parent) / (path.stem + "_graph.png")
+    fig.savefig(out_path, dpi=110)
+    plt.close(fig)
+    return out_path
+
+
+def graph_batch(paths: List[Path], run_dir: Path) -> List[Path]:
+    """Render per replay the 1×2 side-by-side dashboard AND the step-by-step board
+    montage, returning the paths written."""
+    out = []
+    for p in paths:
+        try:
+            rendered = plot_game(p, out_dir=run_dir)
+            if rendered:
+                out.append(rendered)
+                print(f"  graph: {rendered.name}")
+        except Exception as e:  # keep one bad replay from killing the batch
+            print(f"  graph FAILED {p.name}: {e}")
+        try:
+            rendered = plot_board(p, out_dir=run_dir)
+            if rendered:
+                out.append(rendered)
+                print(f"  graph: {rendered.name}")
+        except Exception as e:
+            print(f"  board FAILED {p.name}: {e}")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# --graph board montage — per-step state of the whole environment
+# ---------------------------------------------------------------------------
+
+_CROP_COLOR = {"WHEAT": "#e6b800", "CARROT": "#ff7f0e", "TOMATO": "#e03e36",
+               "STRAWBERRY": "#f06292", "MELON": "#5cbb5c"}
+_STRUCT_COLOR = {"COOP": "#b0bec5", "PASTURE": "#8d9aa6"}
+_ANIMAL_COLOR = {"GOOSE": "#e0e0e0", "COW": "#5d4037", "SHEEP": "#c0a878"}
+_ANIMAL_LETTER = {"GOOSE": "G", "COW": "C", "SHEEP": "S"}
+_EMPTY, _LOCKED, _WEED = "#f5f5f5", "#3a3a3a", "#8b5a2b"
+
+
+def _hex_rgb(h: str):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _tile_color_letter(t):
+    """Return (rgb-as-floats, overlay-letter-or-None) for one tile."""
+    if t is None:
+        return _hex_rgb(_EMPTY), None
+    if t == "LOCKED":
+        return _hex_rgb(_LOCKED), None
+    if isinstance(t, dict):
+        k = t.get("kind")
+        if k == "WEED":
+            return _hex_rgb(_WEED), None
+        if k == "PLANT":
+            return _hex_rgb(_CROP_COLOR.get(t.get("crop"), "#66bb6a")), (t.get("crop") or "")[:1]
+        if k in ("COOP", "PASTURE"):
+            a = t.get("animal")
+            if a:
+                return _hex_rgb(_ANIMAL_COLOR.get(a, "#9e9e9e")), _ANIMAL_LETTER.get(a, "a")
+            return _hex_rgb(_STRUCT_COLOR.get(k, "#9e9e9e")), ("⌑" if k == "COOP" else "◇")
+    return _hex_rgb(_EMPTY), None
+
+
+def _draw_mini_map(ax, tiles):
+    """Colour-coded 10×10 farm map on `ax` (crops/animals get a single-letter mark)."""
+    arr, marks = [], []
+    for y, row in enumerate(tiles):
+        arr_row = []
+        for x, t in enumerate(row):
+            c, l = _tile_color_letter(t)
+            arr_row.append(c)
+            if l:
+                marks.append((x, y, l))
+        arr.append(arr_row)
+    ax.imshow(arr, origin="upper", interpolation="nearest", aspect="equal")
+    for x, y, l in marks:
+        ax.text(x, y, l, ha="center", va="center", fontsize=6,
+                color="#111111", zorder=5, fontweight="bold")
+    ax.set_xticks([]); ax.set_yticks([])
+    for s in ax.spines.values():
+        s.set_linewidth(0.6)
+
+
+def _tile_counts(tiles):
+    crops, animals, weeds, struct = {}, {}, 0, {"COOP": 0, "PASTURE": 0}
+    for row in tiles:
+        for t in row:
+            if isinstance(t, dict):
+                k = t.get("kind")
+                if k == "PLANT":
+                    crops[t.get("crop")] = crops.get(t.get("crop"), 0) + 1
+                elif k == "WEED":
+                    weeds += 1
+                elif k in ("COOP", "PASTURE"):
+                    struct[k] += 1
+                    if t.get("animal"):
+                        animals[t.get("animal")] = animals.get(t.get("animal"), 0) + 1
+    return crops, animals, weeds, struct
+
+
+def _day_cell_readout(snap) -> str:
+    shed = snap["shed"] or {}
+    seeds = snap["seeds"] or {}
+    crops, animals, weeds, struct = snap["counts"]
+    sh = " ".join(f"{k[:1]}{v}" for k, v in shed.items() if v) or "empty"
+    sd = " ".join(f"{k[:1]}{v}" for k, v in seeds.items() if v) or ""
+    an = " ".join(f"{_ANIMAL_LETTER.get(k, k[:1])}{v}" for k, v in animals.items()) or "-"
+    cr = " ".join(f"{k[:1]}{v}" for k, v in crops.items()) or "-"
+    return (f"${snap['money']:,.0f}  shed[{sh}]  seeds[{sd}]",
+            f"crops[{cr}]  animals[{an}]  weeds {weeds}  coop/past {struct['COOP']}/{struct['PASTURE']}")
+
+
+def plot_board(path: Path, out_dir: Optional[Path] = None):
+    """Render a per-game board montage: `_board.png`.
+
+    Top: the shared market price curves with a marker per sampled day (so you can
+    correlate state with the price action). Below: a 6×5 grid, one cell per day,
+    each showing BOTH farmers' 10×10 maps (colour-coded crops / animals / weeds /
+    structures / locked) plus a money · shed · seeds · weeds · crop/animals readout.
+    Everything comes straight from each step's observation.
+    """
+    plt = _plt()
+    replay = load_replay(path)
+    data = _collect_step_series(replay)
+    n = data["n_steps"]
+    if n == 0:
+        return None
+    meta = replay.get("_diagnose_meta", {})
+    agent_seat = _agent_seat(replay)
+    opp_seat = 1 - agent_seat
+    steps = replay["steps"]
+
+    # Snapshot per day at its last step (state after that day's play).
+    days = list(range(min(30, (n + TURNS_PER_DAY - 1) // TURNS_PER_DAY)))
+    snap_steps = [min(d * TURNS_PER_DAY + TURNS_PER_DAY - 1, n - 1) for d in days]
+    snaps = []
+    for i in snap_steps:
+        s = steps[i]
+        row = []
+        for seat in (agent_seat, opp_seat):
+            if seat >= len(s):
+                row.append(None)
+                continue
+            o = s[seat].get("observation") or {}
+            me = (o.get("farms") or [])[seat] if seat < len(o.get("farms") or []) else {}
+            pr = o.get("private") or {}
+            tiles = list(me.get("tiles") or [])
+            row.append({"money": me.get("money", 0.0),
+                        "shed": pr.get("shed") or {},
+                        "seeds": pr.get("seeds") or {},
+                        "tiles": tiles,
+                        "counts": _tile_counts(tiles)})
+        snaps.append((i, row))
+
+    ncols = 5
+    nrows = (len(snaps) + ncols - 1) // ncols
+    fig = plt.figure(figsize=(22, 4.6 + nrows * 3.4))
+    outer = fig.add_gridspec(2, 1, height_ratios=[1.0, nrows * 3.4],
+                             hspace=0.35, top=0.93, bottom=0.015, left=0.02, right=0.99)
+
+    # ---- Top: shared market prices with per-day markers ----
+    axp = fig.add_subplot(outer[0])
+    price_color = {p: plt.cm.tab20(i) for p, i in zip(PRODUCTS, [0, 2, 4, 6, 8, 10, 12, 14, 16])}
+    for p in PRODUCTS:
+        axp.plot(data["xs"], data["prices"][p], color=price_color[p],
+                 lw=1.1 if p in _SPIKEY_PRODUCTS else 0.7, alpha=0.9)
+    for d, i in zip(days, snap_steps):
+        axp.axvline(i, color="#d62728", lw=0.6, alpha=0.7)
+        if d % 2 == 0:
+            axp.text(i, axp.get_ylim()[1], str(d), fontsize=6, rotation=90,
+                     ha="right", va="top", color="#d62728")
+    axp.set_ylabel("market price ($)")
+    axp.set_title(f"{meta.get('agent','?')} vs {meta.get('opponent','?')} · seed {meta.get('seed','?')}"
+                  f" · market prices (red = sampled day)", loc="left", fontsize=11)
+    _draw_day_grid(axp, n)
+    axp.axhline(0, color="k", lw=0.5)
+
+    # ---- Below: day cells, each with both maps + readout ----
+    gs = outer[1].subgridspec(nrows, ncols, hspace=0.62, wspace=0.20)
+    for k, (i, row) in enumerate(snaps):
+        ax = fig.add_subplot(gs[k // ncols, k % ncols])
+        ax.set_axis_off()
+        ax.set_title(f"day {days[k]}", fontsize=10, fontweight="bold", pad=3)
+        for seat_idx, seat in enumerate((agent_seat, opp_seat)):
+            snap = row[seat_idx]
+            if snap is None:
+                continue
+            lab = "US" if seat == agent_seat else "OPP"
+            left = 0.02 + seat_idx * 0.50
+            sub = ax.inset_axes([left, 0.34, 0.47, 0.62])
+            _draw_mini_map(sub, snap["tiles"])
+            sub.set_title(lab, fontsize=8, pad=1)
+            l1, l2 = _day_cell_readout(snap)
+            ax.text(left + 0.01, 0.24, l1, ha="left", va="top", fontsize=7,
+                    transform=ax.transAxes, family="monospace")
+            ax.text(left + 0.01, 0.11, l2, ha="left", va="top", fontsize=7,
+                    transform=ax.transAxes, family="monospace")
+        # day cell money diff
+        a, o = row[0], row[1]
+        if a and o:
+            ax.text(0.02, 0.005, f"Δ ${o['money'] - a['money']:+,.0f}", fontsize=8,
+                    transform=ax.transAxes, color="#d62728")
+
+    out_path = (out_dir or path.parent) / (path.stem + "_board.png")
+    fig.savefig(out_path, dpi=100)
+    plt.close(fig)
+    return out_path
+
+
 def write_run_csv(run_dir: Path, paths: List[Path]):
     """Write per-seed days CSVs and games.csv for the agent under test.
 
@@ -1784,6 +2355,12 @@ def cli():
     parser.add_argument("--xray", action="store_true",
                         help="Investigate a patch: per-step patch() moves, old-vs-new action "
                              "divergence, and day-by-day money for the same seed")
+    parser.add_argument("--graph", action="store_true",
+                        help="Render per replay a 1x2 side-by-side dashboard (LEFT=us, "
+                             "RIGHT=opponent: shed, prices+realised-sale dots, defects, "
+                             "money) AND a step-by-step board montage (_board.png) of both "
+                             "farms per day. Needs --replay-dir, or most recent run dir. "
+                             "Headless Agg.")
     parser.add_argument("--tape", choices=["v1", "v2"], default="v1",
                         help="Tape module to build main.py against: v1=route_tape.py "
                              "(production), v2=route_tape_v2.py (experimental)")
@@ -1792,11 +2369,22 @@ def cli():
     global _TAPE_SELECTED
     _TAPE_SELECTED = args.tape
 
-    if args.replay_dir:
-        run_dir = Path(args.replay_dir)
+    if args.replay_dir or (args.graph and not args.old and not args.new and not args.compare
+                           and not args.xray):
+        auto_picked = not args.replay_dir
+        run_dir = Path(args.replay_dir) if args.replay_dir else _most_recent_run_dir()
+        if run_dir is None:
+            print("No replay dir found; pass --replay-dir <dir>.")
+            return
         paths = sorted(run_dir.glob("*.json"))
         if not paths:
             print(f"No replay JSONs found in {run_dir}")
+            return
+        # Bare `--graph` must not silently render a huge default dir (e.g. a full
+        # 39-replay sweep) — ask for an explicit --replay-dir instead.
+        if args.graph and auto_picked and len(paths) > 8:
+            print(f"auto-picked {run_dir} has {len(paths)} replays; pass --replay-dir "
+                  f"{run_dir} explicitly to graph them (or cap it).")
             return
         write_run_csv(run_dir, paths)
         rows = [game_summary(p) for p in paths]
@@ -1807,6 +2395,9 @@ def cli():
             frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
             print(f"\n--- rendered: {paths[-1].name} ---")
             render(days, frames)
+        if args.graph and paths:
+            print(f"\nRendering PNG dashboards into {run_dir}:")
+            graph_batch(paths, run_dir)
         return
 
     pa_indices = _parse_pa_arg(args.pa)

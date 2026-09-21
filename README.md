@@ -57,6 +57,30 @@ python -c "import diagnose; print(diagnose.public_agent_names())"
 Full flag reference, seating convention, output formats and reproducibility are
 in `diagnose.py`'s module docstring (`python -m diagnose --help`).
 
+## Packaging for Kaggle
+
+The working agent is three files (`main.py` chassis + `agent.py` patch +
+`route_tape`) and ships to Kaggle as **one self-contained `.py`**. Use
+`package_agent.py`:
+
+```bash
+python package_agent.py                       # build dist/submission.py (no push)
+python package_agent.py --tape v2             # embed route_tape_v2.py instead
+python package_agent.py --check               # build + prove it == local --new
+python package_agent.py --push -m "message"   # build + submit to Kaggle
+```
+
+The generated `dist/submission.py` embeds `route_tape`, `main`, and
+`agent.patch` as synthetic `sys.modules` entries (dependency order) and exposes
+the public `agent(observation, configuration)` built exactly like the harness's
+`--new --tape v1` candidate — i.e. `agent.patch(main._original_agent(...))`.
+
+`--check` loads the bundle in a separate process and compares its final money to
+the local `--new` run on the same seed/opponent (byte-identical when it passes).
+`--push` submits via the `kaggle` CLI and refuses without
+`~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
+`~/.kaggle/access_token` (the current token format).
+
 ## Files at a glance
 
 | file | role | editable while experimenting? |
@@ -66,6 +90,7 @@ in `diagnose.py`'s module docstring (`python -m diagnose --help`).
 | `agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose.py` | diagnostic / A/B harness | yes |
 | `sweep.sh` | run `new`/`old` against all public agents over multiple seeds | yes |
+| `package_agent.py` | build + verify + optionally push the single-file Kaggle submission | yes |
 | `public_agents/*.py` | opponent agents | yes |
 | `README.md`, `AGENTS.md` | docs | yes |
 

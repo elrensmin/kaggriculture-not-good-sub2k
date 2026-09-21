@@ -243,3 +243,100 @@ From the pre-session work (see prior PLAN.md body — kept for continuity):
 
 Live public-agent index mapping:
 `python -c "import diagnose; print(diagnose.public_agent_names())"`.
+
+---
+
+## 8. Approach A (fertilizer spend/hold) — proven closed; full record
+
+### 8.1 Instrument proof (this session)
+
+`diagnose.py --xray` runs old vs new on the same seed and tags `PATCH-DIRECT` vs
+`[cascade]` divergence, shows live market price per step, and a day-by-day money
+ledger — the tool used to prove every claim below. `--tape {v1,v2}` selects which
+tape module the built chassis loads (verified: with v1==v2, `--tape v1 --old` and
+`--tape v2 --old` are byte-identical).
+
+### 8.2 Multi-seed v1 baseline banked (the gating reference — NOT seed 42 alone)
+
+Sweep `old` vs all 13 public agents over seeds 100–102 (39 games):
+**29 W / 10 L, avg final $95,133.** Losses all vs the top cluster:
+master-engine-v3 (0-3), one-more-wheat (0-3), pipe16-idle-workers (0-3),
+v53-opening-signature (2-1). Use THIS as the gating board; never seed 42 alone.
+
+### 8.3 Fertilizer defect mechanism (seed 42)
+
+- Days 1–13: sell 100% fertilizer at ~$99→$60 (fine).
+- Days 14–21: fertilize some + sell at ~$51→$24 (acceptable).
+- Days 22–29: **leak** — sell 11–17/day at $6–27 (base $100) while fertilizing
+  only 2–9/day and letting 7 plants die on day 23.
+- Pairing gap: every day 13–28 the farm waters 28–55 crops, of which 5–15 are
+  watered + in-window + un-fertilized (e.g. day 23 has 7) — the "obvious" waste
+  that turned out to be non-recoverable (§8.6–8.7).
+- Shed overflow measured via the original audit: seed 42, seat 1: day 23 = 17,
+  day 26 = 2, total 19, all FERTILIZER.
+
+### 8.4 Approach-A options designed, gating rule set
+
+Options: (1) PASS→FERTILIZE tape swap, (2) runtime sell-guard in agent.py, (3) both.
+
+**Gate (must follow — never average):** seed 42 must not regress; A/B new vs v1
+across the banked 13×3 board (39 games each) — accept only if the targeted
+late-day defect improves in most games AND no game gains a new structural waste
+(no new floor dump / overflow / escape). Promote only when stable.
+
+### 8.5 Attempt A1 — naive `PASS→FERTILIZE` tape swap → REVERTED (−$311)
+
+Turned every late-day (22–27) hand `PASS` into `FERTILIZE` in `route_tape_v2.py`
+post-decode block. Safe-by-construction from desync only (FERTILIZE never moves a
+hand). Seed-42 gate: **v1=91,674 / v2=91,363 (−$311), overflow 19→20 (worse) →
+failed.** Lesson: tape hands that look idle are *pre-positioned for later
+pickups*; swapping consumed fertilizer with no yield. Reverted (v2 byte-identical
+to v1).
+
+### 8.6 Attempt A2 — runtime sell-guard in `agent.py` → REVERTED (−$9,157, decisive)
+
+On days 22–27, when `main` proposes `SELL FERTILIZER` at price ≤ $25 and an
+in-window un-fertilized crop exists, drop the sell. A/B (same process, seed 42):
+**A2 off=91,695 / A2 on=82,538 (−$9,157), overflow 19→207, +1 animal escape.**
+Guard fired hard (4,568 units held) so it is a real mechanical test, not a no-op.
+
+**The real constraint (the valuable finding):** holding cheap fertilizer did not
+let the farm *spend* it — it just filled the shed and overflowed (207 vs 19).
+So the binding constraint is NOT "we sell too much cheap fertilizer"; it is
+**"the rigid tape's FERTILIZE choreography is already saturated on the crops it
+can afford"**. The pairing-gap is non-recoverable money at this production level.
+
+**De-scoped:** approach A is closed — neither "spend more" (A1) nor "hold
+instead of sell" (A2) wins. Baseline behavior (sell all surplus, even at $6,
+rather than overflow at $0) is already rational. Improving fertilizer margins
+would need a *production-level* crop/animal mix change — much larger scope.
+
+---
+
+## 9. Packaging for Kaggle — package_agent.py (build & check only)
+
+`package_agent.py` builds `dist/submission.py`: a single self-contained Kaggle
+agent embedding `route_tape` → `main` → `agent.patch` as synthetic `sys.modules`
+entries, exposing public `agent(observation, configuration) =
+agent.patch(main._original_agent(...))` — exactly the `--new --tape v1` candidate.
+
+- Verified: `--check` compares bundle vs local `--new` in the same process vs
+  public-agent#4 / seed 42 → **same money** (no F2 wobble); bundle also ran
+  standalone from `/tmp` (no workspace access).
+- Flags: `--tape v1|v2`, `--check`, `--push`, `--competition`, `-m`.
+- **Permissions:** the AGENT has NO permission to run `--push` / submit to
+  Kaggle (AGENTS.md "Submissions"). `package_agent.py` is for LOCAL packaging
+  only: build the file and stop. No automatic mock-run before/around packaging
+  (per operator). Pushing is the human's step, run from their terminal.
+- The shipped bundle = main + I1 opening patch over the v1 tape.
+
+---
+
+## 10. Open next (from §§8, 9)
+
+Approach A is closed. Real remaining upstream levers, each still gated on the
+banked 13×3 board (no averages):
+- production-level crop/animal mix (fertilizer-demand shaping),
+- L2 — sales timing for premium goods (strawberry/melon/milk/wool glut craters).
+Packaging is implemented and verified locally; pushing is the human's call once
+they're satisfied with the candidate.

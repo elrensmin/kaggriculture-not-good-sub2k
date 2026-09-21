@@ -10,6 +10,14 @@
 
 **All experiments go in `agent.py`.**
 
+## Submissions
+
+**The agent has NO permission to submit/push to Kaggle.** `package_agent.py` is for
+*local packaging only*: building the single-file bundle and (optionally) verifying it
+with `--check`. Never run `--push` yourself. Submitting the actual entry is the human's
+call, run by them from a terminal. Do not auto-run a mock game before/around packaging —
+the operator does not want a bundle verification run; build the file and stop.
+
 ## How the patch system works
 
 `agent.py` is a **patch layer over `main.py`**, not a standalone replacement:
