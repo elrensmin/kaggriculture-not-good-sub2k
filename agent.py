@@ -168,6 +168,12 @@ def patch(action, observation, configuration=None):
     Layered on top of main's production agent: applies the reference
     ``_ASTRA_I1`` opening extension (one more growth refresh on the opening
     temporary wheat) and its late extra-wheat sale.
+
+    (The L1 milk/fertilizer front-loading experiment was fully investigated via
+    diagnose --xray: the unlucky version regressed ~-$442/seed and even the
+    guarded version regresses across the seed set. The milk+fert micro edge is
+    the lockstep seat-0 first-mover advantage, not recoverable by our own sell
+    ordering. L1 was therefore reverted; I1 remains, as it is validated to help.)
     """
     if not isinstance(observation, dict):
         return action
