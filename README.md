@@ -12,11 +12,16 @@ developing and measuring improvements without touching the production agent.
 - **`route_tape.py`** — a pre-computed opening route tape. Read-only data.
 - **`agent.py`** — the experiment workspace: a **patch layer on top of `main.py`**.
   `agent.patch(action, observation, configuration)` receives the action `main.py`
-  produced and may alter it. Editing `patch()` is how you iterate.
+  produced and may alter it. Editing `patch()` is how you iterate. Reset to a
+  clean template after the last patch was promoted into `main.py`.
 - **`public_agents/`** — 13 reference/opponent agents used as adversaries in runs.
 - **`diagnose.py`** — the diagnostic / A/B harness. Its module docstring documents
   the full CLI, seating, outputs and reproducibility.
-- **`diag-replays/`** — saved game replays and per-run CSVs (gitignored).
+- **`fetch_lb_tapes.py`** — pulls the **full replays** of our real leaderboard
+  games (default: our top-scoring COMPLETE submission) into `replays/lb/`.
+- **`diagnose_lb.py`** — reuses `diagnose.py`'s analysis to report my-game and
+  opponent-game inefficiency statistics per cached lb replay.
+- **`diag-replays/`** — saved local game replays and per-run CSVs (gitignored).
 
 ## Development model
 
@@ -81,6 +86,25 @@ the local `--new` run on the same seed/opponent (byte-identical when it passes).
 `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 `~/.kaggle/access_token` (the current token format).
 
+## Real leaderboard (lb) diagnostics
+
+Our submitted agent runs in the wild against real opponents on real seeds; those
+episodes are the true test of a promoted patch. `fetch_lb_tapes.py` caches the
+**full** replay of those games, and `diagnose_lb.py` runs the same analysis
+`diagnose.py` uses (`replay_to_summary`) on **our** seat and the **opponent's**
+seat to hunt system-level inefficiencies.
+
+```bash
+# Pull our top-scoring COMPLETE submission's lb games (requires ~/.kaggle)
+python fetch_lb_tapes.py                 # --all = every COMPLETE submission
+python fetch_lb_tapes.py --list          # show what's cached
+
+# Analyze cached lb games: our stats + the opponent's, per game (never averaged)
+python diagnose_lb.py                    # compact table of our inefficiencies
+python diagnose_lb.py --detail           # full our-vs-them side-by-side per game
+python diagnose_lb.py --csv replays/lb/lb-stats.csv
+```
+
 ## Files at a glance
 
 | file | role | editable while experimenting? |
@@ -89,6 +113,8 @@ the local `--new` run on the same seed/opponent (byte-identical when it passes).
 | `route_tape.py` | opening route data | **NO** |
 | `agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose.py` | diagnostic / A/B harness | yes |
+| `fetch_lb_tapes.py` | pull full lb replays of our top-scoring submission | yes |
+| `diagnose_lb.py` | per-game efficiency report, our & opponent seats | yes |
 | `sweep.sh` | run `new`/`old` against all public agents over multiple seeds | yes |
 | `package_agent.py` | build + verify + optionally push the single-file Kaggle submission | yes |
 | `public_agents/*.py` | opponent agents | yes |

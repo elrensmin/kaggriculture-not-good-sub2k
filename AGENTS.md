@@ -255,5 +255,7 @@ live mapping.
 | `route_tape.py` | opening route tape data | **NO** |
 | `agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose.py` | diagnostic harness | yes, when the harness itself needs a feature |
+| `fetch_lb_tapes.py` | pull full lb replays of our top-scoring submission | yes |
+| `diagnose_lb.py` | per-game efficiency report, our & opponent seats | yes |
 | `sweep.sh` | run `new`/`old` against all 13 public agents over many seeds | yes |
 | `README.md`, `AGENTS.md` | docs | yes |

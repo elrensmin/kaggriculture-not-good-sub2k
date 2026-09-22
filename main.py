@@ -6417,6 +6417,159 @@ is_new_agent = False
 
 _original_agent = agent
 
+# ===========================================================================
+# NEW PATCH (promoted from agent.py) -- _ASTRA_I1 opening extension  [BASELINE]
+# ---------------------------------------------------------------------------
+# Extends the opening temporary-wheat crop by one growth refresh. The base
+# HybridOpening tape (installed live by layer_44_alt above) harvests the day-0
+# temporary wheat on day 2 (step ~54, yielding 2). This patch instead lets that
+# wheat sit one more growth refresh and harvests it on day 3 (step ~87, watered
+# again at ~86), raising its yield to ~3-4, then re-runs the day-3 hand[0] route
+# to water / harvest / restore-pasture / deliver, and on the drop (step 91)
+# sells the extra delivered wheat. Net: more opening wheat sold without losing
+# the pasture build -- a small, seed-independent efficiency.
+#
+# This WAS the agent.py experiment (see git history before this promotion); it
+# is now folded into the production baseline. agent.py has been reset to a clean
+# template for the next experiment. To change it, re-edit the _i1_* helpers /
+# _i1_apply below and treat "old" as this promoted baseline.
+#
+# Empirics (clean --compare, old vs new on the same seeds, F2 wobble eliminated):
+#   vs master-engine-v3: +18,+29,+28,+15,+22,+17 (6/6 seeds improved);
+#   vs cloning-agent +21/+21/+19, vs top-2-master-engine-v4 +21/+59/+19 (6/6);
+#   vs one-more-wheat +16/+32 (2/3, one seed -123 with +3 floor sales).
+#   No new escapes/overflow/unwatered in any tested game.
+# ===========================================================================
+_I1_REPORT = dict(
+    installed=0, harvested_units=0, delivered_units=0,
+    pasture_restored=0, sale_units=0, errors=0,
+)
+_I1_STATE = {}
+
+
+def _i1_int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _i1_install(mode):
+    """Apply the reference I1 tape edits on top of the base HybridOpening tape.
+    Runs after layer_44_alt installed the base opening, so the shape asserts
+    below must already hold (they mirror the reference _alt_install)."""
+    try:
+        tape = _IMPL.chassis.routes[0]
+        expected = [['HARVEST'], ['BUILD_PASTURE'], ['EAST'], ['EAST'], ['DROP']]
+        assert [tape[s]['hands'][0] for s in range(53, 58)] == expected
+        assert all(tape[s]['hands'][0] == ['PASS'] for s in range(84, 92))
+        commands = [['EAST'], ['EAST'], ['WATER'], ['HARVEST'],
+                    ['BUILD_PASTURE'], ['EAST'], ['EAST'], ['DROP']]
+        for s in range(53, 58):
+            tape[s]['hands'][0] = ['PASS']
+        for s, command in zip(range(84, 92), commands):
+            tape[s]['hands'][0] = command
+        _I1_REPORT['installed'] += 1
+        return True
+    except Exception:
+        # Tape shape not as expected (e.g. a reinstall didn't produce the base
+        # opening). Fall back to the untouched production tape -- never corrupt.
+        _I1_REPORT['errors'] += 1
+        return False
+
+
+def _i1_sell_extra(action, item, n):
+    if n <= 0:
+        return action
+    orders = [list(o) for o in (action.get('market') or [])]
+    sell = next((o for o in orders if len(o) >= 3 and o[:2] == ['SELL', item]), None)
+    if sell is not None:
+        sell[2] += n
+    elif len(orders) < 10:
+        orders.append(['SELL', item, n])
+    else:
+        return action
+    return dict(action, market=orders)
+
+
+def _i1_run(obs, action):
+    """Reference _ASTRA_I1 post-process: telemetry + late extra-wheat sale."""
+    seat = _i1_int(obs.get('player', 0))
+    step = _i1_int(obs.get('step', 0))
+    alt_state = _ALT_STATE.get(seat, {})
+    if alt_state.get('mode') != 'HybridOpening' or not _I1_REPORT['installed']:
+        return action
+    st = _I1_STATE.setdefault(seat, {})
+    private = obs['private']
+    farm = obs['farms'][seat]
+    cargo = int(private['inventories'][1].get('WHEAT', 0)) if len(private['inventories']) > 1 else 0
+    unit_hands = action.get('hands') or []
+    farm_hands = farm.get('hands') or []
+    if step == 87 and unit_hands and unit_hands[0] == ['HARVEST']:
+        st['preharvest'] = cargo
+    if step == 88 and 'preharvest' in st:
+        _I1_REPORT['harvested_units'] = max(0, cargo - st['preharvest'])
+    if step == 89:
+        tile = farm['tiles'][4][2]
+        _I1_REPORT['pasture_restored'] = int(isinstance(tile, dict) and tile.get('kind') == 'PASTURE')
+    if step == 92 and 'predicted_delivery' in st:
+        _I1_REPORT['delivered_units'] = min(st['predicted_delivery'], max(0, st['predrop'] - cargo))
+    if step != 91 or not unit_hands or unit_hands[0] != ['DROP'] or not farm_hands or tuple(farm_hands[0]) != (4, 4):
+        return action
+    _, projected = _r127_fields(obs, action)
+    delivered = max(0, cargo - int(projected['inventories'][1].get('WHEAT', 0)))
+    st['predrop'] = cargo
+    st['predicted_delivery'] = delivered
+    scheduled = sum(max(0, int(o[2])) for o in action.get('market', [])
+                    if len(o) >= 3 and o[:2] == ['SELL', 'WHEAT'])
+    extra = min(delivered, max(0, int(projected['shed'].get('WHEAT', 0)) - scheduled))
+    if not extra:
+        return action
+    changed = _i1_sell_extra(action, 'WHEAT', extra)
+    if changed is not action:
+        _I1_REPORT['sale_units'] += extra
+    return changed
+
+
+def _i1_apply(action, observation, configuration=None):
+    """Post-process the action produced by the production agent just below.
+
+    (Two experiments were fully investigated via diagnose --xray and reverted:
+      - L1 milk/fertilizer front-loading: a seat-0 first-mover micro edge, not
+        recoverable by our own sell ordering (regressed ~-$442/seed, guarded too).
+      - Weed-recovery: forcing an early pasture build after a weed-dig
+        desynchronizes the worker from the fixed route tape and costs ~-$28.9k
+        on the affected seed, far more than the recovered cow is worth.)"""
+    if not isinstance(observation, dict):
+        return action
+    step = _i1_int(observation.get('step', 0))
+    if step <= 0:
+        _I1_STATE.clear()
+        # layer_44_alt (running just below, as the production parent) has already
+        # installed the base HybridOpening tape; the I1 edits apply on top. The
+        # shape asserts guard against any mismatch.
+        _i1_install('HybridOpening')
+        return action
+    try:
+        return _i1_run(observation, action)
+    except Exception:
+        _I1_REPORT['errors'] += 1
+        return action
+
+
+_I1_BASE = _original_agent
+
+
+def agent(observation, configuration=None):
+    """Production agent = layer_44_alt then the promoted _ASTRA_I1 patch."""
+    return _i1_apply(_I1_BASE(observation, configuration), observation, configuration)
+
+
+agent.telemetry = _ALT_REPORT
+agent._i1_report = _I1_REPORT
+_original_agent = agent
+
+
 def _select_agent(observation, configuration=None):
     if is_new_agent and _new_agent_module is not None:
         return _new_agent_module.agent(observation, configuration)
