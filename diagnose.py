@@ -48,14 +48,15 @@ Flags:
                      where agent.patch() directly rewrote the action, (2) every step
                      where the old and new games diverge (tagged PATCH-DIRECT vs
                      cascade), (3) day-by-day money curves. Use with --pa/--seed/--batch.
-    --graph          render PNG dashboards from SAVED replays, two images per game:
-                     (a) a 1×2 side-by-side, LEFT = our agent / RIGHT = the opponent,
-                     each a vertical stack (shed vs 100-cap + weeds, market prices with
+    --graph          render dashboards from SAVED replays: (a) a 1×2 side-by-side
+                     PNG, LEFT = our agent / RIGHT = the opponent, each a vertical
+                     stack (shed vs 100-cap + weeds, market prices with
                      shop ticks AND realised-sale dots, per-day defect swimlane, end-of-day
-                     money) on a shared day axis; (b) a board montage (`_board.png`) with
-                     the market-price curve + one cell per day showing BOTH farms' 10×10
-                     maps (crops/animals/weeds/structures) and a money·shed·seeds·weeds
-                     readout, so you can correlate state with price action. Uses
+                     money) on a shared day axis; (b) an animated farm-board GIF
+                     (`_board.gif`) — one frame per day showing BOTH farms' 10×10
+                     maps (crops/animals/weeds/structures) plus farmer/hand position
+                     dots and a money-race panel, so you can WATCH when a defect
+                     appears instead of reading a static PNG. Uses
                      --replay-dir, or the most recent run dir. Per-game, never averaged.
                      Headless Agg.
     --pa N[,M,...]   public agent indices (1-13), e.g. 1,2,3 or 1-6
@@ -1069,9 +1070,27 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
                 if a.get("consecutive_unfed", 0) >= 2:
                     at_risk_escape += 1
 
+    # Endgame hygiene: dollars stranded at the bell (destbreso's x-ray "stranded
+    # $" macro indicator). Unsold inventory does NOT count toward the score, so
+    # shed + unit inventories still holding sellable product at FINAL prices is
+    # money that died in the shed. Animals are structures, not sellable stock, so
+    # they are excluded (they also live in the shed slot).
+    stranded = 0
+    if frames:
+        lp = frames[-1].get("prices", {})
+        _shed = frames[-1].get("shed", {}) or {}
+        for k, v in _shed.items():
+            if k not in ANIMALS:
+                stranded += v * lp.get(k, 0)
+        for inv in (frames[-1].get("inventories", []) or []):
+            for k, v in (inv or {}).items():
+                if k not in ANIMALS:
+                    stranded += v * lp.get(k, 0)
+
     out = OrderedDict()
     out["days"] = len(days)
     out["final_money"] = round(days[-1]["end_money"], 1)
+    out["stranded_at_bell"] = round(stranded)
     out["avg_daily_delta"] = round(sum(d["money_delta"] for d in days) / len(days), 1)
     idle_units_total = sum(d.get("idle_units", 0) for d in days)
     unit_turns_total = sum(d.get("unit_turns", 0) for d in days)
@@ -1285,7 +1304,7 @@ def _game_columns() -> List[str]:
             "final_money", "opponent_final", "result",
             "idle_steps", "idle_units_total", "idle_share_pct",
             "idle_units_ready_total", "shed_pressure_days", "shed_overflow_days",
-            "discarded_units_total", "discarded_items", "floor_sales",
+            "discarded_units_total", "discarded_items", "floor_sales", "stranded_at_bell",
             "animal_escapes", "escaped_by_type", "plants_died", "harvests",
             "weeds_peak", "unfed_signals", "at_risk_of_escape", "unwatered_eod",
             "missed_harvest_eod",
@@ -1378,6 +1397,7 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
         "discarded_units_total": summary.get("discarded_units_total", 0),
         "discarded_items": json.dumps(summary.get("discarded_items", {}), sort_keys=True),
         "floor_sales": sum(summary.get("floor_sales", {}).values()),
+        "stranded_at_bell": summary.get("stranded_at_bell", 0),
         "animal_escapes": summary.get("animal_escapes", 0),
         "escaped_by_type": " ".join(f"{k}:{v}" for k, v in summary.get("animals_escaped_by", {}).items()),
         "plants_died": summary.get("plants_died_to_weeds", 0),
@@ -2155,8 +2175,9 @@ def plot_game(path: Path, out_dir: Optional[Path] = None):
 
 
 def graph_batch(paths: List[Path], run_dir: Path) -> List[Path]:
-    """Render per replay the 1×2 side-by-side dashboard AND the step-by-step board
-    montage, returning the paths written."""
+    """Render per replay the 1×2 side-by-side dashboard AND an animated farm-board
+    GIF (both farms + farmer/hand positions + money race, one frame per day),
+    returning the paths written."""
     out = []
     for p in paths:
         try:
@@ -2167,12 +2188,12 @@ def graph_batch(paths: List[Path], run_dir: Path) -> List[Path]:
         except Exception as e:  # keep one bad replay from killing the batch
             print(f"  graph FAILED {p.name}: {e}")
         try:
-            rendered = plot_board(p, out_dir=run_dir)
+            rendered = plot_board_gif(p, out_dir=run_dir)
             if rendered:
                 out.append(rendered)
                 print(f"  graph: {rendered.name}")
         except Exception as e:
-            print(f"  board FAILED {p.name}: {e}")
+            print(f"  board GIF FAILED {p.name}: {e}")
     return out
 
 
@@ -2359,6 +2380,134 @@ def plot_board(path: Path, out_dir: Optional[Path] = None):
     return out_path
 
 
+def _draw_farm_with_positions(ax, tiles, farmer, hands):
+    """One farm on `ax`: colour-coded 10×10 tiles plus farmer / hand position dots.
+
+    Mirrors the notebook's `draw_farm` idea: a ripe crop (yield_units > 0) gets a
+    white dot, animals are drawn in their product colour, the shed is the centre
+    cross, and each worker is a shaded circle (farmer bigger than hands)."""
+    ax.imshow(_tiles_to_rgb(tiles), origin="upper", interpolation="nearest", aspect="equal")
+    # ripe-crop dots
+    for y, row in enumerate(tiles):
+        for x, t in enumerate(row):
+            if isinstance(t, dict) and t.get("kind") == "PLANT" and t.get("yield_units", 0) > 0:
+                ax.plot(x, y, "o", ms=3.2, mfc="white", mec="none", zorder=6)
+    ax.plot([0, 10], [5, 5], color="0.5", lw=1.4, alpha=0.8, zorder=4)
+    ax.plot([5, 5], [0, 10], color="0.5", lw=1.4, alpha=0.8, zorder=4)
+    ax.text(5, 5, "shed", ha="center", va="center", fontsize=6, color="#111111", zorder=5)
+    if farmer is not None:
+        ax.plot(farmer[0], farmer[1], "o", ms=9.0, mfc="#1e3a8a", mec="white", mew=1.2, zorder=7)
+    for hx, hy in hands or []:
+        ax.plot(hx, hy, "o", ms=5.5, mfc="#1e3a8a", mec="white", mew=1.0, zorder=7)
+    ax.set_xlim(-0.5, 9.5); ax.set_ylim(9.5, -0.5)
+    ax.set_xticks([]); ax.set_yticks([])
+    for s in ax.spines.values():
+        s.set_linewidth(0.6)
+
+
+def _tiles_to_rgb(tiles):
+    arr = []
+    for row in tiles:
+        arr_row = []
+        for t in row:
+            c, _ = _tile_color_letter(t)
+            arr_row.append(c)
+        arr.append(arr_row)
+    return arr
+
+
+def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 5,
+                   max_days: int = 30) -> Optional[Path]:
+    """Render an animated farm-board GIF from a saved replay, `<stem>_board.gif`.
+
+    One frame per in-game day (like the notebook's `season_gif`): BOTH farms side by
+    side (tiles + ripe-crop dots + farmer/hand position markers) and a money-race
+    panel showing both banks through the season. This is the `--graph` board output —
+    an animation you can watch for *when* a defect appears, instead of a static PNG.
+    """
+    plt = _plt()
+    replay = load_replay(path)
+    agent_seat = _agent_seat(replay)
+    opp_seat = 1 - agent_seat
+    meta = replay.get("_diagnose_meta", {})
+    n = len(replay.get("steps", []))
+    if n == 0:
+        return None
+    steps = replay["steps"]
+    days = list(range(min(max_days, (n + TURNS_PER_DAY - 1) // TURNS_PER_DAY)))
+    snap_steps = [min(d * TURNS_PER_DAY + TURNS_PER_DAY - 1, n - 1) for d in days]
+
+    money = {seat: [] for seat in (agent_seat, opp_seat)}
+    for s in steps:
+        for seat in (agent_seat, opp_seat):
+            if seat < len(s):
+                o = s[seat].get("observation") or {}
+                me = (o.get("farms") or [])[seat] if seat < len(o.get("farms") or []) else {}
+                money[seat].append(me.get("money", 0.0) or 0.0)
+
+    top = max([max(money[agent_seat] + [0])] + [max(money[opp_seat] + [0])]) * 1.08
+
+    def _snapshot(seat, i):
+        s = steps[i]
+        if seat >= len(s):
+            return None
+        o = s[seat].get("observation") or {}
+        me = (o.get("farms") or [])[seat] if seat < len(o.get("farms") or []) else {}
+        if not me:
+            return None
+        hands = []
+        for h in me.get("hands") or []:
+            hp = h.get("pos") if isinstance(h, dict) else h
+            if isinstance(hp, (list, tuple)) and len(hp) == 2:
+                hands.append(hp)
+        farmer = me.get("farmer")
+        if not isinstance(farmer, (list, tuple)) or len(farmer) != 2:
+            farmer = None
+        return {
+            "tiles": [list(r) for r in (me.get("tiles") or [])],
+            "farmer": farmer,
+            "hands": hands,
+            "money": me.get("money", 0.0) or 0.0,
+        }
+
+    snaps = [(d, _snapshot(agent_seat, k), _snapshot(opp_seat, k)) for d, k in zip(days, snap_steps)]
+
+    from matplotlib.animation import FuncAnimation, PillowWriter
+    fig, (axA, axO, axM) = plt.subplots(
+        1, 3, figsize=(10.6, 3.7),
+        gridspec_kw={"width_ratios": [1.0, 1.0, 1.25]}, sharey=False)
+
+    def frame(i):
+        d, sa, so = snaps[i]
+        for ax in (axA, axO, axM):
+            ax.clear()
+        if sa:
+            _draw_farm_with_positions(axA, sa["tiles"], sa["farmer"], sa["hands"])
+            axA.set_title(f"US · day {d} · ${sa['money']:,.0f}", fontsize=9, fontweight="bold")
+        else:
+            axA.set_title(f"US · day {d}", fontsize=9)
+        if so:
+            _draw_farm_with_positions(axO, so["tiles"], so["farmer"], so["hands"])
+            axO.set_title(f"OPP · day {d} · ${so['money']:,.0f}", fontsize=9, fontweight="bold")
+        else:
+            axO.set_title(f"OPP · day {d}", fontsize=9)
+        k = snap_steps[i]
+        axM.plot([money[agent_seat][t] for t in range(k)], color="#1e3a8a", lw=2.0, label="US")
+        axM.plot([money[opp_seat][t] for t in range(k)], color="#d62728", lw=1.6, label="OPP")
+        axM.set_xlim(0, n); axM.set_ylim(0, top)
+        axM.set_title("Coins in the bank", fontsize=9, fontweight="bold")
+        axM.set_xlabel("turn", fontsize=8); axM.grid(alpha=0.2)
+        axM.legend(fontsize=7.5, loc="upper left", frameon=False)
+        fig.suptitle(f"{meta.get('agent','?')} vs {meta.get('opponent','?')} · seed {meta.get('seed','?')}",
+                     fontsize=11, fontweight="bold")
+
+    anim = FuncAnimation(fig, frame, frames=len(snaps), interval=200)
+    out_path = (out_dir or path.parent) / (path.stem + "_board.gif")
+    anim.save(out_path, writer=PillowWriter(fps=fps), dpi=90)
+    plt.close(fig)
+    return out_path
+
+
 def write_run_csv(run_dir: Path, paths: List[Path]):
     """Write per-seed days CSVs and games.csv for the agent under test.
 
@@ -2426,11 +2575,7 @@ def cli():
                         help="Investigate a patch: per-step patch() moves, old-vs-new action "
                              "divergence, and day-by-day money for the same seed")
     parser.add_argument("--graph", action="store_true",
-                        help="Render per replay a 1x2 side-by-side dashboard (LEFT=us, "
-                             "RIGHT=opponent: shed, prices+realised-sale dots, defects, "
-                             "money) AND a step-by-step board montage (_board.png) of both "
-                             "farms per day. Needs --replay-dir, or most recent run dir. "
-                             "Headless Agg.")
+                        help="Render per-game dashboard PNG + animated farm-board GIF from saved replays")
     parser.add_argument("--tape", choices=["v1", "v2"], default="v1",
                         help="Tape module to build main.py against: v1=route_tape.py "
                              "(production), v2=route_tape_v2.py (experimental)")

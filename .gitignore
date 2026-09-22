@@ -13,3 +13,4 @@ diag-replays/
 
 # Downloaded leaderboard replays (see fetch_lb_tapes.py)
 replays/
+ntbk/

@@ -52,6 +52,145 @@ Signal = a concrete defect observed in a specific game / day / step that hurts
 every game regardless of seed or opponent. If you can't point at one, it isn't an
 improvement — even if some mean moved.
 
+## Why "never trust averages" runs deeper: the win‑vs‑money objective
+
+Distilled from the community notebook `wins-not-money.ipynb` (destbreso) — the
+single most instructive result in this folder, and the *reason* the anti‑goal
+above is not just a workflow preference.
+
+- **The ladder pays for wins, not dollars.** A win by $1 and a win by $50k move
+  the rating the same way (measured: after a submission's first ~15 games the
+  margin/rating link vanishes; below ~40 games a win rate is pure binomial
+  ~11pt noise). The quantity to maximise is **Pr[win] ≈ Φ(μ/σ)** — the
+  *mean-over-spread* of the margin — not the mean margin. **Money is a
+  lower‑noise estimator of the same thing, not the objective.** So: *judge a
+  change on margin (low‑noise measurement), but choose the change that raises
+  Pr[win]*. A patch can raise the median bank and still lose 28/28 games it
+  changed — that exact failure is documented in the notebook.
+- **Optimise consistency, not magnitude.** A µ/σ maximiser beats the opponent
+  narrowly instead of crushing half the field. The strongest agent cited wins
+  by leaving the rival less (median bank within 0.5% of its predecessor).
+- **Signed risk preference (Corollary 3).** Additional variance *increases*
+  Pr[win] only when you expect to finish **behind** (ℓ+μ<0) and *decreases* it
+  when **ahead**. Both banks are public, so ℓ is observable every turn. A
+  variance term with a fixed sign is wrong half the time; the sign flips at
+  ℓ+μ=0.
+- **Non‑composition — why greedy hill‑climbing lies.** E[M] is linear and
+  composable (accepting any improving step converges), but Pr[win] is a *ratio*:
+  dispersions of independent effects add while means do not (revenue is
+  concave — selling into a market you already moved fetches less). Two changes
+  that each raise μ/σ can jointly lower it. **Evaluate combinations, never
+  components** (accept an idea only from a run of its actual patch, not from
+  "each layer looked good alone").
+- **Aggregate per opponent, then average — never the other way round.** A single
+  pooled Φ folds between‑opponent spread into σ and flatters you (~4pt here).
+- **Practical translation for our harness:** this is *why* `--compare` diffs
+  the **same seed** (matched opponents cancel) and why `--old`/`--new` are
+  judged per‑game on concrete defects rather than on a mean: a mean is the
+  *wrong objective's* summary of the *wrong sample*. Trust `result` (WIN/LOSS);
+  treat `final_money` as the noisy-but-high-resolution readout, never the score.
+
+## Reading rivals from replays (meta‑observations from `ntbk/`)
+
+Actionable context distilled from the four community notebooks in `ntbk/`
+(`x-ray-your-agent`, `a-dna-test-for-agents`, `everyone-is-playing-the-same-opening`,
+`wins-not-money`). Use these when building the routing/decision tree or reading a
+replay of our own agent.
+
+- **Turn convention in a replay (off‑by‑one trap).** The action *decided at turn
+  `t`* is stored at `steps[t + 1]` of the replay; `day = turn // 24`. Reading the
+  raw index shifts the whole picture by one turn. **Nothing observable differs
+  before turn 48** — early agreement between any two agents is engine
+  determinism, not kinship.
+- **The "day barcode" (DNA test).** The engine resynchronises every unit each
+  morning, so the conserved, most-own window is **hours 1–4 of each day**. Hashing
+  the plan channel over that window (farmer + hands + structural/provisioning
+  orders, never sells or quantities) yields a 30‑band genome: matching bands =
+  shared ancestry, first differing band = the in‑game day two agents forked.
+  Adaptive layers show up as *where* the barcode stops being self‑consistent.
+  Practical value: we can identify which public opponents play our exact lineage
+  and whether a rival forks at the shop draw (turns 72/144) or reacts live.
+- **Opening monoculture.** At turn 24 the field concentrates on a handful of
+  shared openings (one line historically ~15% of all seats); agreement collapses
+  after ~turn 100. Most of the field shares an *opening book*, not a strategy —
+  so early‑game differences are where a router can differentiate.
+- **Macro shape of a top agent (measured #1, 2026‑08‑30).** 2nd quadrant bought on
+  **day 5**; ~**280 CARE** actions/season; herd ≈ **7 COW**; leaves ~**13 tiles
+  fallow** late and **~$442 stranded** at the bell. A 4th‑quadrant line appears
+  in ~12% of a top‑30 agent's games, always on **day 18**, always ~10 tomato tiles.
+  Field staffing reference (490 seat‑seasons): **4 hands by day 4, 8 by day 6, 11
+  by day 10, 12 from day 13 to the bell**, IQR 0–2 hands all season. Compare our
+  own numbers against these as *shapes to understand*, not targets.
+- **Market crate (don't sell into the hole you just dug).** A large sale reprices
+  the shared book for *both* players. If we dump a product and then (or the rival
+  then) sells the same product within ~a day into the depressed window, that volume
+  eats the price drop — quantified damage = victim qty × Δprice. This is the
+  concrete mechanism behind "bundle premium‑goods and time sales"; a glut you
+  create stays cheap for a while (a $1 sale adds no supply).
+- **Labour is movement.** Measured split: the #1 spends **53.8% of unit‑turns
+  walking, 3.8% idle**; a mid‑table agent 42.9% walking / 11.8% idle. Wasted
+  labour mostly *shows up as idle in place* rather than extra walking — so
+  `idle_share_pct`/`idle_units_ready_total` are the real defect signals.
+
+## Net‑new mechanics from `kaggriculture-visualized-what-every-crop-pays` (georgymamarin, 15 Sep 2026)
+
+This is the strongest *measured* mechanics guide in `ntbk/`; each line below is a
+number it verified against the engine or the ladder, not an assumption. Where it
+shadows the reference above, prefer the measured number.
+
+- **The engine version is load‑bearing.** The ladder runs **1.32.7** (our local env
+  matches — check `kaggle_environments.__version__`). Three behaviours hinge on it:
+  fertilizer **is** sellable, units **can** walk across unbought tiles (since
+  1.32.3), and the **scarcity side of carrot/tomato/egg was bent into `hinge` on
+  2026‑08‑15**. Any strategy writeup dated before 15 Aug priced carrot under a
+  $43 ceiling (older rule); since the change the *median* carrot game peaks ~$57
+  and one in ten clears $100. Reading the engine repo is worth more than tuning.
+- **Selling into SCARCITY is the single biggest lever, not selling on a schedule.**
+  A market running short pays multiples of base: ~1000 units short = **~15× base for
+  carrot, ~54× for tomato**. Tomato's knee sits at 200 units short, carrot's at
+  450. The *curve that can spike is worthless unless something empties the shelf
+  and you refill in time* — shops + town center are what empty it (see odds below).
+  Realise `avg_price_<p> << base` = we sold into a glut instead of the spike.
+- **Melon has no shop buyer.** It is on **none** of the 8 shop menus; its only
+  buyer all season is the town center (1/day = 30 units). Its price floors at
+  $1 after **158 net units sold** — so melon is great when the field under‑grows
+  it, and a trap when they don't (both players' melon dumps share the same shelf).
+- **Shop demand odds (draw is with replacement, 8 shops, unlock every 3d).**
+  Median season opens only **5 distinct** types. **Wool is on one menu only (Yarn
+  Store)** → ~1/3 of seasons have *no* wool buyer. Fertilizer is bought by nobody
+  (town center included). Typical season demand: **~270 carrot, ~180 tomato**,
+  carrot's buyer (Pet Cafe) is single‑product so eats double. **By day 6 you have
+  seen 2 of the 8 shops — a real sample of the season**; use the opening pair to
+  choose what to plant rather than betting blind.
+- **Watering efficiency is the cheapest win on a worker‑turn‑bound farm.**
+  "Half of a careful bot's watering does nothing." On **ongoing** crops
+  (tomato/strawberry) water adds **no fruit by itself** (the schedule fruits
+  watered or not) — the only exception is fertilised days, which double that
+  day's fruit *on a watered day*. Unfertilised ongoing crops need water only
+  **every other day** (their survival cadence). On one‑shot crops, water inside
+  the window adds yield, outside it is survival‑only (see watering window above).
+  A daily‑water‑everything rule that our agent may follow is wasting worker‑turns.
+- **Land is cheap; *worked* land is not.** Extra tiles with the same crew are
+  *worth nothing* (measured). Hands pay only when **both** change together: give
+  each worker **its own tiles** AND **more ground to work**. Either alone is
+  ~worthless; hands wired to the shared job list even hurt (idle expensively).
+  Hands are extra **actions**, not extra judgement. (Confirm our main.py grows
+  crew and ground in lock‑step, not one before the other.)
+- **`PLANT` is validated collectively & silently.** If the total `PLANT` requests
+  for a crop this turn exceed the seeds held, **ALL** of them convert to `PASS` —
+  including the farmer's. It counts *requests*, so a unit standing on an already‑
+  occupied tile still consumes a request. A mass‑missed‑planting day is this bug.
+- **Same‑seed A/B is not strictly clean.** The town lottery's RNG stream is shared
+  with weed spawning (one roll per *bare* tile at night), so two versions that
+  differ in ground coverage draw different shops. Matched seeds still cancel
+  *most* noise, but a big planting‑coverage change can decouple the shop draw.
+- **Cheat‑sheet gotchas.** The engine runs the **last callable** in your file, not
+  the one named `agent` (a helper below your agent silently becomes it). Budget:
+  **1 s/turn, 60 s total overage → timeout ends the episode**. `BUY_PRODUCT` is
+  wheat/fertilizer only; $1‑floor sales add no market inventory; seeds are an
+  uncapped separate slot; 10 market orders max per turn (extras dropped);
+  invalid actions are silent no‑ops.
+
 ## Game Environment Reference
 
 Authoritative summary distilled from the installed environment
@@ -100,6 +239,21 @@ what our agent should do.
   refreshes → weed.** The planting day already counts as day 1 unwatered, so a
   seed left unwatered the same day it's planted dies that night — always water on
   plant day.
+- **Watering bonus window (one-time crops) — CRITICAL for watering efficiency.**
+  Env source (`_do_action` WATER branch) adds yield only when the plant's *age*
+  is inside `window_start <= age_days <= max_yield_day`, where
+  `window_start = (max_yield_day + 1) // 2`; bonus is `+2` if fertilized else `+1`.
+  For **WHEAT** (`max_yield_day=4`) the window is **ages 2–4**; for **CARROT**
+  (`max_yield_day=3`) the window is **ages 2–3**. This means:
+  - A one-time crop's **first-day water (age 0) buys survival only — 0 yield bonus**.
+  - Watering on **age 1 adds 0 to the harvest** for both WHEAT and CARROT; the first
+    bonus-paying water is on **age 2**.
+  - So the *minimal survival* schedule (no yield loss) is: water age 0/1 enough to
+    avoid consecutive-unwatered (`>=2`) death, then **water ages 2–4 (WHEAT) /
+    2–3 (CARROT)** to bank the yield. Any extra water on age 1 that isn't needed to
+    skip-death is wasted worker-turn (yields nothing) — it only ever delays a weed.
+    Fertilizer ($100) multiplies the window bonus to +2/day, which is what lets wheat
+    reach its 6-unit cap (4 is the unfertilized watered peak).
 
 ### Animals
 | Animal | Structure | Cost | Product | Base | 1st yield (day) | Interval | Max held | Steady yield/day |
@@ -234,8 +388,10 @@ or your `--run-dir`):
   compact per-game readout printed to the terminal.
 
 Re-diagnose saved replays with `python diagnose.py --replay-dir <dir> --render`
-(regenerates the CSVs; `--render` prints the day report). `--graph` renders PNG
-dashboards of both farms per day.
+(regenerates the CSVs; `--render` prints the day report). `--graph` renders a
+1×2 dashboard PNG per game **plus an animated farm-board GIF** (`_board.gif`) — one
+frame per in-game day showing BOTH farms' 10×10 maps with farmer/hand position
+dots and a money-race panel, so you can watch *when* a defect appears.
 
 > **Context for these metrics:** to see *how* the agent got here — the base
 > route tape it runs on, the 45-layer patch stack built on top of it, and what
@@ -260,6 +416,7 @@ dashboards of both farms per day.
 | `shed_pressure_days` / `shed_overflow_days` | days shed ≥95 / ==100 | near/at cap ⇒ overflow risk |
 | `discarded_units_total` / `discarded_items` | shed-overflow units discarded; which item (`{}`/`{WHEAT:…}`) | what actually got thrown away (often all FERTILIZER) |
 | `floor_sales` | units sold at the $1 floor | gluts dumped into the floor |
+| `stranded_at_bell` | $ value of sellable shed + unit-inventory stock at FINAL prices (animals excluded) | endgame hygiene — unsold stock doesn't score, so a non-zero here is money that died in the shed; leader tolerates ~$442 |
 | `premium_below_base_frac` | share of premium-good (strawberry/melon/milk/wool) units sold below base | bad timing on crash-prone goods |
 | `animal_escapes` / `escaped_by_type` | animal losses (`COW:1`); `at_risk_of_escape` = ≥2 consec. unfed | near-miss precursor to chase |
 | `plants_died` / `missed_harvest_eod` / `unwatered_eod` | decayed crops / unharvested at day-end / unwatered at EOD | lifecycle defects |
@@ -342,4 +499,5 @@ live mapping.
 | `sweep.sh` | run `new`/`old` against all 13 public agents over many seeds | yes |
 | `analyze_patches.py` | static survey + empirical BASE→layer→final prefix loop (feeds `PATCH_ITERATION_ANALYSIS.md`) | yes |
 | `PATCH_ITERATION_ANALYSIS.md` | data-based reference for how the 45 layers change the metric columns | yes |
+| `ERRORS.md` | living list of concrete gameplay errors found in our replays (see it before writing any patch) | yes |
 | `README.md`, `AGENTS.md` | docs | yes |
