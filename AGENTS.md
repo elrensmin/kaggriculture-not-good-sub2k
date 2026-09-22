@@ -222,6 +222,77 @@ per-seed luck issue.
 4. When the patch is clearly better and stable, promote it into `main.py` as the
    new baseline, then clear `agent.py` for the next experiment.
 
+## Using `diagnose.py` — columns & how to read the signals
+
+The harness writes three things per run directory (`diag-replays/run-N/` by default,
+or your `--run-dir`):
+
+- **replay JSONs** — one per game, the full per-step observations+actions for both seats.
+- **`days_seed<S>.csv`** — one file per seed, one row **per day** for the agent under
+  test (seat 1 with the public agents). Per-day timeline, **not** aggregated.
+- **`games.csv`** — one row **per game** for the agent under test (its seat), plus a
+  compact per-game readout printed to the terminal.
+
+Re-diagnose saved replays with `python diagnose.py --replay-dir <dir> --render`
+(regenerates the CSVs; `--render` prints the day report). `--graph` renders PNG
+dashboards of both farms per day.
+
+### `games.csv` columns (one row per game)
+
+| column | meaning | read it as |
+|---|---|---|
+| `final_money` / `opponent_final` / `result` | end bank balances; `WIN`/`LOSS`/`TIE` | W/L/T only — margins don't score |
+| `idle_share_pct` | % of work-unit turns that were `PASS` (**the** labor-efficiency signal) | high ⇒ idle hands/wasted labour |
+| `idle_units_total` | unit-PASS turns, any tile | how many work-slots did nothing |
+| `idle_units_ready_total` | unit-PASS while standing on ready produce/animal | **missed-harvest idling** |
+| `idle_steps` | whole-turn idle (all units PASS, no market) | ~always 0 — low-signal, ignore |
+| `shed_pressure_days` / `shed_overflow_days` | days shed ≥95 / ==100 | near/at cap ⇒ overflow risk |
+| `discarded_units_total` / `discarded_items` | shed-overflow units discarded; which item (`{}`/`{WHEAT:…}`) | what actually got thrown away (often all FERTILIZER) |
+| `floor_sales` | units sold at the $1 floor | gluts dumped into the floor |
+| `premium_below_base_frac` | share of premium-good (strawberry/melon/milk/wool) units sold below base | bad timing on crash-prone goods |
+| `animal_escapes` / `escaped_by_type` | animal losses (`COW:1`); `at_risk_of_escape` = ≥2 consec. unfed | near-miss precursor to chase |
+| `plants_died` / `missed_harvest_eod` / `unwatered_eod` | decayed crops / unharvested at day-end / unwatered at EOD | lifecycle defects |
+| `seed/animal/product/hire/land_cost_total` | itemized spend per game | the economics of the gap ledger |
+| `sell_revenue_total` | committed revenue from sold produce | **the** revenue number (audit-backed) |
+| `wheat_fed` / `feed_surplus` | wheat fed to animals; `produced - fed` | feed self-sufficiency (see caveats) |
+
+### `days_seed<S>.csv` — the day-by-day columns to look at
+`revenue`/`expenses` (sign-split — approximate), `seed_cost`/`animal_cost`/
+`product_cost`/`hire_cost`/`land_cost` (exact), `shed_items_start_*/_end_*`, `max_shed_total`,
+`weeds_max`, `hires`, `idle_units`/`unit_turns`/`idle_share_pct`,
+`plants_watered`/`plants_fertilized`, `animals_fed`/`animals_cared`/`animals_escaped`, `shop_unlocks`,
+`sell_qty_<p>`/`avg_price_<p>`/`revenue_<p>` (realized price & revenue per product per day),
+`below_base_sales_<p>`, `discarded_items_<p>`, `feed_surplus`, `wheat_sold`/`wheat_fed`/`wheat_bought`.
+
+### How to hunt structural issues (never average across games)
+1. **Same-seed paired diff.** `python diagnose.py --compare --pa N --seed S --batch K`, then
+   diff the SAME-seed rows of `old` vs `new` in `games.csv`. A patch must *reduce* a concrete
+   defect without raising another — not move a mean.
+2. **Chase a non-zero signal.** Any of `idle_share_pct`, `idle_units_ready`,
+   `shed_overflow_days`, `discarded_items`, `floor_sales`, `premium_below_base_frac`,
+   `animal_escapes`, `at_risk_of_escape`, `plants_died`, `missed_harvest_eod`,
+   `unwatered_eod`, `feed_surplus < 0` in a **specific game** is a defect worth fixing.
+3. **Locate the day.** Open that seed's `days_seed<S>.csv`, find where the signal spikes,
+   and correlate with `shop_unlocks`, `avg_price_<p>`, and `shed_items_*` (e.g. overflow on
+   a strawberry glut, escapes after a weed-spawned pasture dig).
+4. **Price timing.** `avg_price_<p>` vs the product base shows when you sold. A premium-good
+   `avg_price` well under base (or `premium_below_base_frac` high) = sold into the glut instead
+   of the scarcity spike.
+
+### Caveats / which numbers to trust
+- **Trust audit-backed fields** (`sell_revenue_total`, `floor_sales`, `below_base_sales`,
+  `avg_price_<p>`, `discarded_*`, the cost totals) on any replay saved by our runs, which all
+  run with the market audit. Non-audit fallbacks silently report `avg_price`=0.
+- **Harvest attribution is unreliable**: `plants_harvested_<crop>` misses most harvests
+  (nearly all land in `harvests_unknown`, including all wheat). So **feed/wheat numbers are
+  estimated from audit flows** — `wheat_produced ≈ wheat_sold + wheat_fed − wheat_bought`
+  (`feed_surplus = produced − fed`). Do not trust per-crop `plants_harvested`; prefer
+  `sell_qty_<p>`/`avg_price_<p>`.
+- **`idle_steps` is near-useless** (whole-turn idle almost never fires). Use `idle_share_pct`
+  and `idle_units_total`/`idle_units_ready_total`.
+- **`revenue`/`expenses`** (sign-split of money delta) undercount both when a step buys and
+  sells — prefer `sell_revenue_total` + the itemized `*_cost_total` columns.
+
 ## Public agent mapping
 
 `diagnose.py` maps numbers to files in `public_agents/`. Indices are assigned by

@@ -309,6 +309,7 @@ class _MarketAudit:
                 lambda: {
                     "sells": defaultdict(lambda: {"qty": 0, "revenue": 0.0, "floor": 0, "below": 0, "above": 0}),
                     "discards": 0,
+                    "discard_items": defaultdict(int),
                 }
             )
         )
@@ -380,10 +381,32 @@ class _MarketAudit:
         return ok
 
     @staticmethod
-    def _discard_delta(private, before_inv, before_shed):
-        after_inv = sum(sum(i.values()) for i in private["inventories"])
-        after_shed = sum(private["shed"].values())
-        return max(0.0, (before_inv - after_inv) - (after_shed - before_shed))
+    def _inv_totals(private):
+        tot = {}
+        for inv in (private["inventories"] or []):
+            for item, n in (inv or {}).items():
+                tot[item] = tot.get(item, 0) + n
+        return tot
+
+    @staticmethod
+    def _discard_items(private, before_inv, before_shed):
+        """Per-item units that left inventory but were not deposited into the shed.
+
+        The env's DROP / deposit paths discard anything that does not fit in the
+        shed; this isolates WHICH item overflowed (e.g. all-fertilizer gluts),
+        not just a scalar count.
+        """
+        after_inv = _MarketAudit._inv_totals(private)
+        after_shed = dict(private["shed"])
+        items = set(before_inv) | set(before_shed) | set(after_inv) | set(after_shed)
+        out = {}
+        for it in items:
+            inv_dec = before_inv.get(it, 0) - after_inv.get(it, 0)
+            shed_inc = after_shed.get(it, 0) - before_shed.get(it, 0)
+            d = max(0, inv_dec - shed_inc)
+            if d:
+                out[it] = d
+        return out
 
     def _apply_unit_action(self, farm, private, idx, action, board_size, day, turns_per_day, shed_capacity=100):
         op = action[0] if isinstance(action, list) and action else None
@@ -393,28 +416,32 @@ class _MarketAudit:
         deposit = op == "DROP" or (
             op == "PLACE" and len(action) > 1 and action[1] not in ANIMALS
         )
-        before_inv = sum(sum(i.values()) for i in private["inventories"])
-        before_shed = sum(private["shed"].values())
+        before_inv = self._inv_totals(private)
+        before_shed = dict(private["shed"])
         self._orig_ua(farm, private, idx, action, board_size, day, turns_per_day, shed_capacity)
         if not deposit:
             return
-        discarded = self._discard_delta(private, before_inv, before_shed)
-        if discarded > 0:
+        discarded = self._discard_items(private, before_inv, before_shed)
+        if discarded:
             step = self._ctx.get("step")
             seat = self._seat(private=private)
             if step is not None and seat is not None:
-                self.events[step][seat]["discards"] += discarded
+                self.events[step][seat]["discards"] += sum(discarded.values())
+                for it, n in discarded.items():
+                    self.events[step][seat]["discard_items"][it] += n
 
     def _drop_inventories_to_shed(self, private, capacity):
-        before_inv = sum(sum(i.values()) for i in private["inventories"])
-        before_shed = sum(private["shed"].values())
+        before_inv = self._inv_totals(private)
+        before_shed = dict(private["shed"])
         self._orig_drop(private, capacity)
-        discarded = self._discard_delta(private, before_inv, before_shed)
-        if discarded > 0:
+        discarded = self._discard_items(private, before_inv, before_shed)
+        if discarded:
             step = self._ctx.get("step")
             seat = self._seat(private=private)
             if step is not None and seat is not None:
-                self.events[step][seat]["discards"] += discarded
+                self.events[step][seat]["discards"] += sum(discarded.values())
+                for it, n in discarded.items():
+                    self.events[step][seat]["discard_items"][it] += n
 
 
 def load_replay(path: Path) -> Dict[str, Any]:
@@ -730,11 +757,14 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
         "animals_cared": 0,
         "fertilizer_collected": 0,
         "animals_escaped": 0,
+        "animals_escaped_by": defaultdict(int),
         "weeds_start": 0,
         "weeds_end": 0,
         "weeds_max": 0,
         "idle_turns": 0,
+        "idle_units": 0,
         "idle_units_ready": 0,
+        "unit_turns": 0,
         "floor_sales": defaultdict(int),
         "below_base_sales": defaultdict(int),
         "sell_qty": defaultdict(int),
@@ -742,6 +772,7 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
         "avg_price_per_item": {},
         "sell_qty_source": "requested",
         "discarded_units": 0,
+        "discarded_items": defaultdict(int),
         "buy_qty": defaultdict(int),
         "hires": 0,
         "land_unlocks": 0,
@@ -810,15 +841,21 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
             day["shop_unlocks"].extend(s["shops"])
         day["market_orders"].extend(tr.get("market_order", []))
 
-        # Idle = every unit passes and no market orders
+        # Every live work-unit is one turn of (potential) labour; PASS = idle.
+        day["unit_turns"] += f["n_hands"] + 1
+        # Idle = every unit passes and no market orders (a whole idle turn; rare)
         all_pass = all(_op_name(ua) == "PASS" for _, ua in _unit_actions({"farmer": f["farmer"], "hands": f["hands"]}))
         if all_pass and not f["market_orders"]:
             day["idle_turns"] += 1
 
-        # Unit-level idle: PASS while standing on a ready tile / animal
+        # Unit-level idle: PASS on any tile (idle_units), plus PASS while standing
+        # on ready produce / animal (idle_units_ready). idle_share = idle/unit-turns
+        # is the real labour-efficiency signal; idle_turns understates it badly.
         for pos, cmd in zip([f["farmer_pos"], *f["hand_positions"]], [f["farmer"], *f["hands"]]):
-            if _op_name(cmd) == "PASS" and _tile_ready(f["tiles"][pos[1]][pos[0]], f["day"]):
-                day["idle_units_ready"] += 1
+            if _op_name(cmd) == "PASS":
+                day["idle_units"] += 1
+                if _tile_ready(f["tiles"][pos[1]][pos[0]], f["day"]):
+                    day["idle_units_ready"] += 1
 
         # Shed/seed deltas from state diff
         for sd in tr.get("shed_delta", []):
@@ -844,6 +881,8 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
                 day["below_base_sales"][item] += rec["below"]
                 day["revenue_per_item"][item] += rec["revenue"]
             day["discarded_units"] += step_audit.get("discards", 0)
+            for it, n in (step_audit.get("discard_items") or {}).items():
+                day["discarded_items"][it] += n
         else:
             day["sell_qty_source"] = day.get("sell_qty_source") or "requested"
             for o in f["market_orders"]:
@@ -891,6 +930,7 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
             to = tc["to"]
             if fr and isinstance(fr, dict) and fr.get("animal") and (to is None or to == "LOCKED" or (isinstance(to, dict) and not to.get("animal") and to.get("kind") in ("COOP", "PASTURE"))):
                 day["animals_escaped"] += 1
+                day["animals_escaped_by"][fr.get("animal")] += 1
             if fr and isinstance(fr, dict) and fr.get("kind") == "WEED" and to is None:
                 pass  # weed removed
             if fr and isinstance(fr, dict) and fr.get("kind") == "PLANT" and isinstance(to, dict) and to.get("kind") == "WEED":
@@ -919,6 +959,25 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
         day["buy_qty"] = dict(day["buy_qty"])
         day["floor_sales"] = dict(day["floor_sales"])
         day["below_base_sales"] = dict(day["below_base_sales"])
+        day["discarded_items"] = dict(day["discarded_items"])
+        day["animals_escaped_by"] = dict(day["animals_escaped_by"])
+        # Real labour efficiency: idle share (idle_turns is a rare whole-turn idle).
+        day["idle_share_pct"] = round(100.0 * day["idle_units"] / day["unit_turns"], 1) if day["unit_turns"] else 0.0
+        # Feed self-sufficiency. Harvest attribution is unreliable (see
+        # _crop_at_actor -> harvests_unknown), so wheat produced is ESTIMATED from
+        # the reliable audit flows: produced = sold + fed - bought.
+        day["wheat_sold"] = day["sell_qty"].get("WHEAT", 0)
+        day["wheat_bought"] = day["buy_qty"].get("WHEAT", 0)
+        day["wheat_fed"] = day["animals_fed"]
+        # Daily wheat net (sold+fed-bought); can be negative on buy-heavy days.
+        # The authoritative produced total is computed in summarize() from the
+        # game totals, because harvest attribution is unreliable.
+        day["feed_surplus"] = day["wheat_sold"] + day["wheat_fed"] - day["wheat_bought"]
+        # Premium-good below-base realisation fraction (glut-crash detection).
+        _prem = [p for p in PRODUCTS if MARKET_PARAMS[p].get("above_target", 0.0) > 1.0]
+        _prem_sold = sum(day["sell_qty"].get(p, 0) for p in _prem)
+        _prem_below = sum(day["below_base_sales"].get(p, 0) for p in _prem)
+        day["premium_below_base_frac"] = round(_prem_below / _prem_sold, 3) if _prem_sold else 0.0
         day["revenue_per_item"] = dict(day["revenue_per_item"])
         # Average realised price per item (only where something was sold)
         day["avg_price_per_item"] = {
@@ -990,6 +1049,7 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
     unfed_eod = 0
     unwatered_eod = 0
     missed_harvest_eod = 0
+    at_risk_escape = 0
     if frames:
         for f in frames:
             if f["hour"] == TURNS_PER_DAY - 1:
@@ -1004,37 +1064,84 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
                         age = f["day"] - c.get("planted_day", 0)
                         if age >= cd["max_yield_day"] and c.get("yield_units", 0) > 0:
                             missed_harvest_eod += 1
-            # Also flag any animal near escape regardless of hour
+            # Near-escape (>=2 consecutive unfed) counted once regardless of hour.
             for a in f["animals"]:
                 if a.get("consecutive_unfed", 0) >= 2:
-                    unfed_eod += 1
+                    at_risk_escape += 1
 
     out = OrderedDict()
     out["days"] = len(days)
     out["final_money"] = round(days[-1]["end_money"], 1)
     out["avg_daily_delta"] = round(sum(d["money_delta"] for d in days) / len(days), 1)
-    out["idle_steps"] = idle_steps
-    out["idle_pct"] = f"{100.0 * idle_steps / total_steps:.1f}%" if total_steps else "n/a"
-    out["idle_by_day"] = {d["day"]: d["idle_turns"] for d in days if d["idle_turns"]}
+    idle_units_total = sum(d.get("idle_units", 0) for d in days)
+    unit_turns_total = sum(d.get("unit_turns", 0) for d in days)
+    idle_share = (100.0 * idle_units_total / unit_turns_total) if unit_turns_total else 0.0
+    out["idle_steps"] = idle_steps           # whole-turn idle (rare; low-signal)
+    out["idle_share_pct"] = round(idle_share, 1)
+    out["idle_pct"] = f"{idle_share:.1f}%"   # unit-level idle share (the real signal)
+    out["idle_by_day"] = {d["day"]: d["idle_units"] for d in days if d.get("idle_units")}
+    out["idle_units_total"] = idle_units_total
     out["idle_units_ready_total"] = sum(d.get("idle_units_ready", 0) for d in days)
+    out["unit_turns_total"] = unit_turns_total
     out["shed_pressure_days"] = shed_pressure_days
     out["shed_overflow_days"] = shed_overflow_days
     out["discarded_units_total"] = sum(d.get("discarded_units", 0) for d in days)
+    _di = defaultdict(int)
+    for d in days:
+        for it, n in d.get("discarded_items", {}).items():
+            _di[it] += n
+    out["discarded_items"] = dict(sorted(_di.items()))
     out["max_shed_total"] = max((d["max_shed_total"] for d in days), default=0)
     out["floor_sales"] = dict(sorted(floor_sales.items()))
     out["below_base_sales"] = dict(sorted(below_base.items()))
     out["sell_qty"] = dict(sorted(sell_qty.items()))
     out["animal_escapes"] = animal_escapes
+    _eb = defaultdict(int)
+    for d in days:
+        for a, n in d.get("animals_escaped_by", {}).items():
+            _eb[a] += n
+    out["animals_escaped_by"] = dict(sorted(_eb.items()))
     out["plants_died_to_weeds"] = plants_died
     out["harvests_total"] = sum(sum(d["plants_harvested"].values()) for d in days) + sum(d["harvests_unknown"] for d in days)
     out["weeds_peak"] = weeds_max
-    out["unfed_animal_signals"] = unfed_eod
+    out["unfed_animal_signals"] = unfed_eod        # >=1 unfed at end-of-day
+    out["unfed_at_eod"] = unfed_eod
+    out["at_risk_of_escape"] = at_risk_escape       # >=2 consecutive unfed (no double count)
     out["unwatered_crop_eod"] = unwatered_eod
     out["missed_harvest_eod"] = missed_harvest_eod
     out["hires_total"] = sum(d["hires"] for d in days)
     out["land_unlocks_total"] = sum(d["land_unlocks"] for d in days)
-    out["revenue_total"] = round(sum(d["revenue"] for d in days), 1)
-    out["expenses_total"] = round(sum(d["expenses"] for d in days), 1)
+    # Feed self-sufficiency (wheat cycle is the #1 lever). wheat_produced is an
+    # estimate from reliable audit flows (sold+fed-bought); harvest attribution is
+    # unreliable (see _crop_at_actor -> harvests_unknown).
+    out["wheat_sold_total"] = sum(d.get("wheat_sold", 0) for d in days)
+    out["wheat_fed_total"] = sum(d.get("wheat_fed", 0) for d in days)
+    out["wheat_bought_total"] = sum(d.get("wheat_bought", 0) for d in days)
+    wheat_produced = max(0, out["wheat_sold_total"] + out["wheat_fed_total"] - out["wheat_bought_total"])
+    out["wheat_produced_total"] = wheat_produced
+    out["feed_surplus_total"] = wheat_produced - out["wheat_fed_total"]
+    out["wheat_market_dependence"] = out["wheat_bought_total"]
+    # Economics: revenue from committed sells, expenses from itemized costs.
+    # (The sign-split of money_delta mislabels both when a step both buys & sells.)
+    sell_revenue = sum(sum(d.get(f"revenue_{p}", 0) for p in PRODUCTS) for d in days)
+    item_costs = sum(
+        d.get("seed_cost", 0) + d.get("animal_cost", 0) + d.get("product_cost", 0)
+        + d.get("hire_cost", 0) + d.get("land_cost", 0)
+        for d in days)
+    out["sell_revenue_total"] = round(sell_revenue, 1)
+    out["itemized_costs_total"] = round(item_costs, 1)
+    out["seed_cost_total"] = round(sum(d.get("seed_cost", 0) for d in days), 1)
+    out["animal_cost_total"] = round(sum(d.get("animal_cost", 0) for d in days), 1)
+    out["product_cost_total"] = round(sum(d.get("product_cost", 0) for d in days), 1)
+    out["hire_cost_total"] = round(sum(d.get("hire_cost", 0) for d in days), 1)
+    out["land_cost_total"] = round(sum(d.get("land_cost", 0) for d in days), 1)
+    out["revenue_total"] = round(sell_revenue, 1) if sell_revenue > 0 else round(sum(d["revenue"] for d in days), 1)
+    out["expenses_total"] = round(item_costs, 1) if item_costs > 0 else round(sum(d["expenses"] for d in days), 1)
+    # Premium-good below-base realisation fraction (glut-crash on strawberry/melon/milk/wool).
+    _prem = [p for p in PRODUCTS if MARKET_PARAMS[p].get("above_target", 0.0) > 1.0]
+    _prem_sold = sum(sum(d.get("sell_qty", {}).get(p, 0) for p in _prem) for d in days)
+    _prem_below = sum(sum(d.get("below_base_sales", {}).get(p, 0) for p in _prem) for d in days)
+    out["premium_below_base_frac"] = round(_prem_below / _prem_sold, 3) if _prem_sold else 0.0
     return out
 
 
@@ -1148,55 +1255,43 @@ def _day_columns() -> List[str]:
         "weeds_start", "weeds_end", "weeds_max",
         "hands_start", "hands_end", "hires", "hire_cost",
         "land_unlocks", "land_cost",
-        "idle_turns", "n_pass", "n_move",
+        "idle_turns", "n_pass", "n_move", "idle_units", "unit_turns", "idle_share_pct",
         "plants_watered", "plants_fertilized", "plants_died", "harvests_unknown",
         "animals_fed", "animals_cared", "animals_escaped", "fertilizer_collected",
         "shop_unlocks", "market_orders",
         "sell_qty_source", "discarded_units", "idle_units_ready",
+        "wheat_sold", "wheat_fed", "wheat_bought", "feed_surplus",
+        "premium_below_base_frac",
     ]
     for p in PRODUCTS:
         cols += [f"sell_qty_{p}", f"floor_sales_{p}", f"below_base_sales_{p}",
                  f"revenue_{p}", f"avg_price_{p}"]
     shed_items = sorted(set(PRODUCTS) | set(ANIMALS))  # animals live in the shed
     for it in shed_items:
-        cols += [f"shed_items_start_{it}", f"shed_items_end_{it}", f"shed_deltas_{it}"]
+        cols += [f"shed_items_start_{it}", f"shed_items_end_{it}", f"shed_deltas_{it}",
+                 f"discarded_items_{it}"]
     buy_items = sorted(set(PRODUCTS) | set(CROPS) | set(ANIMALS))
     for it in buy_items:
         cols += [f"buy_qty_{it}"]
     for c in CROPS:
         cols += [f"seed_deltas_{c}", f"plants_planted_{c}", f"plants_harvested_{c}"]
     for a in ANIMALS:
-        cols += [f"animals_placed_{a}"]
+        cols += [f"animals_placed_{a}", f"animals_escaped_by_{a}"]
     return cols
 
 
 def _game_columns() -> List[str]:
     return ["agent", "opponent", "seed",
             "final_money", "opponent_final", "result",
-            "idle_steps", "shed_pressure_days", "shed_overflow_days",
-            "floor_sales", "animal_escapes", "plants_died", "harvests",
-            "weeds_peak", "unfed_signals", "unwatered_eod", "missed_harvest_eod",
-            "discarded_units_total", "idle_units_ready_total"]
-
-
-def write_csv_days(days: List[Dict[str, Any]], path: Path):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not days:
-        return
-    rows = []
-    for d in days:
-        dd = dict(d)
-        # Collapse the raw order list to a count so the column stays a scalar.
-        dd["market_orders"] = len(d.get("market_orders") or [])
-        rows.append(_flatten(dd))
-    fieldnames = _day_columns()
-    with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
-        w.writeheader()
-        w.writerows(rows)
-    return path
-
+            "idle_steps", "idle_units_total", "idle_share_pct",
+            "idle_units_ready_total", "shed_pressure_days", "shed_overflow_days",
+            "discarded_units_total", "discarded_items", "floor_sales",
+            "animal_escapes", "escaped_by_type", "plants_died", "harvests",
+            "weeds_peak", "unfed_signals", "at_risk_of_escape", "unwatered_eod",
+            "missed_harvest_eod",
+            "seed_cost_total", "animal_cost_total", "product_cost_total",
+            "hire_cost_total", "land_cost_total", "sell_revenue_total",
+            "wheat_fed", "feed_surplus", "premium_below_base_frac"]
 
 # ---------------------------------------------------------------------------
 # Replay -> frames / days helper
@@ -1275,18 +1370,32 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
         "opponent_final": opp_final if opp_final is not None else "",
         "result": result,
         "idle_steps": summary.get("idle_steps", 0),
+        "idle_units_total": summary.get("idle_units_total", 0),
+        "idle_share_pct": summary.get("idle_share_pct", 0.0),
+        "idle_units_ready_total": summary.get("idle_units_ready_total", 0),
         "shed_pressure_days": summary.get("shed_pressure_days", 0),
         "shed_overflow_days": summary.get("shed_overflow_days", 0),
+        "discarded_units_total": summary.get("discarded_units_total", 0),
+        "discarded_items": json.dumps(summary.get("discarded_items", {}), sort_keys=True),
         "floor_sales": sum(summary.get("floor_sales", {}).values()),
         "animal_escapes": summary.get("animal_escapes", 0),
+        "escaped_by_type": " ".join(f"{k}:{v}" for k, v in summary.get("animals_escaped_by", {}).items()),
         "plants_died": summary.get("plants_died_to_weeds", 0),
         "harvests": summary.get("harvests_total", 0),
         "weeds_peak": summary.get("weeds_peak", 0),
-        "unfed_signals": summary.get("unfed_animal_signals", 0),
+        "unfed_signals": summary.get("unfed_at_eod", 0),
+        "at_risk_of_escape": summary.get("at_risk_of_escape", 0),
         "unwatered_eod": summary.get("unwatered_crop_eod", 0),
         "missed_harvest_eod": summary.get("missed_harvest_eod", 0),
-        "discarded_units_total": summary.get("discarded_units_total", 0),
-        "idle_units_ready_total": summary.get("idle_units_ready_total", 0),
+        "seed_cost_total": summary.get("seed_cost_total", 0),
+        "animal_cost_total": summary.get("animal_cost_total", 0),
+        "product_cost_total": summary.get("product_cost_total", 0),
+        "hire_cost_total": summary.get("hire_cost_total", 0),
+        "land_cost_total": summary.get("land_cost_total", 0),
+        "sell_revenue_total": summary.get("sell_revenue_total", 0),
+        "wheat_fed": summary.get("wheat_fed_total", 0),
+        "feed_surplus": summary.get("feed_surplus_total", 0),
+        "premium_below_base_frac": summary.get("premium_below_base_frac", 0.0),
     }
 
 
@@ -1294,9 +1403,10 @@ def print_game_table(rows: List[Dict[str, Any]]):
     if not rows:
         return
     cols = ["agent", "opponent", "seed", "final_money", "opponent_final", "result",
-            "idle_steps", "shed_pressure_days", "floor_sales", "animal_escapes",
-            "plants_died", "weeds_peak", "unfed_signals", "unwatered_eod",
-            "discarded_units_total", "idle_units_ready_total"]
+            "idle_share_pct", "idle_units_total", "shed_pressure_days", "floor_sales",
+            "animal_escapes", "at_risk_of_escape", "plants_died", "missed_harvest_eod",
+            "feed_surplus", "sell_revenue_total", "premium_below_base_frac",
+            "discarded_units_total", "unfed_signals", "unwatered_eod"]
     widths = {c: max(len(c), max(len(str(r.get(c, ""))) for r in rows)) for c in cols}
     header = "  ".join(c.rjust(widths[c]) for c in cols)
     print(header)
@@ -1316,16 +1426,17 @@ def narrative_summary(days: List[Dict[str, Any]], frames: Optional[List[Dict[str
     lines.append(f"- Final money: ${s['final_money']:,.0f} over {s['days']} days (avg daily delta ${s['avg_daily_delta']:+,.0f})")
     lines.append("")
     lines.append("## Economic performance")
-    lines.append(f"- Total revenue: ${s['revenue_total']:,.0f}")
-    lines.append(f"- Total expenses: ${s['expenses_total']:,.0f}")
+    lines.append(f"- Sell revenue (committed): ${s['sell_revenue_total']:,.0f} | Itemized costs: ${s['itemized_costs_total']:,.0f}  (net ${s['sell_revenue_total'] - s['itemized_costs_total']:,.0f})")
+    lines.append(f"- Costs: seeds ${s['seed_cost_total']:,.0f} | animals ${s['animal_cost_total']:,.0f} | product ${s['product_cost_total']:,.0f} | hiring ${s['hire_cost_total']:,.0f} | land ${s['land_cost_total']:,.0f}")
     lines.append(f"- Hires: {s['hires_total']} | Land unlocks: {s['land_unlocks_total']}")
     lines.append("")
     lines.append("## Inefficiency signals")
-    lines.append(f"- Idle steps: {s['idle_steps']} ({s['idle_pct']})")
-    lines.append(f"- Shed pressure days (>=95): {s['shed_pressure_days']} | Overflow days (=100): {s['shed_overflow_days']} | Max shed: {s['max_shed_total']}")
-    lines.append(f"- Floor-price sales: {s['floor_sales']}")
-    lines.append(f"- Below-base sales: {s['below_base_sales']}")
-    lines.append(f"- Animal escape events: {s['animal_escapes']} | Unfed-animal signals: {s['unfed_animal_signals']}")
+    lines.append(f"- Idle-labour share: {s['idle_pct']}  ({s['idle_units_total']} unit-PASS turns of {s['unit_turns_total']}, {s['idle_units_ready_total']} on ready produce)")
+    lines.append(f"- Feed self-sufficiency: wheat produced* {s['wheat_produced_total']} | fed {s['wheat_fed_total']} | bought {s['wheat_bought_total']} | sold {s['wheat_sold_total']} | surplus {s['feed_surplus_total']:+.0f}   (*=net of audit flows; see AGENTS.md)")
+    lines.append(f"- Shed pressure days (>=95): {s['shed_pressure_days']} | Overflow days (=100): {s['shed_overflow_days']} | Discarded items: {s['discarded_items']}")
+    lines.append(f"- Floor-price sales: {s['floor_sales']} | Below-base sales: {s['below_base_sales']}")
+    lines.append(f"- Premium below-base realized frac: {s['premium_below_base_frac']:.3f}")
+    lines.append(f"- Animal escape events: {s['animal_escapes']} {s['animals_escaped_by']} | Unfed at EOD: {s['unfed_at_eod']} | At risk of escape: {s['at_risk_of_escape']}")
     lines.append(f"- Plants died to weeds: {s['plants_died_to_weeds']} | Harvests: {s['harvests_total']} | Unwatered at end-of-day: {s['unwatered_crop_eod']} | Missed harvests at EOD: {s['missed_harvest_eod']}")
     lines.append(f"- Weed peak count: {s['weeds_peak']}")
     lines.append("")
@@ -1517,23 +1628,6 @@ def ab_delta_report(paths: List[Path], per_day: bool = False):
 # ---------------------------------------------------------------------------
 # --xray — per-move / per-step / per-day investigation of what a patch changes
 # ---------------------------------------------------------------------------
-
-
-def _succinct(act):
-    """Compact, diff-friendly rendering of a single action dict."""
-    if not isinstance(act, dict):
-        return repr(act)
-    parts = []
-    farmer = act.get("farmer")
-    if farmer is not None:
-        parts.append("F=" + "".join(str(x) for x in farmer))
-    hands = act.get("hands") or []
-    # Show hands compactly but keep the per-actor split so changes are visible.
-    parts.append("H=" + "|".join("".join(str(x) for x in h) if h else "-" for h in hands))
-    market = act.get("market") or []
-    parts.append("M=" + ";".join(
-        "".join(str(x) for x in o) if o else "_" for o in market))
-    return " ".join(parts)
 
 
 def _action_diff(day, step, old, new):
@@ -2012,30 +2106,6 @@ def _draw_seat_dashboard(fig, gs, data, days, sells, seat, header, committed):
     ax.set_title(f"{header} — end-of-day money (dips = land / animals / build spend)",
                  loc="left", fontsize=9)
     _draw_day_grid(ax, n)
-
-
-def plot_replay(path: Path, out_dir: Optional[Path] = None, seat: Optional[int] = None):
-    """Render one seat's PNG dashboard (single column). Writes `<stem>_single.png`."""
-    plt = _plt()
-    replay = load_replay(path)
-    seat = _agent_seat(replay) if seat is None else seat
-    data = _collect_step_series(replay)
-    if data["n_steps"] == 0:
-        return None
-    meta = replay.get("_diagnose_meta", {})
-    committed = bool(meta.get("audit"))
-    _, days, _ = replay_to_summary(replay, seat=seat)
-    sells = _seat_sells(days, committed, replay, seat)
-    fig = plt.figure(figsize=(14, 12))
-    gs = fig.add_gridspec(4, 1, height_ratios=[2.0, 3.4, 2.2, 1.0],
-                          hspace=0.5, top=0.94, bottom=0.05, left=0.08, right=0.96)
-    fig.suptitle(f"{meta.get('agent','?')} vs {meta.get('opponent','?')} · seed {meta.get('seed','?')}"
-                 f" · seat {seat}", fontsize=13, fontweight="bold")
-    _draw_seat_dashboard(fig, gs, data, days, sells, seat, f"seat {seat}", committed)
-    out_path = (out_dir or path.parent) / (path.stem + "_single.png")
-    fig.savefig(out_path, dpi=110)
-    plt.close(fig)
-    return out_path
 
 
 def plot_game(path: Path, out_dir: Optional[Path] = None):
