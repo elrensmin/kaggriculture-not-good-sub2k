@@ -127,8 +127,8 @@ game.
 ## How to recheck any of these
 
 ```bash
-PYTHONPATH=. python diagnose.py --replay-dir diag-replays/v56seeds-42 --render   # day report
-PYTHONPATH=. python diagnose.py --replay-dir diag-replays/v56seeds-42 --graph    # farm GIF / dashboards
+PYTHONPATH=. python -m diagnose --replay-dir diag-replays/v56seeds-42 --render   # day report
+PYTHONPATH=. python -m diagnose --replay-dir diag-replays/v56seeds-42 --graph    # farm GIF / dashboards
 ```
 
 Per-product: open `days_seed<S>.csv` and read `sell_qty_<p>`/`avg_price_<p>`/`revenue_<p>`

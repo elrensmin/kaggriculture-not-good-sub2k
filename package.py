@@ -1,48 +1,46 @@
 #!/usr/bin/env python3
 """Build and (optionally) submit a single-file Kaggle Kaggriculture agent.
 
-The working agent is three parts and must be shipped as ONE self-contained
-``.py`` file (that is what the Kaggle runner executes):
+The working agent is three parts (all under ``src/``) and must be shipped as ONE
+self-contained ``.py`` file (that is what the Kaggle runner executes):
 
-    main.py          the production chassis agent (reads the tape via the
-                     ``KAGGICULTURE_TAPE`` env + ``importlib``, exposes
-                     ``_original_agent``). Runs at import time.
-    agent.py         the experimental patch layer. ``import main as _main``;
-                     its ``patch(action, observation, configuration)`` is what
-                     turns "main alone" into our candidate ("new").
-    route_tape.py    the pre-computed opening route data (ROUTES / SHOP_ROUTES).
+    src/main.py         the production chassis agent (reads the tape via the
+                        ``KAGGICULTURE_TAPE`` env + ``importlib``, exposes
+                        ``_original_agent``). Runs at import time.
+    src/agent.py        the experimental patch layer. ``import main as _main``;
+                        its ``patch(action, observation, configuration)`` is what
+                        turns "main alone" into our candidate ("new").
+    src/route_tape.py   the pre-computed opening route data (ROUTES / SHOP_ROUTES).
 
 The generated file embeds each source as a synthetic module registered in
 ``sys.modules`` (order: route_tape -> main -> agent), then defines the public
 ``agent(observation, configuration)`` exactly the way ``diagnose.load_new_agent``
-builds the "--new --tape v1" agent:
+builds the "--new" agent:
 
     def agent(observation, configuration=None):
         return agent_module.patch(main_module._original_agent(observation,
                                                               configuration),
                                   observation, configuration)
 
-So the bundle is behaviorally `main + agent.patch()` over the v1 tape — the
+So the bundle is behaviorally `main + agent.patch()` over the route tape — the
 proven, gated candidate. It is fully self-contained (stdlib + the synthetic
 modules) and does not import any sibling file at runtime.
 
 Usage
 -----
-    python package_agent.py                # build dist/submission.py (no push)
-    python package_agent.py --tape v2      # embed route_tape_v2.py instead
-    python package_agent.py --check        # build + run it vs a public opponent
-                                           #   (seed 42) to prove bundle fidelity
-    python package_agent.py --push         # build + submit to Kaggle
-    python package_agent.py --check --push -m "I1 opening + baseline tape"
+    python package.py                # build dist/submission.py (no push)
+    python package.py --check        # build + run it vs a public opponent
+                                     #   (seed 42) to prove bundle fidelity
+    python package.py --push          # build + submit to Kaggle
+    python package.py --check --push -m "I1 opening + baseline tape"
 
 Flags
 -----
   --out PATH        write the bundle to PATH            (default dist/submission.py)
-  --tape v1|v2      which route_tape* module to embed    (default v1)
   --package NAME    python package name inside the bundle (default kaggriculture_agent)
   --check           after building, import the bundle in a fresh Python process
                     and play a seeded 1-vs-1 run vs a public agent; assert the
-                    final money matches the local "--new --tape v1" run (proves
+                    final money matches the local "--new" run (proves
                     the bundle and the harness-agent are identical).
   --opp IDX         public opponent index for --check    (default 4 = pipe16-idle-workers)
   --seed N          seed for --check   (default 42)
@@ -64,9 +62,10 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent
+SRC = ROOT / "src"
 DEFAULT_OUT = ROOT / "dist" / "submission.py"
 
-TAPE_FILES = {"v1": "route_tape.py", "v2": "route_tape_v2.py"}
+TAPE_FILES = {"v1": "route_tape.py"}
 
 # The --new agent is main + agent.patch. Kaggle wants a `agent` symbol; we keep
 # `patch` reachable only through the bundle so no external name is required.
@@ -142,9 +141,9 @@ def build(out: pathlib.Path, tape: str = "v1") -> None:
     tape_file = TAPE_FILES[tape]
     route_tape_modname = tape_file[:-3]  # strip ".py"
     parts = {
-        "route_tape": (ROOT / tape_file).read_text(encoding="utf-8"),
-        "main": (ROOT / "main.py").read_text(encoding="utf-8"),
-        "agent": (ROOT / "agent.py").read_text(encoding="utf-8"),
+        "route_tape": (SRC / tape_file).read_text(encoding="utf-8"),
+        "main": (SRC / "main.py").read_text(encoding="utf-8"),
+        "agent": (SRC / "agent.py").read_text(encoding="utf-8"),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     body = BUNDLE_TEMPLATE.format(

@@ -41,7 +41,7 @@ echo "   run dir   : ${RUN_DIR}"
 echo "   (this runs 13 opponents x ${BATCH} seeds = $((13 * BATCH)) games; give it time)"
 echo
 
-python diagnose.py --${MODE} --pa 1-13 --batch "${BATCH}" --seed "${SEED}" --run-dir "${RUN_DIR}"
+python -m diagnose --${MODE} --pa 1-13 --batch "${BATCH}" --seed "${SEED}" --run-dir "${RUN_DIR}"
 
 echo
 echo "=============================================================="
