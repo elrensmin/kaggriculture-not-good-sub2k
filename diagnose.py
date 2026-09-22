@@ -1076,6 +1076,8 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
     # money that died in the shed. Animals are structures, not sellable stock, so
     # they are excluded (they also live in the shed slot).
     stranded = 0
+    locked_steps = 0
+    locked_units_at_bell = 0
     if frames:
         lp = frames[-1].get("prices", {})
         _shed = frames[-1].get("shed", {}) or {}
@@ -1086,11 +1088,31 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
             for k, v in (inv or {}).items():
                 if k not in ANIMALS:
                     stranded += v * lp.get(k, 0)
+        # Locked-tile check: any farmer/hand step that stands on unbought (LOCKED)
+        # land wastes a worker-turn (since 1.32.3 units can walk across unbought
+        # tiles, a bot that routes through them leaves hands standing on locked tiles).
+        for f in frames:
+            tiles = f.get("tiles") or []
+            for (x, y) in [f.get("farmer_pos")] + list(f.get("hand_positions") or []):
+                try:
+                    if tiles[y][x] == "LOCKED":
+                        locked_steps += 1
+                except (IndexError, TypeError):
+                    pass
+        lt = frames[-1].get("tiles") or []
+        for (x, y) in [frames[-1].get("farmer_pos")] + list(frames[-1].get("hand_positions") or []):
+            try:
+                if lt[y][x] == "LOCKED":
+                    locked_units_at_bell += 1
+            except (IndexError, TypeError):
+                pass
 
     out = OrderedDict()
     out["days"] = len(days)
     out["final_money"] = round(days[-1]["end_money"], 1)
     out["stranded_at_bell"] = round(stranded)
+    out["locked_steps"] = locked_steps          # farmer/hand worker-turns standing on unbought land
+    out["locked_units_at_bell"] = locked_units_at_bell  # workers still on unbought land at the bell
     out["avg_daily_delta"] = round(sum(d["money_delta"] for d in days) / len(days), 1)
     idle_units_total = sum(d.get("idle_units", 0) for d in days)
     unit_turns_total = sum(d.get("unit_turns", 0) for d in days)
@@ -1202,6 +1224,20 @@ def render_map(tiles: List[List[Any]], title: str = ""):
         print(f" {y:2d}  " + " ".join(_tile_char(t) for t in row))
 
 
+def render_legend():
+    """Print the legend for the 10×10 board grid and the per-day lines once, so a
+    long --render report can be read without re-opening this file."""
+    print("BOARD GRID LEGEND  (one char per tile; the 10×10 map is row 0 = top)")
+    print("  '.' = open/owned tile     '#' = LOCKED (unbought)     'x' = WEED")
+    print("  lowercase crop letter:  w wheat · c carrot · t tomato · s strawberry · m melon")
+    print("  UPPERCASE animal letter: G goose · C cow · S sheep    C/P = empty COOP / PASTURE")
+    print("  ? = unknown tile")
+    print("DAY LINE FIELDS")
+    print("  money start->end delta (rev/exp)   shed total   weeds   planted/harvested")
+    print("  hands hired · land unlocked · shops unlocked   (! = a defect on that day)")
+
+
+
 def render_day(day: Dict[str, Any], frames: Optional[List[Dict[str, Any]]] = None):
     print(f"\n=== Day {day['day']:2d}  steps {day['first_step']}-{day['last_step']} ===")
     print(f"  money  ${_fmt_money(day['start_money'])} -> {_fmt_money(day['end_money'])}  "
@@ -1237,6 +1273,7 @@ def render(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]] = 
         frames = []
     if span is not None:
         days = days[span]
+    render_legend()
     for day in days:
         render_day(day, frames)
     print("\n--- summary ---")
@@ -1305,6 +1342,7 @@ def _game_columns() -> List[str]:
             "idle_steps", "idle_units_total", "idle_share_pct",
             "idle_units_ready_total", "shed_pressure_days", "shed_overflow_days",
             "discarded_units_total", "discarded_items", "floor_sales", "stranded_at_bell",
+            "locked_steps", "locked_units_at_bell",
             "animal_escapes", "escaped_by_type", "plants_died", "harvests",
             "weeds_peak", "unfed_signals", "at_risk_of_escape", "unwatered_eod",
             "missed_harvest_eod",
@@ -1398,6 +1436,8 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
         "discarded_items": json.dumps(summary.get("discarded_items", {}), sort_keys=True),
         "floor_sales": sum(summary.get("floor_sales", {}).values()),
         "stranded_at_bell": summary.get("stranded_at_bell", 0),
+        "locked_steps": summary.get("locked_steps", 0),
+        "locked_units_at_bell": summary.get("locked_units_at_bell", 0),
         "animal_escapes": summary.get("animal_escapes", 0),
         "escaped_by_type": " ".join(f"{k}:{v}" for k, v in summary.get("animals_escaped_by", {}).items()),
         "plants_died": summary.get("plants_died_to_weeds", 0),
@@ -1597,6 +1637,65 @@ def _money_curve(path: Path):
     return {d["day"]: d["end_money"] for d in days}
 
 
+def _paired_verdict(diffs):
+    """Statistical verdict on paired per-seed deltas, following wins-not-money.
+
+    Rule: keep the change iff (1) the mean delta is more than 2 standard errors
+    from zero (|t| = |mean|/SE > 2) AND (2) a majority of seeds lean the same way
+    as the mean. Aggregating per opponent first (never pooled) keeps the spread
+    honest; pairing old/new on the SAME seed cancels that seed's luck.
+    """
+    import statistics as st
+    import math
+    diffs = [float(d) for d in diffs if d is not None]
+    n = len(diffs)
+    base = {"n": n, "mean": 0.0, "sd": 0.0, "se": 0.0, "t": 0.0,
+            "frac_same_sign": 0.0, "keep": False, "note": ""}
+    if n == 0:
+        base["note"] = "no paired seeds"
+        return base
+    mean = sum(diffs) / n
+    base["mean"] = mean
+    if n == 1:
+        base["mean"] = mean
+        base["se"] = float("inf")
+        base["note"] = "single paired seed — cannot estimate SE; re-run with more seeds (--batch 12)"
+        return base
+    sd = st.stdev(diffs)
+    base["sd"] = sd
+    se = sd / math.sqrt(n)
+    base["se"] = se
+    base["t"] = mean / se if se > 0 else float("inf") if mean != 0 else 0.0
+    sign = 1 if mean > 0 else (-1 if mean < 0 else 0)
+    if sign == 0:
+        base["note"] = "zero mean — a change, not an effect"
+        return base
+    same = sum(1 for d in diffs if (d > 0) == (sign == 1))
+    base["frac_same_sign"] = same / n
+    mag_signif = abs(base["t"]) > 2.0 if base["t"] != float("inf") else (mean != 0)
+    consensus = base["frac_same_sign"] > 0.5
+    base["keep"] = bool(mag_signif and consensus)
+    if not mag_signif:
+        base["note"] = "mean within 2 SE of zero — no reliable effect"
+    elif not consensus:
+        base["note"] = "mean > 2 SE but seeds disagree in sign — treat with caution"
+    else:
+        base["note"] = "clear — mean > 2 SE and majority of seeds agree in sign"
+    return base
+
+
+def _print_verdict(lines, label):
+    v = _paired_verdict([r["delta"] for r in lines])
+    win_n = sum(1 for r in lines if r.get("result_new") == "WIN")
+    tie_n = sum(1 for r in lines if r.get("result_new") == "TIE")
+    loss_n = v["n"] - win_n - tie_n
+    verdict = "KEEP" if v["keep"] else "REJECT"
+    print(f"\n  {label}: n={v['n']}  mean Δ=${v['mean']:+,.0f}  "
+          f"SE=${v['se']:,.0f}  t={v['t']:+.2f}  same-sign {v['frac_same_sign']:.0%}")
+    print(f"            win {win_n} / tie {tie_n} / loss {loss_n}  →  {verdict} ({v['note']})")
+    return v
+
+
 def ab_delta_report(paths: List[Path], per_day: bool = False):
     """Print same-seed old-vs-new deltas for a compare run."""
     from collections import defaultdict
@@ -1617,6 +1716,7 @@ def ab_delta_report(paths: List[Path], per_day: bool = False):
             "opponent": key[0], "seed": key[1],
             "old_final": o["final_money"], "new_final": n["final_money"],
             "delta": n["final_money"] - o["final_money"],
+            "result_old": o["result"], "result_new": n["result"],
             "idle_delta": n["idle_steps"] - o["idle_steps"],
             "floor_delta": n["floor_sales"] - o["floor_sales"],
             "unwatered_delta": n["unwatered_eod"] - o["unwatered_eod"],
@@ -1642,6 +1742,18 @@ def ab_delta_report(paths: List[Path], per_day: bool = False):
             for day in sorted(set(om) | set(nm)):
                 o = om.get(day, 0); n = nm.get(day, 0)
                 print(f"    {day:3d}  {o:>9,.0f}  {n:>9,.0f}  {n - o:>9,}")
+
+    # Paired verdict across seeds — wins-not-money decision rule.
+    from collections import defaultdict
+    if rows:
+        by_opp = defaultdict(list)
+        for r in rows:
+            by_opp[r["opponent"]].append(r)
+        print("\n--- paired verdict (KEEP iff |mean Δ| > 2·SE AND majority of seeds agree in sign) ---")
+        for opp in sorted(by_opp):
+            _print_verdict(by_opp[opp], f"{opp}")
+        print()
+        _print_verdict(rows, "ALL OPPONENTS")
     return rows
 
 
@@ -2174,11 +2286,19 @@ def plot_game(path: Path, out_dir: Optional[Path] = None):
     return out_path
 
 
-def graph_batch(paths: List[Path], run_dir: Path) -> List[Path]:
+def graph_batch(paths: List[Path], run_dir: Path, gif_fps: int = 2) -> List[Path]:
     """Render per replay the 1×2 side-by-side dashboard AND an animated farm-board
     GIF (both farms + farmer/hand positions + money race, one frame per day),
-    returning the paths written."""
+    returning the paths written. `gif_fps` sets GIF playback speed. Also emits a
+    season-constant animal-care payback chart once per run."""
     out = []
+    try:
+        rendered = plot_animal_care_payback(Path(run_dir) / "animal_care_payback.png")
+        if rendered:
+            out.append(rendered)
+            print(f"  reference: {rendered.name}")
+    except Exception as e:
+        print(f"  animal-care chart FAILED: {e}")
     for p in paths:
         try:
             rendered = plot_game(p, out_dir=run_dir)
@@ -2188,7 +2308,7 @@ def graph_batch(paths: List[Path], run_dir: Path) -> List[Path]:
         except Exception as e:  # keep one bad replay from killing the batch
             print(f"  graph FAILED {p.name}: {e}")
         try:
-            rendered = plot_board_gif(p, out_dir=run_dir)
+            rendered = plot_board_gif(p, out_dir=run_dir, fps=gif_fps)
             if rendered:
                 out.append(rendered)
                 print(f"  graph: {rendered.name}")
@@ -2416,15 +2536,19 @@ def _tiles_to_rgb(tiles):
     return arr
 
 
-def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 5,
+def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 2,
                    max_days: int = 30) -> Optional[Path]:
     """Render an animated farm-board GIF from a saved replay, `<stem>_board.gif`.
 
     One frame per in-game day (like the notebook's `season_gif`): BOTH farms side by
-    side (tiles + ripe-crop dots + farmer/hand position markers) and a money-race
-    panel showing both banks through the season. This is the `--graph` board output —
+    side (tiles + ripe-crop dots + farmer/hand position markers), a money-race panel
+    showing both banks through the season, and a fixed legend for what each colour /
+    marker means. `fps` controls playback speed (default 2 frames/s = 0.5 s per day —
+    raise it to 4-5 if you want a quicker skim). This is the `--graph` board output —
     an animation you can watch for *when* a defect appears, instead of a static PNG.
     """
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
     plt = _plt()
     replay = load_replay(path)
     agent_seat = _agent_seat(replay)
@@ -2473,9 +2597,27 @@ def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 5,
     snaps = [(d, _snapshot(agent_seat, k), _snapshot(opp_seat, k)) for d, k in zip(days, snap_steps)]
 
     from matplotlib.animation import FuncAnimation, PillowWriter
-    fig, (axA, axO, axM) = plt.subplots(
-        1, 3, figsize=(10.6, 3.7),
-        gridspec_kw={"width_ratios": [1.0, 1.0, 1.25]}, sharey=False)
+    fig, (axA, axO, axM, axL) = plt.subplots(
+        1, 4, figsize=(12.0, 3.7), gridspec_kw={"width_ratios": [1.0, 1.0, 1.2, 0.95]},
+        sharey=False)
+
+    # ---- Fixed legend (drawn once; not cleared by frame()) ----
+    axL.axis("off")
+    crop_handles = []
+    for c in ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON"):
+        crop_handles.append(Patch(facecolor=_hex_rgb(_CROP_COLOR[c]), label=c.title()))
+    legend_handles = crop_handles + [
+        Patch(facecolor=_hex_rgb(_WEED), label="weed"),
+        Patch(facecolor=_hex_rgb(_LOCKED), label="locked (unbought)"),
+        Patch(facecolor=_hex_rgb(_STRUCT_COLOR["COOP"]), label="coop / pasture"),
+        Line2D([], [], marker="o", ls="none", ms=8, mfc="white", mew=0.5, mec="#555", label="ripened crop"),
+        Line2D([], [], marker="o", ls="none", ms=12, mfc="#1e3a8a", mew=1.2, mec="white", label="farmer"),
+        Line2D([], [], marker="o", ls="none", ms=8, mfc="#1e3a8a", mew=1.0, mec="white", label="hired hand"),
+        Line2D([], [], marker="o", ls="none", color="#1e3a8a", lw=2, label="US bank ($)"),
+        Line2D([], [], marker="o", ls="none", color="#d62728", lw=1.6, label="OPP bank ($)"),
+    ]
+    axL.legend(handles=legend_handles, loc="upper left", fontsize=7.5, ncol=1,
+               handleheight=1.3, frameon=False, title="Legend")
 
     def frame(i):
         d, sa, so = snaps[i]
@@ -2503,8 +2645,69 @@ def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 5,
 
     anim = FuncAnimation(fig, frame, frames=len(snaps), interval=200)
     out_path = (out_dir or path.parent) / (path.stem + "_board.gif")
-    anim.save(out_path, writer=PillowWriter(fps=fps), dpi=90)
+    anim.save(out_path, writer=PillowWriter(fps=max(fps, 1)), dpi=90)
     plt.close(fig)
+    return out_path
+
+
+_PRODUCT_COLOR = {"EGG": "#d4a017", "MILK": "#8d9aa6", "WOOL": "#b08d57"}
+
+
+def _animal_payback(a, prod, cared):
+    """Mirror _daily_refresh_animals: a cared+fed day adds 1 to a pending counter,
+    and a production day pays out 1 + whatever has accumulated, capped by max_held."""
+    import numpy as np
+    feed_cost = MARKET_PARAMS["WHEAT"]["base"]  # optimistic: base wheat; the market quotes higher as you buy
+    cash, pending = [-a["cost"]], 0
+    for d in range(1, 30):
+        units = 0
+        if d >= a["first_yield_day"] and (d - a["first_yield_day"]) % a["interval"] == 0:
+            units, pending = min(a["max_held"], 1 + pending), 0
+        if cared:
+            pending += 1
+        cash.append(cash[-1] + units * MARKET_PARAMS[prod]["base"] - feed_cost)
+    return cash
+
+
+def plot_animal_care_payback(out_path: Path) -> Path:
+    """Season economics of animal CARE: for each animal, cumulative cash over the
+    30-day season for FED-ONLY (dotted) vs FED+CARED (solid), against a FEED_COST of
+    one wheat/day, with break-even-day markers on the cared lines. Season-constant —
+    identical for every replay, so it is rendered once per `--graph` run / `--animals`.
+    """
+    import matplotlib.patheffects as pe
+    plt = _plt()
+    season = list(range(0, 30))
+    fig, ax = plt.subplots(figsize=(8.2, 3.6))
+    end_season = {}
+    for animal in ("GOOSE", "COW", "SHEEP"):
+        a = ANIMALS[animal]
+        prod = a["product"]
+        c = _PRODUCT_COLOR[prod]
+        for cared, style, width, alpha in ((False, ":", 1.6, 0.55), (True, "-", 2.2, 1.0)):
+            cash = _animal_payback(a, prod, cared)
+            ax.plot(season, cash, style, lw=width, color=c, alpha=alpha,
+                    label=(f"{animal.title()} cared — {prod.lower()} x{1 + a['interval']} per pickup"
+                           if cared else None))
+            be = next((int(d) for d, cv in zip(season, cash) if cv >= 0), None)
+            if be and cared:
+                dx, dy, ha = {"GOOSE": (-0.4, -560, "right"), "COW": (0.4, -560, "left"),
+                              "SHEEP": (0, 320, "center")}[animal]
+                ax.plot(be, cash[be], "o", ms=9, color=c, mec="white", zorder=5)
+                ax.text(be + dx, cash[be] + dy, f"day {be}", fontsize=9.5, color=c,
+                        weight="bold", ha=ha,
+                        path_effects=[pe.withStroke(linewidth=2.6, foreground="white")])
+            end_season[(animal, cared)] = cash[-1]
+    ax.axhline(0, color="#4A3F35", lw=1)
+    ax.set_xlabel("season day (animal bought on day 0)")
+    ax.set_ylabel("cumulative coins")
+    ax.set_title("Care changes the ranking: solid = fed + cared, dotted = fed only")
+    ax.legend(fontsize=9.5, frameon=False, loc="upper left")
+    plt.savefig(out_path, dpi=110, bbox_inches="tight")
+    plt.close(fig)
+    for animal in ("GOOSE", "COW", "SHEEP"):
+        print(f"  {animal.title():6s} end of season: "
+              f"{end_season[(animal, True)]:+8,.0f} cared   {end_season[(animal, False)]:+8,.0f} fed only")
     return out_path
 
 
@@ -2576,6 +2779,12 @@ def cli():
                              "divergence, and day-by-day money for the same seed")
     parser.add_argument("--graph", action="store_true",
                         help="Render per-game dashboard PNG + animated farm-board GIF from saved replays")
+    parser.add_argument("--animals", action="store_true",
+                        help="Render the season-constant animal CARE payback chart "
+                             "(fed-only vs fed+cared cumulative cash) as animal_care_payback.png")
+    parser.add_argument("--gif-fps", type=int, default=2,
+                        help="Farm-board GIF playback speed in frames/sec (default 2 = 0.5s/day; "
+                             "raise to 4-5 for a quicker skim)")
     parser.add_argument("--tape", choices=["v1", "v2"], default="v1",
                         help="Tape module to build main.py against: v1=route_tape.py "
                              "(production), v2=route_tape_v2.py (experimental)")
@@ -2605,14 +2814,24 @@ def cli():
         rows = [game_summary(p) for p in paths]
         print("\nPer-game summary:")
         print_game_table(rows)
+        if args.compare and paths:
+            ab_delta_report(paths, per_day=args.render)
         if args.render and paths:
             replay = load_replay(paths[-1])
             frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
             print(f"\n--- rendered: {paths[-1].name} ---")
             render(days, frames)
         if args.graph and paths:
-            print(f"\nRendering PNG dashboards into {run_dir}:")
-            graph_batch(paths, run_dir)
+            print(f"\nRendering PNG dashboards + farm GIFs into {run_dir}:")
+            graph_batch(paths, run_dir, gif_fps=args.gif_fps)
+        return
+
+    if args.animals and not (args.old or args.new or args.compare):
+        out_dir = Path(args.run_dir) if args.run_dir else Path(".")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        chart = plot_animal_care_payback(out_dir / "animal_care_payback.png")
+        if chart:
+            print(f"  wrote {chart.name}")
         return
 
     pa_indices = _parse_pa_arg(args.pa)

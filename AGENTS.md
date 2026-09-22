@@ -388,10 +388,17 @@ or your `--run-dir`):
   compact per-game readout printed to the terminal.
 
 Re-diagnose saved replays with `python diagnose.py --replay-dir <dir> --render`
-(regenerates the CSVs; `--render` prints the day report). `--graph` renders a
-1×2 dashboard PNG per game **plus an animated farm-board GIF** (`_board.gif`) — one
-frame per in-game day showing BOTH farms' 10×10 maps with farmer/hand position
-dots and a money-race panel, so you can watch *when* a defect appears.
+(regenerates the CSVs; `--render` prints the day report, with a board-symbol legend up
+front). `--graph` renders a 1×2 dashboard PNG per game **plus an animated farm-board
+GIF** (`_board.gif`) — one frame per in-game day showing BOTH farms' 10×10 maps with
+farmer/hand position dots, a legend, and a money-race panel, so you can watch *when*
+a defect appears. GIF speed defaults to 2 fps (0.5 s/day); pass `--gif-fps 4-5` for a
+quicker skim. `--graph` also emits a **season-constant `animal_care_payback.png`**
+(cumulative cash per animal, fed-only dotted vs fed+cared solid, with break-even days),
+and the games.csv row adds two locked-land signals: **`locked_steps`** (how many
+farmer/hand worker-turns stood on unbought `LOCKED` tiles) and **`locked_units_at_bell`**
+(workers still on locked land at day 30) — a bot that routes hands across unbought land
+(legal since 1.32.3) wastes labour there. Render it standalone with `--animals`.
 
 > **Context for these metrics:** to see *how* the agent got here — the base
 > route tape it runs on, the 45-layer patch stack built on top of it, and what
@@ -417,6 +424,7 @@ dots and a money-race panel, so you can watch *when* a defect appears.
 | `discarded_units_total` / `discarded_items` | shed-overflow units discarded; which item (`{}`/`{WHEAT:…}`) | what actually got thrown away (often all FERTILIZER) |
 | `floor_sales` | units sold at the $1 floor | gluts dumped into the floor |
 | `stranded_at_bell` | $ value of sellable shed + unit-inventory stock at FINAL prices (animals excluded) | endgame hygiene — unsold stock doesn't score, so a non-zero here is money that died in the shed; leader tolerates ~$442 |
+| `locked_steps` / `locked_units_at_bell` | farmer/hand worker-turns standing on unbought `LOCKED` tiles; workers still on locked land at day 30 | hands routed across or parked on land you don't own (legal since 1.32.3) = wasted labour; both should be 0 or tiny |
 | `premium_below_base_frac` | share of premium-good (strawberry/melon/milk/wool) units sold below base | bad timing on crash-prone goods |
 | `animal_escapes` / `escaped_by_type` | animal losses (`COW:1`); `at_risk_of_escape` = ≥2 consec. unfed | near-miss precursor to chase |
 | `plants_died` / `missed_harvest_eod` / `unwatered_eod` | decayed crops / unharvested at day-end / unwatered at EOD | lifecycle defects |
@@ -434,8 +442,12 @@ dots and a money-race panel, so you can watch *when* a defect appears.
 
 ### How to hunt structural issues (never average across games)
 1. **Same-seed paired diff.** `python diagnose.py --compare --pa N --seed S --batch K`, then
-   diff the SAME-seed rows of `old` vs `new` in `games.csv`. A patch must *reduce* a concrete
-   defect without raising another — not move a mean.
+   diff the SAME-seed rows of `old` vs `new` in `games.csv`. `--compare` now prints a
+   **paired verdict** per opponent (and overall): `KEEP` iff the mean Δ is more than **2
+   standard errors** from zero **AND** a majority of seeds agree in sign (the
+   `wins-not-money` rule) — plus a win/tie/loss tally. Use `--batch 12` (≈ a minute) so
+   the SE is estimable; with 1 seed per opponent it says so and refuses to decide. A patch
+   must *reduce* a concrete defect without raising another — not just move that mean.
 2. **Chase a non-zero signal.** Any of `idle_share_pct`, `idle_units_ready`,
    `shed_overflow_days`, `discarded_items`, `floor_sales`, `premium_below_base_frac`,
    `animal_escapes`, `at_risk_of_escape`, `plants_died`, `missed_harvest_eod`,
