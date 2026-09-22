@@ -58,12 +58,14 @@ Flags:
                      dots and a money-race panel, so you can WATCH when a defect
                      appears instead of reading a static PNG. Uses
                      --replay-dir, or the most recent run dir. Per-game, never averaged.
+                     --graph renders ONLY the PNGs/GIFs — it does not rewrite the CSVs.
                      Headless Agg.
     --pa N[,M,...]   public agent indices (1-13), e.g. 1,2,3 or 1-6
     --batch N        number of seeds per opponent
     --seed S         deterministic: seeds S, S+1, ... S+(N-1) verbatim (omit = random)
     --run-dir DIR    where to save; default: next diag-replays/run-N
-    --replay-dir     re-read saved replays (rewrites CSVs; --render prints a day report)
+    --replay-dir     re-read saved replays (rewrites CSVs; --render prints a day report;
+                     with --graph it only renders the PNGs/GIFs and skips the CSVs)
     --render         full day-by-day report for the last replay; with --compare also
                      the per-day old-vs-new money curves
     --llm            write one <replay>.md narrative summary per replay
@@ -119,6 +121,40 @@ import kaggle_environments.envs.kaggriculture.kaggriculture as _ENV
 EPISODE_STEPS = 720
 TURNS_PER_DAY = 24
 SHED_CAPACITY = 100
+# The shed sits at the board centre, reachable from its four inner-corner access
+# tiles (one per quadrant). "Near shed" = the ownable ring within Manhattan
+# distance <= 2 of those access tiles — the shortest-round-trip land in the game.
+_SHED_ACCESS = [(4, 4), (5, 4), (4, 5), (5, 5)]
+
+
+def _dist_to_shed(x, y):
+    return min(abs(x - a) + abs(y - b) for (a, b) in _SHED_ACCESS)
+
+
+def _near_shed_stats(tiles: List[Any]) -> Tuple[int, int]:
+    """(planted, bare) count on the NW+NE top-half near-shed ring (a tile is
+    included iff it is in the top two quadrants, within Manhattan dist<=2 of the
+    shed, owned (unlocked, non-LOCKED), and NOT a shed-access tile). The shed-
+    access tiles are the hand-spawn hub, so they are excluded from the 'should be
+    planted' target. This is the abandoned land we are growing from the shed
+    outward: production currently leaves the NW/NE inner ring bare all season."""
+    planted = 0
+    bare = 0
+    for y, row in enumerate(tiles):
+        if y >= 5:  # NW + NE top half only
+            continue
+        for x, t in enumerate(row):
+            if (x, y) in _SHED_ACCESS or _dist_to_shed(x, y) > 2:
+                continue
+            if t == "LOCKED":
+                continue
+            if isinstance(t, dict) and t.get("kind") == "PLANT":
+                planted += 1
+            elif t is None:
+                bare += 1
+    return planted, bare
+
+
 # The public opponents in public_agents/ are single-seat "cloning" agents: they
 # only act when seated at seat 0. So the harness seats the public opponent at
 # seat 0 and the agent under test (main.py / agent.py) at seat 1. days.csv
@@ -783,6 +819,8 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
         "n_pass": 0,
         "n_move": 0,
         "market_orders": [],
+        "near_shed_planted": 0,
+        "near_shed_bare": 0,
         "first_step": None,
         "last_step": 0,
     })
@@ -811,6 +849,8 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
             day["weeds_start"] = f["weeds"]
             day["shed_items_start"] = dict(f["shed"])
         day["shed_items_end"] = dict(f["shed"])
+        if f["hour"] == TURNS_PER_DAY - 1:
+            day["near_shed_planted"], day["near_shed_bare"] = _near_shed_stats(f["tiles"])
 
         # Transitions aggregation
         tr = f.get("transitions", {})
@@ -1113,6 +1153,8 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
     out["stranded_at_bell"] = round(stranded)
     out["locked_steps"] = locked_steps          # farmer/hand worker-turns standing on unbought land
     out["locked_units_at_bell"] = locked_units_at_bell  # workers still on unbought land at the bell
+    out["near_shed_planted_max"] = max((d["near_shed_planted"] for d in days), default=0)
+    out["near_shed_bare_final"] = days[-1]["near_shed_bare"]
     out["avg_daily_delta"] = round(sum(d["money_delta"] for d in days) / len(days), 1)
     idle_units_total = sum(d.get("idle_units", 0) for d in days)
     unit_turns_total = sum(d.get("unit_turns", 0) for d in days)
@@ -1313,6 +1355,7 @@ def _day_columns() -> List[str]:
         "land_unlocks", "land_cost",
         "idle_turns", "n_pass", "n_move", "idle_units", "unit_turns", "idle_share_pct",
         "plants_watered", "plants_fertilized", "plants_died", "harvests_unknown",
+        "near_shed_planted", "near_shed_bare",
         "animals_fed", "animals_cared", "animals_escaped", "fertilizer_collected",
         "shop_unlocks", "market_orders",
         "sell_qty_source", "discarded_units", "idle_units_ready",
@@ -1342,7 +1385,7 @@ def _game_columns() -> List[str]:
             "idle_steps", "idle_units_total", "idle_share_pct",
             "idle_units_ready_total", "shed_pressure_days", "shed_overflow_days",
             "discarded_units_total", "discarded_items", "floor_sales", "stranded_at_bell",
-            "locked_steps", "locked_units_at_bell",
+            "locked_steps", "locked_units_at_bell", "near_shed_planted_max", "near_shed_bare_final",
             "animal_escapes", "escaped_by_type", "plants_died", "harvests",
             "weeds_peak", "unfed_signals", "at_risk_of_escape", "unwatered_eod",
             "missed_harvest_eod",
@@ -1438,6 +1481,8 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
         "stranded_at_bell": summary.get("stranded_at_bell", 0),
         "locked_steps": summary.get("locked_steps", 0),
         "locked_units_at_bell": summary.get("locked_units_at_bell", 0),
+        "near_shed_planted_max": summary.get("near_shed_planted_max", 0),
+        "near_shed_bare_final": summary.get("near_shed_bare_final", 0),
         "animal_escapes": summary.get("animal_escapes", 0),
         "escaped_by_type": " ".join(f"{k}:{v}" for k, v in summary.get("animals_escaped_by", {}).items()),
         "plants_died": summary.get("plants_died_to_weeds", 0),
@@ -2286,7 +2331,7 @@ def plot_game(path: Path, out_dir: Optional[Path] = None):
     return out_path
 
 
-def graph_batch(paths: List[Path], run_dir: Path, gif_fps: int = 2) -> List[Path]:
+def graph_batch(paths: List[Path], run_dir: Path, gif_fps: float = 1.5) -> List[Path]:
     """Render per replay the 1×2 side-by-side dashboard AND an animated farm-board
     GIF (both farms + farmer/hand positions + money race, one frame per day),
     returning the paths written. `gif_fps` sets GIF playback speed. Also emits a
@@ -2512,6 +2557,14 @@ def _draw_farm_with_positions(ax, tiles, farmer, hands):
         for x, t in enumerate(row):
             if isinstance(t, dict) and t.get("kind") == "PLANT" and t.get("yield_units", 0) > 0:
                 ax.plot(x, y, "o", ms=3.2, mfc="white", mec="none", zorder=6)
+    # animals: distinct triangle marker, one colour per species, always on top of
+    # the structure cell so the herd is visible in the farm-board GIF.
+    for y, row in enumerate(tiles):
+        for x, t in enumerate(row):
+            if isinstance(t, dict) and t.get("animal"):
+                a = t.get("animal")
+                ax.plot(x, y, marker="^", ms=7.0, ls="none", zorder=6,
+                        mfc=_ANIMAL_COLOR.get(a, "#9e9e9e"), mec="white", mew=1.1)
     ax.plot([0, 10], [5, 5], color="0.5", lw=1.4, alpha=0.8, zorder=4)
     ax.plot([5, 5], [0, 10], color="0.5", lw=1.4, alpha=0.8, zorder=4)
     ax.text(5, 5, "shed", ha="center", va="center", fontsize=6, color="#111111", zorder=5)
@@ -2536,7 +2589,7 @@ def _tiles_to_rgb(tiles):
     return arr
 
 
-def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 2,
+def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: float = 1.5,
                    max_days: int = 30) -> Optional[Path]:
     """Render an animated farm-board GIF from a saved replay, `<stem>_board.gif`.
 
@@ -2613,6 +2666,11 @@ def plot_board_gif(path: Path, out_dir: Optional[Path] = None, fps: int = 2,
         Line2D([], [], marker="o", ls="none", ms=8, mfc="white", mew=0.5, mec="#555", label="ripened crop"),
         Line2D([], [], marker="o", ls="none", ms=12, mfc="#1e3a8a", mew=1.2, mec="white", label="farmer"),
         Line2D([], [], marker="o", ls="none", ms=8, mfc="#1e3a8a", mew=1.0, mec="white", label="hired hand"),
+    ]
+    legend_handles += [Line2D([], [], marker="^", ls="none", ms=9,
+                              mfc=_hex_rgb(_ANIMAL_COLOR[a]), mew=1.0, mec="white", label=f"{a.title()} ({_ANIMAL_LETTER[a]})")
+                       for a in ("GOOSE", "COW", "SHEEP")]
+    legend_handles += [
         Line2D([], [], marker="o", ls="none", color="#1e3a8a", lw=2, label="US bank ($)"),
         Line2D([], [], marker="o", ls="none", color="#d62728", lw=1.6, label="OPP bank ($)"),
     ]
@@ -2782,8 +2840,8 @@ def cli():
     parser.add_argument("--animals", action="store_true",
                         help="Render the season-constant animal CARE payback chart "
                              "(fed-only vs fed+cared cumulative cash) as animal_care_payback.png")
-    parser.add_argument("--gif-fps", type=int, default=2,
-                        help="Farm-board GIF playback speed in frames/sec (default 2 = 0.5s/day; "
+    parser.add_argument("--gif-fps", type=float, default=1.5,
+                        help="Farm-board GIF playback speed in frames/sec (default 1.5 ≈ 0.67s/day; "
                              "raise to 4-5 for a quicker skim)")
     parser.add_argument("--tape", choices=["v1", "v2"], default="v1",
                         help="Tape module to build main.py against: v1=route_tape.py "
@@ -2810,17 +2868,20 @@ def cli():
             print(f"auto-picked {run_dir} has {len(paths)} replays; pass --replay-dir "
                   f"{run_dir} explicitly to graph them (or cap it).")
             return
-        write_run_csv(run_dir, paths)
-        rows = [game_summary(p) for p in paths]
-        print("\nPer-game summary:")
-        print_game_table(rows)
-        if args.compare and paths:
-            ab_delta_report(paths, per_day=args.render)
-        if args.render and paths:
-            replay = load_replay(paths[-1])
-            frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
-            print(f"\n--- rendered: {paths[-1].name} ---")
-            render(days, frames)
+        # --graph only renders PNGs/GIFs from the saved replays; it does NOT rewrite
+        # the CSVs or print the per-game table (the graph reads the JSONs directly).
+        if not args.graph:
+            write_run_csv(run_dir, paths)
+            rows = [game_summary(p) for p in paths]
+            print("\nPer-game summary:")
+            print_game_table(rows)
+            if args.compare and paths:
+                ab_delta_report(paths, per_day=args.render)
+            if args.render and paths:
+                replay = load_replay(paths[-1])
+                frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
+                print(f"\n--- rendered: {paths[-1].name} ---")
+                render(days, frames)
         if args.graph and paths:
             print(f"\nRendering PNG dashboards + farm GIFs into {run_dir}:")
             graph_batch(paths, run_dir, gif_fps=args.gif_fps)

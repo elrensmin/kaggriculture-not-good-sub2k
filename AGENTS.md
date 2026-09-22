@@ -391,14 +391,20 @@ Re-diagnose saved replays with `python diagnose.py --replay-dir <dir> --render`
 (regenerates the CSVs; `--render` prints the day report, with a board-symbol legend up
 front). `--graph` renders a 1×2 dashboard PNG per game **plus an animated farm-board
 GIF** (`_board.gif`) — one frame per in-game day showing BOTH farms' 10×10 maps with
-farmer/hand position dots, a legend, and a money-race panel, so you can watch *when*
-a defect appears. GIF speed defaults to 2 fps (0.5 s/day); pass `--gif-fps 4-5` for a
-quicker skim. `--graph` also emits a **season-constant `animal_care_payback.png`**
-(cumulative cash per animal, fed-only dotted vs fed+cared solid, with break-even days),
-and the games.csv row adds two locked-land signals: **`locked_steps`** (how many
-farmer/hand worker-turns stood on unbought `LOCKED` tiles) and **`locked_units_at_bell`**
-(workers still on locked land at day 30) — a bot that routes hands across unbought land
-(legal since 1.32.3) wastes labour there. Render it standalone with `--animals`.
+farmer/hand dots, **per-species animal triangles** (GOOSE/COW/SHEEP, colour-coded), a
+legend, and a money-race panel, so you can watch *when* a defect appears. GIF speed
+defaults to **1.5 fps (≈0.67 s/day)**; pass `--gif-fps 4-5` for a quicker skim.
+`--graph` also emits a season-constant `animal_care_payback.png` (cumulative cash per
+animal, fed-only dotted vs fed+cared solid, with break-even days); render it standalone
+with `--animals`. `games.csv` also carries `locked_steps`/`locked_units_at_bell`
+(farmer/hand turns standing on unbought `LOCKED` tiles — wasted labour since 1.32.3).
+
+> **Near-shed land is the ANIMAL zone, not wasted crop land.** The NW/NE inner ring
+> (within ~2 of the shed) is ~100% livestock + pastures/coops in every replay (it's the
+> cheapest feed/care round-trip). Don't read a bare-looking GIF there as "crops should
+> grow from the shed outward" — the animals are drawn as triangles but were previously
+> invisible because the tile cell is tiny. The `near_shed_planted_max`/`near_shed_bare`
+> games.csv columns (top-half ring crops) correctly stay ≈1/0 for that reason.
 
 > **Context for these metrics:** to see *how* the agent got here — the base
 > route tape it runs on, the 45-layer patch stack built on top of it, and what
