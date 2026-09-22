@@ -417,6 +417,33 @@ with `--animals`. `games.csv` also carries `locked_steps`/`locked_units_at_bell`
 > numbers trace. Use it as the reference for what each metric is telling you
 > and which layer introduced or fixed it.
 
+### `--grid` — sweep the agent.py `E1_PARAMS` space (paired, hedged)
+For grid-searching a parametrised patch (currently the E1 sell gate) instead of one
+hand-tuned `--compare`. Run:
+```
+python diagnose.py --grid --pa 1,2,8 --seed 700 --batch 8 \
+  --grid-params 'min_sell_frac=[0.8,0.9,1.0];shed_cap_frac=[0.85,0.90,0.95]'
+```
+- `--grid` runs the **`old` batch once** (combo-independent) and reuses it as the paired
+  baseline for every combo; each combo injects `agent.py`'s module `E1_PARAMS` and runs only
+  `new`. Writes `grid/grid.csv` + a ranked accept/reject table. The game batches (old baseline
+  + each combo) execute **in parallel across cores** (default all cores) via
+  `run_parallel_tasks`; cap it with `--workers N`.
+- For each combo it computes **per-opponent** `_paired_verdict` (same seed) on the target
+  metric `premium_waste_units` (below-base premium+fertilizer units, `games.csv` column) and
+  **guard** metrics. A combo is `ACCEPT` only if it reduces the target **for every opponent**
+  AND no guard regresses past tolerance:
+  `discarded_units_total`/`shed_overflow_days` (E4), `animal_escapes`, `stranded_at_bell`,
+  and `sell_revenue_total` (≥ -10% vs that opponent's baseline). Anything else prints
+  `REJECT: <which guard regressed>` — never pooled.
+- The E1 gate itself is hedged in `agent.py`: below-base gated goods are HELD (don't dump
+  into the glut), but a **hard invariant** always sells enough to never overflow the shared
+  100-cap shed (a discard is a 100% loss), a single product can't hog more than `hold_cap`
+  of it, and day ≥ 27 is left to the base agent's liquidation so nothing strands. Only market
+  `SELL` quantities (and `FERTILIZE` when `use_fert` is on) are ever rewritten — never
+  `PLANT`/`BUY`/`HIRE`/seeds — so the collective-PLANT and invalid-action traps can't fire
+  from this patch.
+
 ### `games.csv` columns (one row per game)
 
 | column | meaning | read it as |
@@ -454,6 +481,9 @@ with `--animals`. `games.csv` also carries `locked_steps`/`locked_units_at_bell`
    `wins-not-money` rule) — plus a win/tie/loss tally. Use `--batch 12` (≈ a minute) so
    the SE is estimable; with 1 seed per opponent it says so and refuses to decide. A patch
    must *reduce* a concrete defect without raising another — not just move that mean.
+   `--compare` (and `--new`/`--old`) share the same `run_parallel_tasks` core as `--grid`, so
+   the batch of games is split across cores by default; cap it with `--workers N`.
+   `--workers` defaults to all cores and is accepted by every multi-game flag.
 2. **Chase a non-zero signal.** Any of `idle_share_pct`, `idle_units_ready`,
    `shed_overflow_days`, `discarded_items`, `floor_sales`, `premium_below_base_frac`,
    `animal_escapes`, `at_risk_of_escape`, `plants_died`, `missed_harvest_eod`,

@@ -121,6 +121,8 @@ import kaggle_environments.envs.kaggriculture.kaggriculture as _ENV
 EPISODE_STEPS = 720
 TURNS_PER_DAY = 24
 SHED_CAPACITY = 100
+# E1 grid target: premium goods + fertilizer sold below base (= their worst sales).
+_GATED_WASTE = ("STRAWBERRY", "MELON", "MILK", "WOOL", "FERTILIZER")
 # The shed sits at the board centre, reachable from its four inner-corner access
 # tiles (one per quadrant). "Near shed" = the ownable ring within Manhattan
 # distance <= 2 of those access tiles — the shortest-round-trip land in the game.
@@ -1177,6 +1179,7 @@ def summarize(days: List[Dict[str, Any]], frames: Optional[List[Dict[str, Any]]]
     out["max_shed_total"] = max((d["max_shed_total"] for d in days), default=0)
     out["floor_sales"] = dict(sorted(floor_sales.items()))
     out["below_base_sales"] = dict(sorted(below_base.items()))
+    out["premium_waste_units"] = sum(below_base.get(p, 0) for p in _GATED_WASTE)
     out["sell_qty"] = dict(sorted(sell_qty.items()))
     out["animal_escapes"] = animal_escapes
     _eb = defaultdict(int)
@@ -1391,7 +1394,7 @@ def _game_columns() -> List[str]:
             "missed_harvest_eod",
             "seed_cost_total", "animal_cost_total", "product_cost_total",
             "hire_cost_total", "land_cost_total", "sell_revenue_total",
-            "wheat_fed", "feed_surplus", "premium_below_base_frac"]
+            "wheat_fed", "feed_surplus", "premium_below_base_frac", "premium_waste_units"]
 
 # ---------------------------------------------------------------------------
 # Replay -> frames / days helper
@@ -1501,6 +1504,7 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
         "wheat_fed": summary.get("wheat_fed_total", 0),
         "feed_surplus": summary.get("feed_surplus_total", 0),
         "premium_below_base_frac": summary.get("premium_below_base_frac", 0.0),
+        "premium_waste_units": summary.get("premium_waste_units", 0),
     }
 
 
@@ -1642,32 +1646,25 @@ def compare_batch(
     run_dir: Path,
     episode_steps: int = EPISODE_STEPS,
     seed: Optional[int] = None,
+    workers: Optional[int] = None,
 ):
-    """Run old and new agents against the same (shared) seeds and public agents."""
+    """Run old and new agents against the same (shared) seeds and public agents,
+    executing the two batches in parallel when workers > 1."""
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     seeds = _make_seeds(n_seeds, seed)
-    old_agent, new_agent = load_old_and_new(fresh=True)
-    results = {"old": [], "new": []}
-    for pa in pa_indices:
-        opp = load_public_agent(pa)
-        opp_name = PUBLIC_AGENT_MAP[pa][0]
-        for label, agent in (("old", old_agent), ("new", new_agent)):
-            for s in seeds:
-                env = run_game(agent, opp, seed=s, episode_steps=episode_steps, seat=TEST_SEAT, audit=True)
-                meta = {
-                    "agent": label,
-                    "opponent": opp_name,
-                    "opponent_idx": pa,
-                    "seed": s,
-                    "seat": TEST_SEAT,
-                    "episode_steps": episode_steps,
-                }
-                path = run_dir / f"{label}_vs_{opp_name}_seed{s}.json"
-                save_replay(env, path, meta)
-                results[label].append(path)
-                reward = env.steps[-1][TEST_SEAT].reward
-                print(f"  saved {path.name}  reward={reward:.0f}")
+    if workers is None:
+        workers = _GRID_WORKERS
+    tasks = [
+        # (task_id, label, combo, pa_indices, seeds, cdir, seat, episode_steps)
+        (0, "old", None, pa_indices, seeds, run_dir, TEST_SEAT, episode_steps),
+        (1, "new", dict(_E1_DEFAULT), pa_indices, seeds, run_dir, TEST_SEAT, episode_steps),
+    ]
+    by_id = run_parallel_tasks(tasks, workers=workers)
+    results = {"old": by_id.get(0, []), "new": by_id.get(1, [])}
+    for label, paths in results.items():
+        for p in paths:
+            print(f"  saved {p.name}")
     return results, seeds
 
 
@@ -1800,6 +1797,276 @@ def ab_delta_report(paths: List[Path], per_day: bool = False):
         print()
         _print_verdict(rows, "ALL OPPONENTS")
     return rows
+
+
+# ---------------------------------------------------------------------------
+# --grid — sweep the agent.py E1_PARAMS space, reusing the paired --compare design
+# ---------------------------------------------------------------------------
+
+_E1_DEFAULT = {"min_sell_frac": 1.0, "shed_cap_frac": 0.90, "hold_cap": 45, "use_fert": 0,
+               "shop_aware": 0}
+# Workers (--workers) for parallel game execution across combos; None => all cores.
+_GRID_WORKERS = None
+# Per-worker agent cache (forked processes reuse one main.py load across the
+# batches they handle; E1_PARAMS is set per batch and read live by patch()).
+_AGENT_PAIR = None
+# Guards that a combo must not regress (per opponent, same-seed paired mean delta).
+#  key -> (limit, direction): direction +1 => delta must be <= limit (don't worsen);
+#        direction -1 => delta must be >= limit (don't tank revenue).
+_E1_GUARDS = {
+    "shed_overflow_days": (0.5, +1),
+    "discarded_units_total": (1.0, +1),
+    "animal_escapes": (0.0, +1),
+    "stranded_at_bell": (300.0, +1),
+    "sell_revenue_total": (-0.10, -1),  # >= -10% (relative limit handled in code)
+}
+
+
+def _get_agent_pair():
+    """(old_agent, new_agent) loaded once per (forked) process and reused across
+    every batch that process handles. main.py is a singleton, so reloading it per
+    batch would be wasteful; one load per process is enough because the patch
+    re-reads E1_PARAMS live each turn."""
+    global _AGENT_PAIR
+    if _AGENT_PAIR is None:
+        _AGENT_PAIR = load_old_and_new(fresh=True)
+    return _AGENT_PAIR
+
+
+def _batch_exec_worker(task):
+    """Run ONE batch (a single agent config over pa_indices x seeds) in a worker.
+
+    task = (task_id, label, combo, pa_indices, seeds, cdir, seat, episode_steps).
+    - label is "old" (production main.py only) or "new" (main.py + agent.patch).
+    - combo is None for "old", or a dict of E1_PARAMS injected for "new".
+    Returns (task_id, [saved replay paths]). This is the parallel unit shared by
+    --grid, --compare, --new and --old; each worker reuses one main.py load via
+    _get_agent_pair()."""
+    task_id, label, combo, pa_indices, seeds, cdir, seat, episode_steps = task
+    cdir = Path(cdir)
+    cdir.mkdir(parents=True, exist_ok=True)
+    if label == "new":
+        import agent as _amod
+        _amod.E1_PARAMS = dict(combo)
+    old_agent, new_agent = _get_agent_pair()
+    agent = new_agent if label == "new" else old_agent
+    paths = []
+    for pa in pa_indices:
+        opp = load_public_agent(pa)
+        opp_name = PUBLIC_AGENT_MAP[pa][0]
+        for s in seeds:
+            env = run_game(agent, opp, seed=s, episode_steps=episode_steps, seat=seat, audit=True)
+            meta = {"agent": label, "opponent": opp_name, "opponent_idx": pa,
+                    "seed": s, "seat": seat, "episode_steps": episode_steps}
+            path = cdir / f"{label}_vs_{opp_name}_seed{s}.json"
+            save_replay(env, path, meta)
+            paths.append(path)
+    return task_id, paths
+
+
+def run_parallel_tasks(tasks, workers=None):
+    """Run independent game-batches across cores. `tasks` = a list of
+    _batch_exec_worker tuples (task_id, label, combo, pa_indices, seeds, cdir,
+    seat, episode_steps). Returns {task_id: [paths]} in completion order.
+
+    Shared by --grid (old baseline + every combo), --compare (old + new) and
+    --old/--new (single batch). Each task is a fork-able unit; the number of
+    workers defaults to all cores. Falls back to serial when trivial."""
+    import os
+    import multiprocessing as mp
+    n = len(tasks)
+    if n == 0:
+        return {}
+    w = int(workers if workers is not None else (os.cpu_count() or 1))
+    out = {}
+    if w <= 1 or n <= 1:
+        for t in tasks:
+            tid, paths = _batch_exec_worker(t)
+            out[tid] = paths
+    else:
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=min(w, n)) as pool:
+            for tid, paths in pool.imap_unordered(_batch_exec_worker, tasks):
+                out[tid] = paths
+    global _AGENT_PAIR
+    _AGENT_PAIR = None  # do not keep a stale main instance in the caller
+    return out
+
+
+def run_labeled_batch(label, pa_indices, n_seeds, run_dir, seed=None, combo=None,
+                      seat=TEST_SEAT, workers=None):
+    """Run one label ("old"/"new", optionally with an E1_PARAMS combo) over
+    pa_indices x n_seeds in parallel and return (saved_paths, seeds). The shared
+    wrapper for --old / --new."""
+    seeds = _make_seeds(n_seeds, seed)
+    cdir = Path(run_dir)
+    cdir.mkdir(parents=True, exist_ok=True)
+    tasks = [(0, label, combo, pa_indices, seeds, cdir, seat, EPISODE_STEPS)]
+    paths = run_parallel_tasks(tasks, workers=workers)
+    return paths[0], seeds
+
+
+def _parse_param_space(spec: str) -> dict:
+    """Parse 'k=[a,b];k2=[c,d]' into {k:[...], k2:[...]}. Values are int/float."""
+    space = {}
+    for part in spec.split(";"):
+        if "=" not in part:
+            continue
+        k, vals = part.split("=", 1)
+        k = k.strip()
+        vals = vals.strip().strip("[]")
+        parsed = []
+        for v in vals.split(","):
+            v = v.strip(" ")
+            if not v:
+                continue
+            try:
+                parsed.append(int(v))
+            except ValueError:
+                parsed.append(float(v))
+        if k and parsed:
+            space[k] = parsed
+    return space
+
+
+def _paired_deltas(old_summaries, new_summaries, key, opponent=None):
+    # old/new are dicts keyed by (opponent, seed) -> summary row.
+    diffs = []
+    for opair in sorted(set(old_summaries) | set(new_summaries)):
+        opp, seed = opair
+        if opponent is not None and opp != opponent:
+            continue
+        o = old_summaries.get(opair)
+        n = new_summaries.get(opair)
+        if o is None or n is None:
+            continue
+        diffs.append(n[key] - o[key])
+    return diffs
+
+
+def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
+    """Sweep the E1 param space: for each combo, run the 'new' agent against a
+    single shared 'old' batch on the same seeds, get per-opponent paired verdicts
+    on the E1 target (premium_waste_units) plus guard metrics, write grid.csv and
+    print a ranked accept/reject table. Never pools across opponents."""
+    import agent as amod
+    from itertools import product
+
+    space = _parse_param_space(spec) if spec else {"min_sell_frac": [1.0],
+                                                  "shed_cap_frac": [0.85, 0.90, 0.95]}
+    keys = list(space)
+    combos = []
+    for values in product(*[space[k] for k in keys]):
+        full = dict(_E1_DEFAULT)
+        full.update(zip(keys, values))
+        combos.append(full)
+
+    run_dir = Path(run_dir)
+    base_dir = run_dir / "grid"
+    out_csv = []
+    rows = []
+
+    seeds = _make_seeds(n_seeds, seed)
+    n_tasks = len(combos) + 1
+    workers = int(_GRID_WORKERS or (os.cpu_count() or 1))
+    print(f"Grid: {len(combos)} combo(s) over {pa_indices} x {n_seeds} seeds "
+          f"(old batch shared across all combos; running {n_tasks} batches over {workers} workers).\n")
+
+    # --- parallel game execution: old baseline (-1) + every combo ---------------
+    tasks = [(-1, "old", None, pa_indices, seeds, base_dir / "baseline", TEST_SEAT, EPISODE_STEPS)]
+    for idx, combo in enumerate(combos):
+        tasks.append((idx, "new", combo, pa_indices, seeds, base_dir / f"combo{idx}", TEST_SEAT, EPISODE_STEPS))
+    paths_by_idx = run_parallel_tasks(tasks, workers=_GRID_WORKERS)
+    for ci in sorted(paths_by_idx):
+        print(f"  [batch {ci}] wrote {len(paths_by_idx[ci])} replays")
+
+    # --- per-combo analysis (serial; the heavy game runs are now parallel) -------
+    summary_cache = {}
+
+    def gs(p):
+        s = summary_cache.get(p)
+        if s is None:
+            s = game_summary(p)
+            summary_cache[p] = s
+        return s
+
+    old_paths = paths_by_idx[-1]
+    old_summaries = {(gs(p)["opponent"], gs(p)["seed"]): gs(p) for p in old_paths}
+    base_wins = sum(1 for p in old_paths if gs(p)["result"] == "WIN")
+
+    for idx, combo in enumerate(combos):
+        new_paths = paths_by_idx[idx]
+        new_summaries = {(gs(p)["opponent"], gs(p)["seed"]): gs(p) for p in new_paths}
+        wins = sum(1 for p in new_paths if gs(p)["result"] == "WIN")
+
+        # Per-opponent target verdict: want mean Δ(premium_waste_units) < 0 + KEEP.
+        opps = {}
+        for opp in {k[0] for k in old_summaries} | {k[0] for k in new_summaries}:
+            d = _paired_deltas(old_summaries, new_summaries, "premium_waste_units", opponent=opp)
+            v = _paired_verdict(d)
+            opps[opp] = (v["mean"], v["keep"])   # tuple: (mean_delta, keep)
+        target_ok = all(keep and mean < 0 for mean, keep in opps.values())
+        worst_opp = max(opps.items(), key=lambda kv: kv[1][0])[0] if opps else "?"
+
+        # Guard deltas (per-opponent mean) — reject any that regress.
+        guard_fails = []
+        guard_deltas = {}
+        opp_pool = {k[0] for k in new_summaries} | {k[0] for k in old_summaries}
+        for gkey, (limit, direction) in _E1_GUARDS.items():
+            for opp in opp_pool:
+                d = _paired_deltas(old_summaries, new_summaries, gkey, opponent=opp)
+                mean = sum(d) / len(d) if d else 0.0
+                guard_deltas[(gkey, opp)] = mean
+                if gkey == "sell_revenue_total":
+                    # revenue is relative to that opponent's old baseline mean.
+                    old_rows = [s for (o, s), s in old_summaries.items() if o == opp]
+                    old_mean = sum(r["sell_revenue_total"] for r in old_rows) / max(1, len(old_rows))
+                    if len(d) and old_mean > 0 and mean < -0.10 * old_mean:
+                        guard_fails.append(f"revenue[{opp}]{mean:+,.0f}")
+                elif direction == +1 and mean > limit:
+                    guard_fails.append(f"{gkey}[{opp}]+{mean:.1f}")
+
+        verdict = "REJECT"
+        if not opps:
+            reason = "no paired seeds"
+        elif not target_ok:
+            reason = f"target not KEEP-reducing on all opps (worst {worst_opp} mean={opps[worst_opp][0]:+,.1f})"
+        elif guard_fails:
+            reason = "guard regression: " + "; ".join(guard_fails)
+        else:
+            verdict = "ACCEPT"
+            reason = f"target reduced on all opps; guards clean; wins {wins} vs old {base_wins}"
+
+        row = {"combo": idx, **{f"p_{k}": combo[k] for k in keys}, "verdict": verdict, "reason": reason,
+               "wins_new": wins, "wins_old": base_wins,
+               "target_mean_all": sum(v[0] for v in opps.values()) / max(1, len(opps)),
+               "target_ok": target_ok, "guard_reason": guard_fails}
+        rows.append(row)
+        out_csv.append(row)
+        print(f"  combo {idx} {row['p_min_sell_frac'] if 'p_min_sell_frac' in row else ''}"
+              f" msf={combo.get('min_sell_frac')} scf={combo.get('shed_cap_frac')} hc={combo.get('hold_cap')} uf={combo.get('use_fert')} "
+              f"-> {verdict}: {reason}")
+        for opp in sorted(opps):
+            print(f"      {opp}: targetΔ={opps[opp][0]:+,.1f} keep={opps[opp][1]}")
+
+    # Reset the injected params so the next --new/--compare uses defaults.
+    amod.E1_PARAMS = dict(_E1_DEFAULT)
+
+    # Ranked table: accepted first, then by target reduction, then guard-margin.
+    ranked = sorted(rows, key=lambda r: (r["verdict"] != "ACCEPT",
+                                         -r["target_mean_all"], r["wins_new"]))
+    if out_csv:
+        cols = ["combo"] + [f"p_{k}" for k in keys] + ["verdict", "wins_new", "wins_old",
+                                                        "target_mean_all", "guard_reason"]
+        grid_csv = base_dir / "grid.csv"
+        import csv as _csv
+        with grid_csv.open("w", newline="") as fh:
+            w = _csv.DictWriter(fh, fieldnames=cols)
+            w.writeheader()
+            for r in out_csv:
+                w.writerow({c: r.get(c) for c in cols})
+        print(f"\n  grid.csv -> {grid_csv}  ({len(out_csv)} combos)")
+    return ranked
 
 
 # ---------------------------------------------------------------------------
@@ -2824,6 +3091,12 @@ def cli():
     parser.add_argument("--new", action="store_true",
                         help="Run main.py patched with agent.py (runs everything in main + patch)")
     parser.add_argument("--compare", action="store_true", help="A/B old vs new on the same seeds")
+    parser.add_argument("--grid", action="store_true",
+                        help="Sweep the agent.py E1_PARAMS space via paired compare; writes grid/grid.csv")
+    parser.add_argument("--grid-params", default=None,
+                        help="Param space for --grid (e.g. 'min_sell_frac=[0.8,0.9,1.0];shed_cap_frac=[0.85,0.9,0.95]')")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="Parallel workers for --grid game execution (default: all cores)")
     parser.add_argument("--pa", default="1", help="Public agent indices, e.g. 1,2,3 or 1-3")
     parser.add_argument("--batch", type=int, default=1, help="Number of seeds per opponent")
     parser.add_argument("--seed", type=int, default=None,
@@ -2850,6 +3123,22 @@ def cli():
 
     global _TAPE_SELECTED
     _TAPE_SELECTED = args.tape
+
+    if args.grid:
+        if not (args.pa and args.batch >= 2):
+            print("--grid needs --pa N and --batch >= 2 (SE must be estimable).")
+            return
+        pa_indices = _parse_pa_arg(args.pa)
+        for pa in pa_indices:
+            if pa not in PUBLIC_AGENT_MAP:
+                print(f"Unknown public agent #{pa}. Available:\n{public_agent_names()}")
+                sys.exit(1)
+        global _GRID_WORKERS
+        _GRID_WORKERS = args.workers
+        run_dir = Path(args.run_dir) if args.run_dir else _new_run_dir()
+        print(f"Grid replays -> {run_dir}  (workers={_GRID_WORKERS or os.cpu_count()})")
+        grid_search(pa_indices, args.batch, run_dir, seed=args.seed, spec=args.grid_params)
+        return
 
     if args.replay_dir or (args.graph and not args.old and not args.new and not args.compare
                            and not args.xray):
@@ -2911,7 +3200,7 @@ def cli():
         return
 
     if args.compare:
-        results, seeds = compare_batch(pa_indices, args.batch, run_dir, seed=args.seed)
+        results, seeds = compare_batch(pa_indices, args.batch, run_dir, seed=args.seed, workers=args.workers)
         all_paths = results["old"] + results["new"]
         write_run_csv(run_dir, all_paths)
         print("\nPer-game summary:")
@@ -2935,14 +3224,10 @@ def cli():
     if args.new and args.old:
         print("Use --compare for both; use only --old or --new otherwise.")
         sys.exit(1)
-    if args.new:
-        agent = load_new_agent(fresh=True)
-        label = "new"
-    else:
-        agent = load_old_agent(fresh=True)
-        label = "old"
-
-    saved, seeds = batch_run(agent, label, pa_indices, args.batch, run_dir, seed=args.seed)
+    label = "new" if args.new else "old"
+    combo = dict(_E1_DEFAULT) if label == "new" else None
+    saved, seeds = run_labeled_batch(label, pa_indices, args.batch, run_dir,
+                                     seed=args.seed, combo=combo, workers=args.workers)
     write_run_csv(run_dir, saved)
     print("\nPer-game summary:")
     rows = [game_summary(p) for p in saved]
