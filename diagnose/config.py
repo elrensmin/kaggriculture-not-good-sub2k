@@ -71,6 +71,93 @@ _E1_GUARDS = {
     "sell_revenue_total": (-0.10, -1),  # relative limit handled in diagnose.grid
 }
 
+# ---------------------------------------------------------------------------
+# Experiment registry for --grid. Each experiment names the agent.py param
+# namespace it sweeps (injected live into agent.E1_PARAMS), the combo defaults,
+# the optional default sweep space, the target metric + sign it must move
+# (target_dir: -1 = must decrease, +1 = must increase) and the guard set.
+# diagnose.grid reads defaults/target/guards from here for the chosen --exp.
+# ---------------------------------------------------------------------------
+EXPERIMENTS = {
+    # E1: stop dumping below-base premium goods + fertilizer into a glut.
+    "e1": {
+        "defaults": _E1_DEFAULT,
+        "space": {"min_sell_frac": [0.8, 1.0],
+                  "shed_cap_frac": [0.85, 0.90, 0.95]},
+        "target": "premium_waste_units",
+        "target_dir": -1,
+        "guards": _E1_GUARDS,
+        "print_keys": ["min_sell_frac", "shed_cap_frac", "hold_cap", "use_fert", "shop_aware"],
+    },
+    # floor: don't liquidate WOOL/MILK at (near) floor prices / hoard them deep
+    # into the game. Defaults to `bulk` mode: hold (accumulate) below `sell_frac`
+    # of base, then dump the accumulated stash as ONE order when the price comes
+    # back up — bounded by hold_cap, shed room and endgame_day. Sweeps the sell
+    # threshold, the accumulation (hold) cap and the per-order bulk cap.
+    "floor": {
+        "defaults": {"_exp": "floor", "price_frac": 0.0, "hold_cap": 40,
+                     "shed_cap_frac": 0.90, "endgame_day": 27,
+                     "bulk": 1, "sell_frac": 0.5, "bulk_max": 40},
+        "space": {"sell_frac": [0.3, 0.5, 0.8],
+                  "hold_cap": [20, 40, 80],
+                  "bulk_max": [24, 40, 999]},
+        "target": "floor_sales",
+        "target_dir": -1,
+        "guards": {
+            "shed_overflow_days": (0.5, +1),
+            "discarded_units_total": (1.0, +1),
+            "animal_escapes": (0.0, +1),
+            "stranded_at_bell": (300.0, +1),
+            "premium_below_base_frac": (0.03, +1),
+            "sell_revenue_total": (-0.10, -1),
+        },
+        "print_keys": ["sell_frac", "hold_cap", "bulk", "bulk_max", "endgame_day"],
+    },
+    # grow: cap how many COW/SHEEP we place and whether we plant MELON. Sweeps
+    # herd size directly (milk/wool are livestock by-products; fertilizer pays).
+    "grow": {
+        "defaults": {"_exp": "grow", "cap_cows": 99, "cap_sheep": 99, "no_melon": 0},
+        "space": {"cap_cows": [0, 3, 6, 9], "cap_sheep": [0, 3, 6, 9],
+                  "no_melon": [0, 1]},
+        "target": "sell_revenue_total",
+        "target_dir": +1,
+        "guards": {
+            "shed_overflow_days": (0.5, +1),
+            "discarded_units_total": (1.0, +1),
+            "animal_escapes": (0.0, +1),
+            "stranded_at_bell": (300.0, +1),
+            "premium_below_base_frac": (0.03, +1),
+            "sell_revenue_total": (-0.10, -1),
+        },
+        "print_keys": ["cap_cows", "cap_sheep", "no_melon"],
+    },
+    # wool: stop producing/selling structurally-worthless wool. WOOL base $200 but
+    # craters to $1 on a ~105-unit glut and its only buyer is the Yarn Store
+    # (absent ~1/3 of seasons). This cuts sheep when the shop draw shows no wool
+    # buyer (keeping the herd as a fertilizer appliance) and guards the floor-sell.
+    "wool": {
+        "defaults": {"_exp": "wool", "sheep_yarn": 8, "sheep_noyarn": 0,
+                     "decide_day": 9, "wool_floor": 0.15, "wool_cap": 16,
+                     "endgame_day": 27},
+        "space": {"sheep_noyarn": [0, 2, 4],
+                  "sheep_yarn": [6, 8],
+                  "wool_floor": [0.0, 0.2],
+                  "wool_cap": [16, 32]},
+        "target": "floor_sales",
+        "target_dir": -1,
+        "guards": {
+            "shed_overflow_days": (0.5, +1),
+            "discarded_units_total": (1.0, +1),
+            "animal_escapes": (0.0, +1),
+            "stranded_at_bell": (300.0, +1),
+            "premium_below_base_frac": (0.03, +1),
+            "sell_revenue_total": (-0.10, -1),
+        },
+        "print_keys": ["sheep_noyarn", "sheep_yarn", "wool_floor", "wool_cap", "decide_day"],
+    },
+}
+
+
 # Products whose above-base target > 1 (small glut craters them to the $1 floor),
 # and humanised shop names — used by the graph dashboard.
 _SPIKEY_PRODUCTS = [p for p in PRODUCTS if MARKET_PARAMS[p].get("above_target", 0.0) > 1.0]

@@ -23,7 +23,8 @@ BATCH     ?= 2
 SEED      ?= 700
 WORKERS   ?=
 WF         = $(if $(WORKERS),--workers $(WORKERS))
-GRIDPARAMS ?= min_sell_frac=[0.8,0.9,1.0];shed_cap_frac=[0.85,0.90,0.95]
+GRIDPARAMS ?= price_frac=[0.0,0.3,0.6,1.0];hold_cap=[0,5,10,20]
+EXP       ?= floor
 MODE      ?= new
 ARGS      ?=
 DIR       ?=
@@ -50,8 +51,8 @@ old: ## Run main.py alone against a public opponent
 compare: ## Same-seed A/B old vs new (paired, hedged verdict)
 	$(RUN) --compare --pa $(PA) --batch $(BATCH) --seed $(SEED) $(WF)
 
-grid: ## Sweep the agent E1_PARAMS space (hedged, per-opponent)
-	$(RUN) --grid --pa $(PA) --batch $(BATCH) --seed $(SEED) $(WF) \
+grid: ## Sweep an --exp param space (hedged, per-opponent):  make grid PA=... EXP=floor GRIDPARAMS='...'
+	$(RUN) --grid --exp $(EXP) --pa $(PA) --batch $(BATCH) --seed $(SEED) $(WF) \
 		--grid-params '$(GRIDPARAMS)'
 
 xray: ## Per-step patch() investigation (action diffs + money curve)

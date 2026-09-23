@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 from diagnose.analysis import game_summary
-from diagnose.config import EPISODE_STEPS, TEST_SEAT, _E1_DEFAULT, _E1_GUARDS
+from diagnose.config import EPISODE_STEPS, TEST_SEAT, EXPERIMENTS
 import diagnose.config as _cfg
 from diagnose.paired import _paired_verdict
 from diagnose.parallel import run_parallel_tasks
@@ -57,20 +57,26 @@ def _paired_deltas(old_summaries, new_summaries, key, opponent=None):
 
 
 
-def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
-    """Sweep the E1 param space: for each combo, run the 'new' agent against a
-    single shared 'old' batch on the same seeds, get per-opponent paired verdicts
-    on the E1 target (premium_waste_units) plus guard metrics, write grid.csv and
-    print a ranked accept/reject table. Never pools across opponents."""
+def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None, exp="floor"):
+    """Sweep an experiment's param space (see diagnose.config.EXPERIMENTS): for
+    each combo, run the 'new' agent against a single shared 'old' batch on the same
+    seeds, get per-opponent paired verdicts on the experiment target plus guard
+    metrics, write grid.csv and print a ranked accept/reject table. Never pools."""
     import agent as amod
     from itertools import product
 
-    space = _parse_param_space(spec) if spec else {"min_sell_frac": [1.0],
-                                                  "shed_cap_frac": [0.85, 0.90, 0.95]}
+    ex = EXPERIMENTS[exp]
+    defaults = ex["defaults"]
+    target = ex["target"]
+    target_dir = ex["target_dir"]
+    guards = ex["guards"]
+    keys0 = ex["print_keys"]
+
+    space = _parse_param_space(spec) if spec else dict(ex["space"])
     keys = list(space)
     combos = []
     for values in product(*[space[k] for k in keys]):
-        full = dict(_E1_DEFAULT)
+        full = dict(defaults)
         full.update(zip(keys, values))
         combos.append(full)
 
@@ -112,20 +118,21 @@ def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
         new_summaries = {(gs(p)["opponent"], gs(p)["seed"]): gs(p) for p in new_paths}
         wins = sum(1 for p in new_paths if gs(p)["result"] == "WIN")
 
-        # Per-opponent target verdict: want mean Δ(premium_waste_units) < 0 + KEEP.
+        # Per-opponent target verdict: want mean Δ(target) moving toward target_dir.
         opps = {}
         for opp in {k[0] for k in old_summaries} | {k[0] for k in new_summaries}:
-            d = _paired_deltas(old_summaries, new_summaries, "premium_waste_units", opponent=opp)
+            d = _paired_deltas(old_summaries, new_summaries, target, opponent=opp)
             v = _paired_verdict(d)
             opps[opp] = (v["mean"], v["keep"])   # tuple: (mean_delta, keep)
-        target_ok = all(keep and mean < 0 for mean, keep in opps.values())
+        def _sign_ok(x): return (x > 0) if target_dir > 0 else (x < 0)
+        target_ok = all(keep and _sign_ok(mean) for mean, keep in opps.values())
         worst_opp = max(opps.items(), key=lambda kv: kv[1][0])[0] if opps else "?"
 
         # Guard deltas (per-opponent mean) — reject any that regress.
         guard_fails = []
         guard_deltas = {}
         opp_pool = {k[0] for k in new_summaries} | {k[0] for k in old_summaries}
-        for gkey, (limit, direction) in _E1_GUARDS.items():
+        for gkey, (limit, direction) in guards.items():
             for opp in opp_pool:
                 d = _paired_deltas(old_summaries, new_summaries, gkey, opponent=opp)
                 mean = sum(d) / len(d) if d else 0.0
@@ -138,7 +145,6 @@ def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
                         guard_fails.append(f"revenue[{opp}]{mean:+,.0f}")
                 elif direction == +1 and mean > limit:
                     guard_fails.append(f"{gkey}[{opp}]+{mean:.1f}")
-
         verdict = "REJECT"
         if not opps:
             reason = "no paired seeds"
@@ -156,14 +162,11 @@ def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
                "target_ok": target_ok, "guard_reason": guard_fails}
         rows.append(row)
         out_csv.append(row)
-        print(f"  combo {idx} {row['p_min_sell_frac'] if 'p_min_sell_frac' in row else ''}"
-              f" msf={combo.get('min_sell_frac')} scf={combo.get('shed_cap_frac')} hc={combo.get('hold_cap')} uf={combo.get('use_fert')} "
-              f"-> {verdict}: {reason}")
-        for opp in sorted(opps):
-            print(f"      {opp}: targetΔ={opps[opp][0]:+,.1f} keep={opps[opp][1]}")
+        print(f"  combo {idx} " + "  ".join(f"{k}={combo.get(k)}" for k in keys0)
+              + f"  -> {verdict}: {reason}")
 
     # Reset the injected params so the next --new/--compare uses defaults.
-    amod.E1_PARAMS = dict(_E1_DEFAULT)
+    amod.E1_PARAMS = dict(defaults)
 
     # Ranked table: accepted first, then by target reduction, then guard-margin.
     ranked = sorted(rows, key=lambda r: (r["verdict"] != "ACCEPT",
@@ -179,6 +182,8 @@ def grid_search(pa_indices, n_seeds, run_dir, seed=None, spec=None):
             for r in out_csv:
                 w.writerow({c: r.get(c) for c in cols})
         print(f"\n  grid.csv -> {grid_csv}  ({len(out_csv)} combos)")
+        n_acc = sum(1 for r in out_csv if r.get("verdict") == "ACCEPT")
+        print(f"  verdicts: {n_acc} ACCEPT  /  {len(out_csv)-n_acc} REJECT")
     return ranked
 
 

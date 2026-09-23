@@ -22,6 +22,28 @@ from diagnose.runbook import _most_recent_run_dir, _new_run_dir, _parse_pa_arg, 
 from diagnose.xray import xray_batch
 
 
+def _process_replay_dir(run_dir: Path, paths, args, render_verbose: bool = True):
+    """Diagnose one directory of saved replay JSONs: write the run CSVs, print the
+    per-game summary table, honour --compare, and (single-dir) --render or --graph.
+    In tree mode (render_verbose=False) we skip the verbose per-replay day dump so
+    a grid of subdirs stays a quick stats read."""
+    if not args.graph:
+        write_run_csv(run_dir, paths)
+        rows = [game_summary(p) for p in paths]
+        print(f"\nPer-game summary ({run_dir})  —  {len(rows)} games:")
+        print_game_table(rows)
+        if args.compare and paths:
+            ab_delta_report(paths, per_day=args.render)
+        if args.render and paths and render_verbose:
+            replay = load_replay(paths[-1])
+            frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
+            print(f"\n--- rendered: {paths[-1].name} ---")
+            render(days, frames)
+    if args.graph and paths:
+        print(f"\nRendering PNG dashboards + farm GIFs into {run_dir}:")
+        graph_batch(paths, run_dir, gif_fps=args.gif_fps)
+
+
 def cli():
     parser = argparse.ArgumentParser(description="Kaggriculture diagnostic harness")
     parser.add_argument("--old", action="store_true", help="Run the old/main.py agent")
@@ -29,9 +51,11 @@ def cli():
                         help="Run main.py patched with agent.py (runs everything in main + patch)")
     parser.add_argument("--compare", action="store_true", help="A/B old vs new on the same seeds")
     parser.add_argument("--grid", action="store_true",
-                        help="Sweep the agent.py E1_PARAMS space via paired compare; writes grid/grid.csv")
+                        help="Sweep the agent.py param space via paired compare; writes grid/grid.csv")
+    parser.add_argument("--exp", default="floor", choices=("e1", "floor", "grow", "wool"),
+                        help="Which experiment's param space/target/guards --grid uses (e1 | floor | grow | wool)")
     parser.add_argument("--grid-params", default=None,
-                        help="Param space for --grid (e.g. 'min_sell_frac=[0.8,0.9,1.0];shed_cap_frac=[0.85,0.9,0.95]')")
+                        help="Param space for --grid (e.g. 'price_frac=[0,0.3,0.6,1.0];hold_cap=[0,10,20,40]')")
     parser.add_argument("--workers", type=int, default=None,
                         help="Parallel workers for --grid game execution (default: all cores)")
     parser.add_argument("--pa", default="1", help="Public agent indices, e.g. 1,2,3 or 1-3")
@@ -68,7 +92,7 @@ def cli():
         _cfg._GRID_WORKERS = args.workers
         run_dir = Path(args.run_dir) if args.run_dir else _new_run_dir()
         print(f"Grid replays -> {run_dir}  (workers={_cfg._GRID_WORKERS or os.cpu_count()})")
-        grid_search(pa_indices, args.batch, run_dir, seed=args.seed, spec=args.grid_params)
+        grid_search(pa_indices, args.batch, run_dir, seed=args.seed, spec=args.grid_params, exp=args.exp)
         return
 
     if args.replay_dir or (args.graph and not args.old and not args.new and not args.compare
@@ -80,7 +104,18 @@ def cli():
             return
         paths = sorted(run_dir.glob("*.json"))
         if not paths:
-            print(f"No replay JSONs found in {run_dir}")
+            # No replays directly here — likely a tree of batches (grid/: baseline/,
+            # combo0/, combo1/, ...). Recurse and process every leaf dir with replays.
+            leaves = {}
+            for p in sorted(run_dir.rglob("*.json")):
+                leaves.setdefault(p.parent, []).append(p)
+            if not leaves:
+                print(f"No replay JSONs found in {run_dir} (directly or in subdirs)")
+                return
+            for sub in sorted(leaves):
+                print(f"\n{'=' * 66}\n  {sub.relative_to(run_dir)} — {len(leaves[sub])} replays"
+                      f"\n{'=' * 66}")
+                _process_replay_dir(sub, leaves[sub], args, render_verbose=False)
             return
         # Bare `--graph` must not silently render a huge default dir (e.g. a full
         # 39-replay sweep) — ask for an explicit --replay-dir instead.
@@ -90,21 +125,7 @@ def cli():
             return
         # --graph only renders PNGs/GIFs from the saved replays; it does NOT rewrite
         # the CSVs or print the per-game table (the graph reads the JSONs directly).
-        if not args.graph:
-            write_run_csv(run_dir, paths)
-            rows = [game_summary(p) for p in paths]
-            print("\nPer-game summary:")
-            print_game_table(rows)
-            if args.compare and paths:
-                ab_delta_report(paths, per_day=args.render)
-            if args.render and paths:
-                replay = load_replay(paths[-1])
-                frames, days, _ = replay_to_summary(replay, seat=_agent_seat(replay))
-                print(f"\n--- rendered: {paths[-1].name} ---")
-                render(days, frames)
-        if args.graph and paths:
-            print(f"\nRendering PNG dashboards + farm GIFs into {run_dir}:")
-            graph_batch(paths, run_dir, gif_fps=args.gif_fps)
+        _process_replay_dir(run_dir, paths, args)
         return
 
     if args.animals and not (args.old or args.new or args.compare):

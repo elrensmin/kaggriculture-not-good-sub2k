@@ -2,13 +2,70 @@
 
 ## Golden rule
 
-**Never edit `src/main.py` or `src/route_tape.py` while experimenting.**
+**Never edit `src/route_tape.py` while experimenting.**
 
-- `src/main.py` — the production agent (~6,400 lines, 45 layers). Touching it risks
-  breaking its proven behavior.
 - `src/route_tape.py` — read-only opening route tape data.
+- `src/main.py` — **editable.** It's the production agent (~6,400 lines, a ~45-layer
+  patch stack over a `make_agent` chassis). Improvements to its own layers are
+  valid experiments, not just `agent.py` patches. Just don't break it, and keep
+  `route_tape.py` untouched.
 
-**All experiments go in `src/agent.py`.**
+Most experiments still go in `src/agent.py` (the safest late-hook surface), but
+editing `main.py`'s layers directly is allowed when the lever lives there.
+
+## HOW TO EXPERIMENT AND FIND THINGS TO WORK ON (IMPORTANT)
+
+> Read this before writing any experiment. It exists because dozens of
+> experiments silently found "nothing valid" while re-deriving machinery the
+> production agent already has. Don't repeat that.
+
+**Understand the real architecture first.** `src/main.py` is not a naive agent;
+it is a **`Chassis`** (built by `make_agent`) that (1) picks a **route tape** from
+`src/route_tape.py` (`ROUTES` / `SHOP_ROUTES` — read-only data, one action-plan
+per shop-draw / opening), and (2) runs a **~45-layer onion of `layer_XX_*`
+functions** that each transform the action, tapping shared machinery
+(`_View`, `projected_shed`, `_r37_market_price`, `_r37_similarity`, `FarmView`,
+plus a `router` that switches routes mid-game — e.g. shop-aware yarn vs
+non-yarn policies, and an endgame route flip). The base is already shop-aware
+and market-timed at the route level. Our `agent.py` patch runs *after* all of
+this and sees only `(action, observation, configuration)`.
+
+**The patch surface is not "the whole agent" — it is one late hook.** A
+post-hoc tweak that re-implements something the layers already do (a price
+threshold for a product, culling an animal the router already specializes on,
+a market-timing rule that `_r37` already computes from a forecast) will either
+(no-op) duplicate the tuned behavior or (worse) fight it and regress. That is
+why so many patches "find nothing": they are crude re-builds of existing
+machinery, fighting a data-tuned system.
+
+**How to actually find a valid experiment:**
+1. **Point at a measured defect first.** Hunt in `games.csv`/
+   `days_seed<S>.csv` for a concrete, seed-independent leak (stranded stock at
+   the bell, endgame conversion, overflow discards, missed harvests, unwatered,
+   a bad `avg_price_<p>` on a specific day). If you can't name a defect you
+   watched, you don't have an experiment yet.
+2. **Read the layer / route that owns it before overriding.** Use `main.py`'s
+   own helpers (`import main as _main` → `_main._IMPL.chassis`, `projected_shed`,
+   `_r37_market_price`, the route the chassis selected) so your override speaks
+   the same model the base uses — make an *informed surgical* change, never a
+   from-scratch guess.
+3. **Make the smallest override that attacks that one defect and nothing else.**
+   Prefer reusing the base's own state/forecast over re-deriving from
+   `observation`.
+4. **Judge on `result` (WIN/LOSS), never on a proxy mean.** A target column
+   (floor_sales, revenue, a guard) moving the "right" way with the guards green
+   is NOT a win signal — the grid ACCEPTs those. Read `wins_new`, and check the
+   per-game margin still helps before promoting anything. A patch that reduces a
+   metric while making us lose by more is a regression, not a success.
+5. **Respect the shared market.** Any change to how much we produce/sell of a
+   product reprices what *both* players see; holding or cutting our own supply
+   can hand the opponent the premium. Prove a real benefit before touching it.
+6. **Reuse, don't rebuild.** If the layers already handle something (shop-aware
+   routes, market timing, endgame), fighting it is not an experiment.
+
+**Non-goals:** no-ops that mirror the base; overrides that only move a proxy
+mean; touching `route_tape.py`; optimizing cross-game averages; a
+patch whose only effect is "reduces a metric we don't score on."
 
 ## Submissions
 
@@ -362,6 +419,14 @@ per-seed luck issue.
 
 ## Workflow
 
+> **Running the harness / long jobs (operator preference):** do NOT launch long
+> game runs (a `--grid`, a multi-seed `--sweep`/`--compare`, a `--graph` batch) in
+> the background and leave them running. Hand the operator the exact foreground
+> command (`make grid ...`, `./sweep.sh new`, ...) and let them run it. Use all
+> cores by default (omit `--workers` / leave `WORKERS` empty — the grid defaults to
+> all cores); only cap concurrency when asked. The 60 s shell-timeout applies to
+> foreground commands, so anything longer is a command the operator runs themselves.
+
 1. Write a patch in `src/agent.py` (a `patch(action, observation, configuration=None)`
    function; there is no standalone agent to implement).
 2. Run the harness to test it. The full CLI reference, seating convention,
@@ -412,32 +477,35 @@ with `--animals`. `games.csv` also carries `locked_steps`/`locked_units_at_bell`
 > moved. Read them as the per-metric defect ledger, and use `--grid` / `--compare`
 > to measure any change against the same seed rather than trusting a mean.
 
-### `--grid` — sweep the `E1_PARAMS` space (paired, hedged)
-For grid-searching a parametrised patch (currently the E1 sell gate) instead of one
-hand-tuned `--compare`. Run:
+### `--grid` — sweep an experiment's param space (paired, hedged)
+Grid-search a parametrised patch instead of one hand-tuned `--compare`. Pick which
+experiment to sweep with `--exp` (registry in `diagnose/config.py::EXPERIMENTS`):
+- `--exp floor` (default): MILK/WOOL sell at `price_frac × base` vs hoarding —
+  sweeps the sell-price fraction and the per-product hold cap. Example:
 ```
-python -m diagnose --grid --pa 1,2,8 --seed 700 --batch 8 \
-  --grid-params 'min_sell_frac=[0.8,0.9,1.0];shed_cap_frac=[0.85,0.90,0.95]'
+python -m diagnose --grid --exp floor --pa 1,2,8 --seed 700 --batch 8 \
+  --grid-params 'price_frac=[0.0,0.4,0.7,1.0];hold_cap=[0,5,10,20]'
 ```
+- `--exp e1`: the older E1 below-base premium/fertilizer sell gate (`min_sell_frac`
+  × `shed_cap_frac` etc., target `premium_waste_units`).
 - `--grid` runs the **`old` batch once** (combo-independent) and reuses it as the paired
-  baseline for every combo; each combo injects `agent.py`'s module `E1_PARAMS` and runs only
-  `new`. Writes `grid/grid.csv` + a ranked accept/reject table. The game batches (old baseline
-  + each combo) execute **in parallel across cores** (default all cores) via
-  `run_parallel_tasks`; cap it with `--workers N`.
-- For each combo it computes **per-opponent** `_paired_verdict` (same seed) on the target
-  metric `premium_waste_units` (below-base premium+fertilizer units, `games.csv` column) and
-  **guard** metrics. A combo is `ACCEPT` only if it reduces the target **for every opponent**
-  AND no guard regresses past tolerance:
-  `discarded_units_total`/`shed_overflow_days` (E4), `animal_escapes`, `stranded_at_bell`,
-  and `sell_revenue_total` (≥ -10% vs that opponent's baseline). Anything else prints
-  `REJECT: <which guard regressed>` — never pooled.
-- The E1 gate itself is hedged in `agent.py`: below-base gated goods are HELD (don't dump
-  into the glut), but a **hard invariant** always sells enough to never overflow the shared
-  100-cap shed (a discard is a 100% loss), a single product can't hog more than `hold_cap`
-  of it, and day ≥ 27 is left to the base agent's liquidation so nothing strands. Only market
-  `SELL` quantities (and `FERTILIZE` when `use_fert` is on) are ever rewritten — never
-  `PLANT`/`BUY`/`HIRE`/seeds — so the collective-PLANT and invalid-action traps can't fire
-  from this patch.
+  baseline for every combo; each combo injects `agent.py`'s module `E1_PARAMS` (the live
+  param namespace the patch reads every call) and runs only `new`. Writes `grid/grid.csv`
+  + a ranked accept/reject table. The game batches (old baseline + each combo) execute
+  **in parallel across cores** (default all cores) via `run_parallel_tasks`; cap with `--workers N`.
+- For each combo it computes **per-opponent** `_paired_verdict` (same seed) on the
+  experiment's target column (`floor_sales` for `--exp floor`, `premium_waste_units` for
+  `--exp e1`) and **guard** metrics. A combo is `ACCEPT` only if it moves the target in the
+  experiment's `target_dir` **for every opponent** AND no guard regresses past tolerance:
+  `discarded_units_total`/`shed_overflow_days`, `animal_escapes`, `stranded_at_bell`,
+  `premium_below_base_frac`, and `sell_revenue_total` (≥ -10% vs that opponent's baseline).
+  Anything else prints `REJECT: <which guard regressed>` — never pooled.
+- The `floor` gate itself is hedged in `agent.py`: WOOL/MILK below `price_frac` of base are
+  HELD (don't dump into the glut / don't floor), but holding is bounded so it can't hoard or
+  overflow — only up to `hold_cap` units per product, only while the shared shed still has room
+  (`shed_cap_frac` of the 100-cap), and never from `endgame_day` on (base liquidates). Only
+  market `SELL` orders of WOOL/MILK are ever rewritten — never `PLANT`/`BUY`/`HIRE`/seeds —
+  so the collective-PLANT and invalid-action traps can't fire from this patch.
 
 ### `games.csv` columns (one row per game)
 
@@ -533,7 +601,7 @@ live mapping.
 
 | file | role | editable? |
 |------|------|-----------|
-| `src/main.py` | current production agent | **NO** |
+| `src/main.py` | current production agent (editable layers) | **YES** |
 | `src/route_tape.py` | opening route tape data | **NO** |
 | `src/agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose/` | diagnostic harness (package, `python -m diagnose`) | yes, when the harness itself needs a feature |

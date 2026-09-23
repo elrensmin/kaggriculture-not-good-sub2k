@@ -22,8 +22,11 @@ The runnable code lives in a `src/` layer plus a `diagnose` package:
 
 ## Development model
 
-The golden rule: **never modify `src/main.py` or `src/route_tape.py`**. Every
-experiment goes into `src/agent.py` as a patch. The harness runs:
+The golden rule: **never modify `src/route_tape.py`** (it's the pre-computed
+opening route data). `src/main.py` is editable — the patches you may improve
+live there (a ~45-layer stack plus a `make_agent` chassis). Most experiments go
+into `src/agent.py` as a patch, but a change that improves `main.py`'s own layers
+is a valid experiment too. The harness runs:
 
 - `--old`     → `main.py` alone
 - `--new`     → `main.py` + `agent.patch()`
@@ -143,7 +146,7 @@ without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 
 | path | role | editable while experimenting? |
 |------|------|------------------------------|
-| `src/main.py` | production agent | **NO** |
+| `src/main.py` | production agent (editable) | **YES** |
 | `src/route_tape.py` | opening route data | **NO** |
 | `src/agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose/` | diagnostic / A-B harness (package, `python -m diagnose`) | yes |

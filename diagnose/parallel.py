@@ -71,21 +71,32 @@ def run_parallel_tasks(tasks, workers=None):
     --old/--new (single batch). Each task is a fork-able unit; the number of
     workers defaults to all cores. Falls back to serial when trivial."""
     import os
+    import sys
     import multiprocessing as mp
     n = len(tasks)
     if n == 0:
         return {}
     w = int(workers if workers is not None else (os.cpu_count() or 1))
+
+    def bar(done, total, width=28):
+        frac = done / total if total else 1.0
+        filled = int(width * frac)
+        blk = "#" * filled + "-" * (width - filled)
+        return f"  [{blk}] {done:>3}/{total} {frac*100:5.1f}%"
+
     out = {}
     if w <= 1 or n <= 1:
-        for t in tasks:
+        for i, t in enumerate(tasks, 1):
             tid, paths = _batch_exec_worker(t)
             out[tid] = paths
+            print(f"\r{bar(i, n)}", end="", file=sys.stderr, flush=True)
     else:
         ctx = mp.get_context("fork")
         with ctx.Pool(processes=min(w, n)) as pool:
-            for tid, paths in pool.imap_unordered(_batch_exec_worker, tasks):
+            for i, (tid, paths) in enumerate(pool.imap_unordered(_batch_exec_worker, tasks), 1):
                 out[tid] = paths
+                print(f"\r{bar(i, n)}", end="", file=sys.stderr, flush=True)
+    print("  done.", file=sys.stderr)
     global _AGENT_PAIR
     _AGENT_PAIR = None  # do not keep a stale main instance in the caller
     return out
