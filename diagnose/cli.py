@@ -28,8 +28,8 @@ def _process_replay_dir(run_dir: Path, paths, args, render_verbose: bool = True)
     In tree mode (render_verbose=False) we skip the verbose per-replay day dump so
     a grid of subdirs stays a quick stats read."""
     if not args.graph:
-        write_run_csv(run_dir, paths)
-        rows = [game_summary(p) for p in paths]
+        rows = write_run_csv(run_dir, paths, workers=getattr(args, "workers", None),
+                             lb=getattr(args, "lb", False))
         print(f"\nPer-game summary ({run_dir})  —  {len(rows)} games:")
         print_game_table(rows)
         if args.compare and paths:
@@ -64,6 +64,10 @@ def cli():
                         help="Fixed seed for a deterministic run (used verbatim: seed, seed+1, ...)")
     parser.add_argument("--run-dir", help="Directory to save replays (default: next diag-replays/run-N)")
     parser.add_argument("--replay-dir", help="Diagnose saved replays instead of running games")
+    parser.add_argument("--lb", action="store_true",
+                        help="Leaderboard mode: local leaderboard replays carry no seed, so key "
+                             "each per-day CSV on the episode id from the filename and label seats "
+                             "with the real team names from info.TeamNames")
     parser.add_argument("--render", action="store_true", help="Print full day-by-day report for the last replay")
     parser.add_argument("--llm", action="store_true", help="Write per-game narrative .md files")
     parser.add_argument("--xray", action="store_true",
@@ -154,9 +158,8 @@ def cli():
     if args.compare:
         results, seeds = compare_batch(pa_indices, args.batch, run_dir, seed=args.seed, workers=args.workers)
         all_paths = results["old"] + results["new"]
-        write_run_csv(run_dir, all_paths)
+        rows = write_run_csv(run_dir, all_paths, workers=args.workers)
         print("\nPer-game summary:")
-        rows = [game_summary(p) for p in all_paths]
         print_game_table(rows)
         ab_delta_report(all_paths, per_day=args.render)
         if args.render and all_paths:
@@ -180,9 +183,8 @@ def cli():
     combo = dict(_E1_DEFAULT) if label == "new" else None
     saved, seeds = run_labeled_batch(label, pa_indices, args.batch, run_dir,
                                      seed=args.seed, combo=combo, workers=args.workers)
-    write_run_csv(run_dir, saved)
+    rows = write_run_csv(run_dir, saved, workers=args.workers)
     print("\nPer-game summary:")
-    rows = [game_summary(p) for p in saved]
     print_game_table(rows)
 
     if args.render and saved:

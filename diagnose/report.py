@@ -11,6 +11,7 @@ from diagnose.analysis import (
     _flatten,
     _game_columns,
     game_summary,
+    game_summary_from,
     replay_to_summary,
     summarize,
 )
@@ -75,50 +76,126 @@ def narrative_summary(days: List[Dict[str, Any]], frames: Optional[List[Dict[str
 
 
 
-def write_run_csv(run_dir: Path, paths: List[Path]):
-    """Write per-seed days CSVs and games.csv for the agent under test.
+def _episode_id_from_name(name: str) -> Optional[str]:
+    """Pull the numeric id out of a replay filename (e.g. episode-112413080-replay.json
+    -> '112413080'), used as the CSV key for --lb leaderboard replays that carry
+    no seed (info/configuration seed are null in lb replays)."""
+    import re
+    digs = re.findall(r"\d+", name)
+    return digs[-1] if digs else None
 
-    - days_seed<S>.csv — per-day view of OUR agent (its stored seat, normally 1);
-      one file per distinct seed, so each game's daily data stays separated.
-    - games.csv         — one compact row per replay for OUR agent (includes the
-      opponent's final revenue and a WIN / LOSS / TIE tag).
 
-    Per-step detail stays in the JSON replays (no steps.csv).
-    """
-    run_dir = Path(run_dir)
-    run_dir.mkdir(parents=True, exist_ok=True)
-    days_by_seed: Dict[str, List[Dict[str, Any]]] = {}
-    games_rows = []
-    for path in paths:
-        replay = load_replay(path)
-        meta = replay.get("_diagnose_meta", {})
-        agent_seat = _agent_seat(replay)
-        _, days, _ = replay_to_summary(replay, seat=agent_seat)
-        games_rows.append(game_summary(path))
-        seed = str(meta.get("seed", "unknown"))
-        base = {
-            "agent": meta.get("agent", "unknown"),
-            "opponent": meta.get("opponent", "unknown"),
-            "seed": meta.get("seed", "unknown"),
-        }
-        seed_rows = days_by_seed.setdefault(seed, [])
+def _replay_csv_worker(job):
+    """Analyze ONE replay file (load + per-seat days + game row), run in a pool.
+
+    job = (path_str, seats_request | None, lb | None). Seats: an explicit list
+    wins; else the replay's stored _diagnose_meta seat (our own runs); else BOTH
+    seats (foreign/opponent replays with no meta, where we don't know the
+    alignment). In leaderboard (lb) mode the seed is null in the json, so the
+    per-day CSV is keyed on the episode id from the filename, and per-seat rows
+    are labelled with the real team names from info.TeamNames."""
+    path_str, seats_request, lb = job
+    replay = load_replay(Path(path_str))
+    meta = replay.get("_diagnose_meta", {})
+    info = replay.get("info", {}) or {}
+    team_names = info.get("TeamNames") or [a.get("Name") for a in (info.get("Agents") or [])] or []
+
+    if meta.get("seed") is not None:
+        seed = str(meta["seed"])
+    elif lb:
+        seed = _episode_id_from_name(Path(path_str).name) or "unknown"
+    elif info.get("seed") is not None:
+        seed = str(info["seed"])
+    else:
+        seed = "unknown"
+
+    if seats_request is not None:
+        seat_list = list(seats_request)
+    elif meta.get("seat") is not None:
+        seat_list = [int(meta["seat"])]
+    else:
+        seat_list = [0, 1]
+
+    def _team(seat):
+        return team_names[seat] if 0 <= seat < len(team_names) and team_names[seat] else "unknown"
+
+    if not replay.get("steps"):
+        return {"multi": False, "seed": seed, "game_rows": [], "day_rows": []}
+
+    game_rows, day_rows = [], []
+    for seat in seat_list:
+        agent = meta.get("agent") or _team(seat)
+        opp = meta.get("opponent") or _team(1 - seat)
+        base = {"agent": agent, "opponent": opp, "seed": seed}
+        try:
+            frames, days, summary = replay_to_summary(replay, seat)
+            grow = game_summary_from(replay, seat=seat, days=days, summary=summary)
+        except Exception:  # noqa: BLE001 — one bad file must not kill the pool
+            continue
+        grow.update({"seat": seat, "agent": agent, "opponent": opp, "seed": seed})
+        game_rows.append(grow)
         for d in days:
             row = dict(base)
+            row["seat"] = seat
             dd = dict(d)
             dd["market_orders"] = len(d.get("market_orders") or [])
             row.update(_flatten(dd))
-            seed_rows.append(row)
+            day_rows.append(row)
+    return {"multi": len(seat_list) > 1, "seed": seed,
+            "game_rows": game_rows, "day_rows": day_rows}
+
+
+def write_run_csv(run_dir: Path, paths: List[Path], workers: Optional[int] = None,
+                  seats: Optional[List[int]] = None, lb: bool = False) -> List[Dict[str, Any]]:
+    """Write per-seed days CSVs and games.csv for the analysed seat(s).
+
+    - days_seed<S>.csv — per-day view; one file per distinct key (a seed for
+      local runs; an episode id for --lb leaderboard runs).
+    - games.csv         — one compact row per replay/seat (W/L/T tag included).
+
+    Each replay file is analysed INDEPENDENTLY, so the batch is fanned out
+    across cores (default: all cores). Returns the game rows (so the caller can
+    print the table without re-analysing). When a run has multiple seats — e.g.
+    a foreign/opponent replay with no stored seat — both seats are written and
+    a "seat" column is prefixed to both CSVs."""
+    run_dir = Path(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    jobs = [(str(p), seats, lb) for p in paths]
+    results = []
+    if len(jobs) == 1 or (workers is not None and workers <= 1):
+        results = [_replay_csv_worker(j) for j in jobs]
+    else:
+        import multiprocessing as mp
+        import os
+        w = int(workers if workers is not None else (os.cpu_count() or 1))
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=max(1, min(w, len(jobs)))) as pool:
+            results = list(pool.imap(_replay_csv_worker, jobs, chunksize=1))
+
+    game_rows = []
+    day_by_seed: Dict[str, List[Dict[str, Any]]] = {}
+    multi = any(r.get("multi") for r in results)
+    for r in results:
+        game_rows.extend(r["game_rows"])
+        day_by_seed.setdefault(r["seed"], []).extend(r["day_rows"])
 
     def _write(rows, name, cols):
         if not rows:
             return
         path = run_dir / name
         with open(path, "w", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=cols)
-            w.writeheader()
-            w.writerows(rows)
+            wcsv = csv.DictWriter(f, fieldnames=cols)
+            wcsv.writeheader()
+            wcsv.writerows(rows)
         print(f"  wrote {path.name} ({len(rows)} rows)")
 
-    for seed in sorted(days_by_seed):
-        _write(days_by_seed[seed], f"days_seed{seed}.csv", _day_columns())
-    _write(games_rows, "games.csv", _game_columns())
+    for seed in sorted(day_by_seed):
+        cols = _day_columns()
+        if multi:
+            cols = ["seat"] + cols
+        _write(day_by_seed[seed], f"days_seed{seed}.csv", cols)
+    gcols = _game_columns()
+    if multi:
+        gcols = ["seat"] + gcols
+    _write(game_rows, "games.csv", gcols)
+    return game_rows

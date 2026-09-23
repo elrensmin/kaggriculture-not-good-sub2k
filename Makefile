@@ -58,6 +58,12 @@ grid: ## Sweep an --exp param space (hedged, per-opponent):  make grid PA=... EX
 xray: ## Per-step patch() investigation (action diffs + money curve)
 	$(RUN) --xray --pa $(PA) --seed $(SEED) $(WF)
 
+replay:
+	$(RUN) --replay-dir $(DIR)
+
+replay-lb:
+	$(RUN) --replay-dir $(DIR) --lb
+
 render: ## Re-diagnose a saved run dir:  make render DIR=diag-replays/run-1
 	$(RUN) --replay-dir $(DIR) --render
 

@@ -49,6 +49,12 @@ python -m diagnose --new --pa 1-6 --batch 3 --seed 7
 # Re-diagnose a saved run (regenerates CSVs; --render prints the day report)
 python -m diagnose --replay-dir diag-replays/run-1 --render
 
+# Leaderboard analysis: local lb replays carry no seed, so the per-day CSVs are
+# keyed on the episode id from each filename and labeled with info.TeamNames;
+# both seats are analysed (a "seat" column is prefixed to the CSVs). Parallel
+# across all cores by default.
+python -m diagnose --replay-dir replays/DSM --lb
+
 # Sweep our agent against ALL 13 public agents over several seeds, and get a
 # per-opponent wins/losses + averages summary:
 ./sweep.sh new          # our patched agent (main.py + agent.patch())
@@ -180,6 +186,7 @@ without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 | `scripts/pull_top_submissions.py` | pull a team's top-submission episode replays into `replays/<team_name>/` | yes |
 | `package.py` | build + verify (+ human-only push) the single-file submission | yes |
 | `public_agents/*.py` | opponent agents | yes |
+| `GAME_DYNAMICS.md` | authoritative engine mechanics & measured payoff data (referenced from `AGENTS.md`) | yes |
 | `README.md`, `AGENTS.md`, `docs/` | docs | yes |
 
 ## Running / requirements
@@ -196,5 +203,7 @@ without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 ## Further reading
 
 - **Operating rules & patch workflow**: `AGENTS.md` (the handover guide).
+- **Engine mechanics & payoff data** (crops/animals/market/town/hiring/turn order):
+  `GAME_DYNAMICS.md`.
 - **Harness CLI / outputs / seating / reproducibility**: `diagnose/cli.py` and
   `python -m diagnose --help`.

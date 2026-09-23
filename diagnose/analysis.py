@@ -932,11 +932,20 @@ def game_summary(path: Path, seat: Optional[int] = None) -> Dict[str, Any]:
     Analyzes the agent under test (meta seat, or seat 0 for legacy runs), and
     also reports the opponent's final revenue plus a WIN / LOSS / TIE tag."""
     replay = load_replay(path)
+    return game_summary_from(replay, seat=seat)
+
+
+def game_summary_from(replay: Dict[str, Any], seat: Optional[int] = None,
+                      days: Optional[List] = None, summary: Optional[Dict] = None) -> Dict[str, Any]:
+    """game_summary, but built from an already-loaded replay (and optional
+    precomputed frames/days/summary) so a caller that already analyzed a replay
+    does not load it a second time. Falls back to analyzing when not provided."""
     meta = replay.get("_diagnose_meta", {})
     if seat is None:
         seat = _agent_seat(replay)
     opp_seat = 1 - seat
-    _, days, summary = replay_to_summary(replay, seat)
+    if days is None or summary is None:
+        _, days, summary = replay_to_summary(replay, seat)
     our_final = summary.get("final_money", 0)
     opp_final = None
     try:
