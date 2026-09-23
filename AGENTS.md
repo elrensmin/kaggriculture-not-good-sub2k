@@ -65,24 +65,32 @@ terminal route. If the world calls for a different farm, change the *route
 selection* — that re-plans the whole season coherently. Token rewrites are for
 fine-tuning a route you intend to keep.
 
-**Put the change where the anchor lives.** Herd/structure decisions belong in the
-`main.py` layers that own the tape anchor (`_v231_controller`,
-`layer_24_v9_herd`, the `_hd2_*` layers, or a new layer inserted at the right
-stack position). `agent.py`'s `patch()` runs **after all ~45 layers**, holds no
-chassis state (no route id, no reserved/pending counters), and is overwritten by
-the next tape step — it cannot carry a multi-turn trajectory change.
+**Put the change where the anchor lives — and check who runs *after* you.**
+Herd/structure decisions belong in the `main.py` layers that own the tape anchor
+(`_v231_controller`, `layer_24_v9_herd`, the `_hd2_*` layers, or a new layer
+inserted at the right stack position). `agent.py`'s `patch()` runs **after all
+~45 layers**, holds no chassis state (no route id, no reserved/pending counters),
+and is overwritten by the next tape step — it cannot carry a multi-turn
+trajectory change.
+
+Layer order bites hard here, because several herd layers anchor on the *same*
+token. Live example: `layer_38_hd2` decides on any `BUY_ANIMAL GOOSE` it sees and,
+when **no coop exists yet on the farm**, rewrites `BUY_ANIMAL GOOSE→COW/SHEEP`,
+`BUILD_COOP→BUILD_PASTURE` and `PICKUP/PLACE GOOSE→species` (`_hd2_decide` /
+`_hd2_rewrite`; its `_HD2_OPTIONS` excludes geese). So a goose-adding layer placed
+*upstream* of it (e.g. `layer_hg_goose` at stack position ~24) has its new geese
+silently reverted on exactly the routes that need them — while on a goose-native
+route HD2 short-circuits at `skip:coop_exists` (a coop is already up from day 6)
+and leaves the geese alone. Net effect measured over 12 seeds: geese appeared in
+only 5/12 games and the "goose" layer was a no-op on the other 7. **Before adding
+a herd/form layer, grep the downstream layers for the token you introduce.** If a
+later layer owns that decision, either fold your option into it (add `GOOSE` to
+`_HD2_OPTIONS` and give it a coop-building path) or insert after it — not before.
 
 **Measure it correctly.** A `main.py` change makes `--compare` useless
 (`old == new` by definition). Validate with `--old` against a **frozen baseline
 run** on the same seeds and diff `games.csv` (as `docs/todo.md` does). Judge on
 `result` (WIN/LOSS) plus the defect columns; never on a cross-game mean.
-
-**Worked example:** `layer_hg_goose` is the inverted twin of `layer_24_v9_herd`
-(anchor on the first `BUY_ANIMAL SHEEP`, rewrite the remaining sheep flow to
-geese). One smoke game (PA 2, seed 4327845, route 101, goose-native) went
-LOSS→WIN: SHEEP 6→4, GOOSE 5→6, WOOL floor 55→28, EGG sold 159→191, revenue
-+$1,111, margin −$582→+$1,367. That is **one seed of a mirror match** — mechanism
-confirmed, *not* validated. Revert with `git checkout -- src/main.py` if unwanted.
 
 ## HOW TO EXPERIMENT AND FIND THINGS TO WORK ON (IMPORTANT)
 
