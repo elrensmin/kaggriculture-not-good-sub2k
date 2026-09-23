@@ -13,6 +13,77 @@
 Most experiments still go in `src/agent.py` (the safest late-hook surface), but
 editing `main.py`'s layers directly is allowed when the lever lives there.
 
+## Changing the tape's trajectory (herd / crops / structures) — READ FIRST
+
+> Read this before trying to change *what the farm is* (animal mix, where
+> coops/pastures/crops go, how many). It is the single most common way to burn a
+> day "patching" and see the tape do its own thing anyway.
+
+**The tape is not a policy you can nudge — it is a 719-step positional
+recording.** `Chassis.act` re-reads it fresh every turn (`_route_action`
+deep-copies `tape[step]`). A one-turn override is therefore erased on the next
+step: the tape's step `t+1` still assumes the world step `t` would have produced.
+That is why a `patch()` that changes the *farm* (species, structure placement,
+counts) shows a bounded local effect and then "snaps back" — you are editing a
+turn, not the trajectory.
+
+**A trajectory edit is legal only if it preserves the tape's worker positions,
+tiles and timing.** Exactly two rewrite forms survive:
+
+1. **In-place token substitution at the tape's own step, worker and tile.**
+   Rewrite the *opcode/item*, never the schedule: `BUY_ANIMAL SHEEP→COW`,
+   `PICKUP`/`PLACE SHEEP→COW`, `BUILD_COOP→BUILD_PASTURE`. The worker still moves
+   the same way, so the rest of the tape stays valid. See `_v231_controller`
+   (sheep→cow at the day-8/9 buy, with reservation tracking) and `_v9_herd`.
+2. **Quantity/market edit at the tape's own anchor.** Trim/extend the quantity on
+   an order the tape already emits, and add a `SELL` for any product the swap
+   creates that the tape has no sale slot for (`_v9_herd`'s `herd_extra_sold`,
+   `_v231`'s extra MILK). Watch `MAX_ORDERS` (10), feed (1 wheat/animal/day), the
+   100-item shed cap, and `stranded_at_bell`.
+
+**Know which direction is cheap and which is structurally blocked.** The engine
+only lets you `BUILD_COOP`/`BUILD_PASTURE` on an **empty** tile, `DIG` cannot
+remove a structure that has an animal on it, and `PLACE <animal>` needs a
+*matching* structure. So:
+
+- **goose tape → sheep/cow is cheap:** both target species use `PASTURE`, and a
+  goose tape already builds 12–17 pastures, so a substitute always finds a home.
+  This is why `_v9_herd` and `_hd2` only ever swap *away* from geese.
+- **sheep tape → geese is hard:** geese need `COOP`, a sheep route builds 0–2 of
+  them, and the ring is already full of pastures + animals. You can repurpose a
+  *planned* pasture build into a coop, but you cannot create new empty tiles or
+  extra worker turns — so the goose gain is capped by the coops the tape already
+  plans (often 0–1), and you must rewrite `BUY_ANIMAL`, `PICKUP`, `PLACE`,
+  `BUILD_PASTURE` and the sale path **together**, or bought geese strand in the
+  shed.
+
+**The bigger lever is the route, not the tokens.** Each route is a fixed
+herd/crop/structure budget (measured: 0–7 `BUILD_COOP`, 12–18 `BUILD_PASTURE`,
+0–4 goose buys per route). The route is chosen from the **first two unlocked
+shops** in `_router` (`SHOP_ROUTES`, then `_V92_TABLE`); step ≥648 flips to the
+terminal route. If the world calls for a different farm, change the *route
+selection* — that re-plans the whole season coherently. Token rewrites are for
+fine-tuning a route you intend to keep.
+
+**Put the change where the anchor lives.** Herd/structure decisions belong in the
+`main.py` layers that own the tape anchor (`_v231_controller`,
+`layer_24_v9_herd`, the `_hd2_*` layers, or a new layer inserted at the right
+stack position). `agent.py`'s `patch()` runs **after all ~45 layers**, holds no
+chassis state (no route id, no reserved/pending counters), and is overwritten by
+the next tape step — it cannot carry a multi-turn trajectory change.
+
+**Measure it correctly.** A `main.py` change makes `--compare` useless
+(`old == new` by definition). Validate with `--old` against a **frozen baseline
+run** on the same seeds and diff `games.csv` (as `docs/todo.md` does). Judge on
+`result` (WIN/LOSS) plus the defect columns; never on a cross-game mean.
+
+**Worked example:** `layer_hg_goose` is the inverted twin of `layer_24_v9_herd`
+(anchor on the first `BUY_ANIMAL SHEEP`, rewrite the remaining sheep flow to
+geese). One smoke game (PA 2, seed 4327845, route 101, goose-native) went
+LOSS→WIN: SHEEP 6→4, GOOSE 5→6, WOOL floor 55→28, EGG sold 159→191, revenue
++$1,111, margin −$582→+$1,367. That is **one seed of a mirror match** — mechanism
+confirmed, *not* validated. Revert with `git checkout -- src/main.py` if unwanted.
+
 ## HOW TO EXPERIMENT AND FIND THINGS TO WORK ON (IMPORTANT)
 
 > Read this before writing any experiment. It exists because dozens of

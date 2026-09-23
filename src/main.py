@@ -3047,6 +3047,118 @@ agent = globals().pop("agent")
 
 
 # ---------------------------------------------------------------------------
+# HERD-GOOSE (experiment): the inverse of layer_24_v9_herd.
+#
+# layer_24_v9_herd rewrites a *goose-native* tape into sheep/cow, anchored on the
+# tape's first BUY_ANIMAL GOOSE. This layer mirrors it: anchored on the tape's
+# first BUY_ANIMAL SHEEP (step >= _HG_FROM), it rewrites the remaining sheep flow
+# into geese **in place** -- same worker, same step, same tile -- so the tape's
+# position schedule stays valid. That is the only kind of trajectory change a tape
+# can absorb (see "Changing the tape's trajectory" in AGENTS.md).
+#
+# Why the mirror is not symmetric: sheep and cows both live in PASTURE, so
+# v9_herd always finds a matching structure on a goose tape. Geese need a COOP,
+# and a sheep tape has almost none, so this layer can only use the coops the tape
+# already plans -- it cannot conjure new ones without worker turns the tape never
+# spends. Expect a small (or zero) goose gain plus stranded geese in the shed; the
+# smoke run exists to measure exactly that, not to win.
+# ---------------------------------------------------------------------------
+_HG_FROM = 216              # first sheep buy at/after this step anchors the swap
+_HG_SPECIES = "GOOSE"
+_HG_PRODUCT = "EGG"
+_HG = {}
+_HG_REPORT = dict(hg_species="", hg_sheep_buys=0, hg_pasture_to_coop=0,
+                  hg_places=0, hg_place_on_coop=0, hg_extra_sold=0, hg_errors=0)
+
+
+def _hg_has_animal(obs, animal):
+    farm = obs["farms"][int(obs["player"])]
+    return any(isinstance(t, dict) and t.get("animal") == animal
+               for row in farm["tiles"] for t in row)
+
+
+def _hg_goose(obs, action, st):
+    step = int(obs["step"])
+    orders = action.get("market") or []
+    if st.get("species") is None and not st.get("decided"):
+        if step >= _HG_FROM and any(len(o) >= 2 and o[:2] == ["BUY_ANIMAL", "SHEEP"] for o in orders):
+            st["decided"] = True
+            st["species"] = _HG_SPECIES
+            _HG_REPORT["hg_species"] = _HG_SPECIES
+    if not st.get("species"):
+        return action
+    player = int(obs["player"])
+    farm = obs["farms"][player]
+    positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
+    commands = [list(action.get("farmer") or ["PASS"])] + [list(c) for c in (action.get("hands") or [])]
+    market = [list(o) for o in orders]
+    for unit, c in enumerate(commands):
+        # Repurpose a planned pasture build into a coop, one per converted sheep,
+        # so at least some of the new geese have a matching structure.
+        if c and c[0] == "BUILD_PASTURE" and st.get("coops", 0) < st.get("converted", 0):
+            c[0] = "BUILD_COOP"
+            st["coops"] = st.get("coops", 0) + 1
+            _HG_REPORT["hg_pasture_to_coop"] += 1
+        elif len(c) >= 2 and c[0] in ("PICKUP", "PLACE") and c[1] == "SHEEP":
+            c[1] = _HG_SPECIES
+            _HG_REPORT["hg_places"] += 1
+            if c[0] == "PLACE" and unit < len(positions):
+                x, y = positions[unit]
+                tile = farm["tiles"][y][x]
+                if isinstance(tile, dict) and tile.get("kind") == "COOP" and "animal" not in tile:
+                    _HG_REPORT["hg_place_on_coop"] += 1
+    rewritten = []
+    for o in market:
+        if len(o) >= 3 and o[:2] == ["BUY_ANIMAL", "SHEEP"]:
+            rewritten.append(["BUY_ANIMAL", _HG_SPECIES, o[2]])
+            st["converted"] = st.get("converted", 0) + int(o[2])
+            _HG_REPORT["hg_sheep_buys"] += 1
+        elif len(o) >= 2 and o[:2] == ["SELL", "WOOL"] and not _hg_has_animal(obs, "SHEEP"):
+            continue
+        else:
+            rewritten.append(o)
+    result = dict(action)
+    result["farmer"], result["hands"], result["market"] = commands[0], commands[1:], rewritten
+    # The tape has no planned sale for the extra eggs; sell surplus as it reaches
+    # the shed (same accounting v9_herd uses for its substituted product).
+    native = _IMPL.chassis.players.get(player)
+    if native and native.get("route") in _IMPL.chassis.routes and step < 718:
+        stock = projected_shed(result, FarmView(obs)).get(_HG_PRODUCT, 0)
+        selling = sum(int(o[2]) for o in rewritten if len(o) >= 3 and o[:2] == ["SELL", _HG_PRODUCT])
+        planned = _IMPL.chassis.future_sells(native["route"], _HG_PRODUCT, step + 1)
+        extra = stock - selling - planned
+        if extra > 0 and len(rewritten) < MAX_ORDERS and int(obs["market"]["prices"].get(_HG_PRODUCT, 0)) >= 2:
+            rewritten.insert(0, ["SELL", _HG_PRODUCT, extra])
+            _HG_REPORT["hg_extra_sold"] += extra
+    return result
+
+
+_HG_PARENT = agent
+
+
+def layer_hg_goose(parent, observation, configuration=None):
+    player, step = int(observation["player"]), int(observation["step"])
+    st = _HG.get(player)
+    if st is None or step <= st["step"]:
+        st = _HG[player] = {"step": -1}
+        if step == 0:
+            _HG_REPORT.update(hg_species="", hg_sheep_buys=0, hg_pasture_to_coop=0, hg_places=0,
+                              hg_place_on_coop=0, hg_extra_sold=0, hg_errors=0)
+    st["step"] = step
+    action = parent(observation, configuration)
+    try:
+        return _hg_goose(observation, action, st)
+    except Exception:
+        _HG_REPORT["hg_errors"] += 1
+        return action
+
+
+agent = (lambda _p: (lambda observation, configuration=None: layer_hg_goose(_p, observation, configuration)))(_HG_PARENT)
+agent.telemetry = _HG_REPORT
+agent = globals().pop("agent")
+
+
+# ---------------------------------------------------------------------------
 # v9 FERT: spend carried fertilizer on young wheat and carrots.
 #
 # Workers that tend animals carry collected fertilizer back to the shed, where
