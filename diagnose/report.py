@@ -183,10 +183,13 @@ def write_run_csv(run_dir: Path, paths: List[Path], workers: Optional[int] = Non
         if not rows:
             return
         path = run_dir / name
+        cols = list(cols)
         with open(path, "w", newline="") as f:
             wcsv = csv.DictWriter(f, fieldnames=cols)
             wcsv.writeheader()
-            wcsv.writerows(rows)
+            # Prune each row to the columns being written: single-seat runs add a
+            # "seat" key to every row but don't emit the column unless multi-seat.
+            wcsv.writerows({k: r.get(k) for k in cols} for r in rows)
         print(f"  wrote {path.name} ({len(rows)} rows)")
 
     for seed in sorted(day_by_seed):

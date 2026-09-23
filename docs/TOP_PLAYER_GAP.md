@@ -2,9 +2,7 @@
 
 Data-anchored comparison between our production agent (`old` = `src/main.py` alone) and the
 top tournament opponent **DSM**, using only what the replays actually contain. Every claim cites
-a concrete `seed`, `day`, and `column`. **No generalities.** This file is the analysis that feeds
-`ERRORS.md`; each "fix item" below names the exact observable it moves and the same-seed command
-to prove it.
+a concrete `seed`, `day`, and `column`. **No generalities.**
 
 ---
 
