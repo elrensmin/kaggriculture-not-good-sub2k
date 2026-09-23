@@ -134,6 +134,58 @@ game.
 
 ---
 
+## Verified against a real top player (DSM) — re-scoring every E1–E6
+
+These verdicts come from comparing our `old` agent (sweep `diag-replays/sweep_old_s4362837462_b15`,
+15 seeds × 13 public agents, 195 games) with the top tournament opponent **DSM** (leaderboard replays
+`replays/DSM`, 124 episodes, `--lb`). Every number below is a concrete `seed`/`day`/`column`.
+Full per-metric tables live in `TOP_PLAYER_GAP.md`; here is the short re-score.
+
+> **Comparability rule that shapes the verdicts.** Leaderboard replays carry **no market audit**, so the
+> DSM rows have no realized `avg_price_<p>` / `sell_revenue_total` / `premium_below_base_frac` / `floor_sales`.
+> Those (price-timing) claims are therefore judged **only from our own audited sweep runs**; the structural
+> columns (`idle_share_pct`, `idle_units_ready_total`, `discarded_units_total`, `animal_cost_total`,
+> `escaped_by_type`, `feed_surplus`, `land_cost_total`) are audit-independent and fair to compare to DSM.
+
+- **E1 (below-base premium sales) — CONFIRMED, but REFINED.** It is not "all premium goods sell below
+  base." In our audited `days_seed4362837462.csv` we correctly **catch the spike**: day 10 `avg_price`
+  STRAWBERRY = **216.67/120 (base)**, EGG = **187.75/50**. The real leaks are (a) **WOOL** realised
+  **77.22–114 vs base 200** across the season, and (b) **late-season STRAWBERRY dumped to the floor**:
+  `avg_price` day 21 = 60.57 → day 22 **8.82** → day 23 **4.53** → day 24 7.14 (base 120). `premium_below_base_frac`
+  = 0.45–0.86/game. → see `TOP_PLAYER_GAP.md` **F4**.
+
+- **E2 (fertilizer liquidated instead of used) — CONFIRMED.** Our `days_seed4362837462.csv` shows
+  `plants_fertilized = 0` on **days 2–12** (the wheat/carrot + melon bonus window) even though the herd is
+  bought by ~day 6, while DSM (mirror 112076061) shows `plants_fertilized = 5–16/day` from mid-season. → **F4**.
+
+- **E4 (shed overflow / discard) — CONFIRMED, and DSM proves it is avoidable.** Our `discarded_units_total`
+  is >0 in most sweep games (`shed_overflow_days` up to 4) with items like `{FERTILIZER}`, `{WHEAT}`,
+  `{WOOL}`, `{STRAWBERRY}`. DSM's `discarded_units_total` is **0 in every single seat** even with
+  `shed_pressure_days` up to 12 and `shed_overflow_days` up to 8 — e.g. 112077395 **day 24** shed starts at
+  `100`, ends `0`, `discarded 0`, `market_orders 50`: it sells before it throws away. → **F2**.
+
+- **E5 (animal escapes) — REFUTED as a pure-loss lever.** The data inverts it. DSM runs a **large, diverse
+  herd** (`animal_cost_total` 8–25k; `escaped_by_type` shows 3–19 COW/SHEEP/GOOSE concurrently) and **accepts
+  3–24 escapes/game** yet still out-earns everyone. Our failure is the mirror: a **tiny** herd (~1–2 COW,
+  6.5–7.9k) that nonetheless sometimes runs `feed_surplus < 0` (−22…−60). Prevent-escapes-on-a-small-herd is
+  the wrong lever; the lever is scale-with-feed. → **F3**. (Do **not** delete the escape tracking — it is the
+  feed-surplus guard's tripwire.)
+
+- **E6 (idle on ready / labour waste) — CONFIRMED, and it is the top player's single defining edge.**
+  Our `idle_units_ready_total = 10–61`/game (PASS standing on ready produce/animal); DSM's is **0–1**. Our
+  `idle_share_pct` by day (seed 4362837462) is **1–9% every day it matters** — d10–29 mean ≈4.2%, spiking to
+  **9.1% on day 29** — while DSM (112077395 / 112298128 / 112076061) is **≈0% from day ~10 through the bell**.
+  Our `locked_steps` (~125–233) is also ~2× DSM's (~86–125). → **F1** (the biggest, most reproducible item).
+
+- **E3 (endgame crop decay) — LOWER PRIORITY.** DSM's `plants_died` (13–39) is often *higher* than ours and
+  it still wins; treat as hygiene, not a differentiator.
+
+The concrete fix items (F1–F5, each with patch surface + same-seed WIN accept rule) are itemised in
+`TOP_PLAYER_GAP.md` §8. Run order: **F1 idle → F2 no-discard → F4 premium/fertilizer → F3 herd/feed → F5 land
+guard** — judge each with `make compare PA=<idx> BATCH=12 SEED=700` on the per-opponent **WIN** tally.
+
+---
+
 ## How to recheck any of these
 
 Baseline = the current production agent's run against master-engine-v3 (16 seeds):
