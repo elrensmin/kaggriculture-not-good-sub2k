@@ -67,6 +67,30 @@ python -c "import diagnose; print(diagnose.public_agent_names())"
 Full flag reference, seating convention, output formats and reproducibility are
 in `diagnose/cli.py` and the package docstring (`python -m diagnose --help`).
 
+## Pulling live tournament opponents (Kaggle API)
+
+Two helper scripts in `scripts/` fetch the current leaderboard and an
+opponent's episode replays straight from Kaggle using the `kaggle` python
+package (auth from `~/.kaggle/access_token` or `kaggle.json` /
+`KAGGLE_USERNAME`+`KAGGLE_KEY`; the package is in `.venv`).
+
+```bash
+# 1. Top players of the tournament (team name + id + leaderboard score)
+python scripts/fetch_top_players.py --top 3 --json replays/top_players.json
+
+# 2. Pull a team's top-scoring submission's episode replays into replays/<team_name>/
+python scripts/pull_top_submissions.py --team 16732748 --team 16730612          # latest episode each
+python scripts/pull_top_submissions.py --top 3 --episodes all --out replays      # every episode, top-3 teams
+python scripts/pull_top_submissions.py --submission 56468867 --episode 112413080# one specific episode
+```
+
+`fetch_top_players.py` prints the ranked teams and writes them as JSON.
+`pull_top_submissions.py` resolves each team's highest-`public_score`
+submission, lists its episodes, and downloads the replay of the selected
+episode(s) (`--episodes latest` default, `--episodes all`, `--episodes N`, or a
+specific `--episode ID`) into `replays/<team_name>/` plus an `index.json`.
+Each replay is a full game recording you can study or match against.
+
 ## Makefile
 
 Everything above (and the grid/xray/graph/package workflows) is wrapped as a
@@ -151,7 +175,9 @@ without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 | `src/agent.py` | your patch over `main.py` ('new') | **YES** |
 | `diagnose/` | diagnostic / A-B harness (package, `python -m diagnose`) | yes |
 | `Makefile` | run any harness command with ease | yes |
-| `sweep.sh` | run `new`/`old` against all public agents over multiple seeds | yes |
+| `scripts/sweep.sh` | run `new`/`old` against all public agents over multiple seeds | yes |
+| `scripts/fetch_top_players.py` | fetch top tournament players (name + id + score) via the Kaggle API | yes |
+| `scripts/pull_top_submissions.py` | pull a team's top-submission episode replays into `replays/<team_name>/` | yes |
 | `package.py` | build + verify (+ human-only push) the single-file submission | yes |
 | `public_agents/*.py` | opponent agents | yes |
 | `README.md`, `AGENTS.md`, `docs/` | docs | yes |
@@ -160,6 +186,10 @@ without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
 
 - Python ≥ 3.12; runtime dependency `kaggle_environments` (≥ 1.32.7), pinned in
   `pyproject.toml`.
+- The `scripts/fetch_top_players.py` / `scripts/pull_top_submissions.py`
+  tournament helpers additionally use the `kaggle` package (in `.venv`) to talk
+  to the Kaggle API; they need your `~/.kaggle/access_token` (or kaggle.json /
+  `KAGGLE_USERNAME`+`KAGGLE_KEY`).
 - From the repo root, run the `python -m diagnose ...` / `make ...` commands
   above. A ready venv is in `.venv` (`source .venv/bin/activate`).
 

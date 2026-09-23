@@ -54,19 +54,28 @@ def compare_batch(
     workers: Optional[int] = None,
 ):
     """Run old and new agents against the same (shared) seeds and public agents,
-    executing the two batches in parallel when workers > 1."""
+    executing both batches in parallel across cores.
+
+    One task is created PER OPPONENT for each of old and new, so the process pool
+    spreads the batch across all cores instead of running a single old task and
+    a single new task (which only ever used at most 2 processes)."""
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     seeds = _make_seeds(n_seeds, seed)
     if workers is None:
         workers = _GRID_WORKERS
-    tasks = [
-        # (task_id, label, combo, pa_indices, seeds, cdir, seat, episode_steps)
-        (0, "old", None, pa_indices, seeds, run_dir, TEST_SEAT, episode_steps),
-        (1, "new", dict(_E1_DEFAULT), pa_indices, seeds, run_dir, TEST_SEAT, episode_steps),
-    ]
+    tasks = []
+    # old tasks first, then the matching new tasks, so task_id < len(pa_indices)
+    # identifies an "old" task.
+    for pa in pa_indices:
+        tasks.append((len(tasks), "old", None, [pa], seeds, run_dir, TEST_SEAT, episode_steps))
+    for pa in pa_indices:
+        tasks.append((len(tasks), "new", dict(_E1_DEFAULT), [pa], seeds, run_dir, TEST_SEAT, episode_steps))
     by_id = run_parallel_tasks(tasks, workers=workers)
-    results = {"old": by_id.get(0, []), "new": by_id.get(1, [])}
+    old_n = len(pa_indices)
+    results = {"old": [], "new": []}
+    for tid, paths in by_id.items():
+        results["old" if tid < old_n else "new"].extend(paths)
     for label, paths in results.items():
         for p in paths:
             print(f"  saved {p.name}")

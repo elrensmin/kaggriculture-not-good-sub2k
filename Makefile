@@ -67,9 +67,6 @@ graph: ## Dashboards + farm-board GIFs for a saved run dir:  make graph DIR=diag
 animals: ## Standalone animal CARE payback chart (animal_care_payback.png)
 	$(RUN) --animals --pa $(PA)
 
-sweep: ## All 13 public agents over several seeds:  make sweep  (or MODE=old)
-	./sweep.sh $(MODE)
-
 # ---- packaging (local builds only; NEVER runs --push automatically) ----------
 package: ## Build dist/submission.py (no push)
 	$(PY) package.py --out dist/submission.py

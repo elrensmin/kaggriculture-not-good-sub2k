@@ -15,7 +15,10 @@
 # CSVs plus a games.csv with per-game final_money / opponent_final / result. A
 # per-opponent summary (wins-losses and averages) is printed at the end.
 set -euo pipefail
-cd "$(dirname "$0")"
+# Resolve to the repo ROOT (this script lives in scripts/), so `python -m`
+# sees the diagnose/ package no matter where the script is invoked from.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE/.."
 
 MODE="${1:-}"
 SEED="${2:-42}"

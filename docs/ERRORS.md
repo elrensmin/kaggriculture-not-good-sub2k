@@ -10,47 +10,56 @@ makes it a loss, and where to look to fix it. Severity is how much money it leak
 
 ---
 
-## E1. Premium goods + fertilizer sold into the glut / the $1 floor  [CRITICAL]
+## E1. Livestock by-products + melon sold into the glut / at/under base  [HIGH]
 
-**Evidence (3 representative games, production seat):**
+**Evidence (audited per-product totals across all 16 `run-1/grid/baseline` games
+vs master-engine-v3; `% below base` = share of units sold under base, `% floor`
+= share sold at the $1 floor):**
 
-| product | units sold | % below base | % at $1 floor |
-|---|---|---|---|
-| FERTILIZER | 960 | **99%** | 14% |
-| MILK | 505 | **97%** | 14% |
-| STRAWBERRY | 737 | 75% | 33% |
-| MELON | 96 | 75% | 0% |
-| EGG | 160 | 72% | 0% |
-| WHEAT | 4365 | 4% | 0% |
+| product | units | % below base | % floor | avg realized / base |
+|---|---|---|---|---|
+| FERTILIZER | 5358 | **99%** | 1% | $45 / $100 |
+| MELON | 1152 | **86%** | 0% | $198 / $250 |
+| WOOL | 2396 | **81%** | 20% | $114 / $200 |
+| MILK | 3431 | **65%** | 6% | $115 / $160 |
+| STRAWBERRY | 3937 | 46% | 13% | $117 / $120 |
 
-Single-game floor dumps reach **~212 units at $1** (`new_vs_shop-router-0909_seed42`:
-MILK 46 + WOOL 55 at the floor; `sweep_new_*` games show MILK/STRAWBERRY/WOOL at the floor).
+Note what is **not** leaking: TOMATO realises $167/base $60 (0% below base — the
+scarcity spike is captured), and WHEAT/CARROT/EGG sell at/above base
+($40/$47/$52 vs $25/$35/$50). So the defect is concentrated in the livestock
+by-products (milk/wool/fertilizer) and melon, not "premium goods" broadly.
 
-**Why it's wrong.** The market is shared and the price is a function of how much of the
-product exists. `below_base_*` high + `floor_sales` high = we **sell after we've over-supplied**,
-into the price we (and possibly the rival) already crashed — the exact opposite of "sell into
-scarcity" that the notebook measures as the single biggest lever. Strawberry/milk/wool use
-`above_target > 1`: a small glut craters them straight to $1, so dumping 500 units of milk at
-once is self-inflicted. And **selling FERTILIZER below base is a double waste**: its $100 base
-is the ceiling *and* it is the input that doubles watering yield — we burn the input we need to
-hit max crop output, then realise it as a discounted sale.
+**Why it's wrong.** The market is shared and price is a function of how much of
+the product exists. `below_base_*` high + `floor_sales` high = we sell after
+over-supplying, into the price we (and possibly the rival) crashed — the
+opposite of "sell into scarcity." Milk/wool/strawberry/melon use
+`above_target > 1`: a small glut craters them. And selling **FERTILIZER below
+base is a double waste**: its $100 base is the ceiling *and* it is the input
+that doubles watering yield — we burn the input we need to hit max crop output,
+then realise it at a discount.
 
-**Fix direction.** Trade output to match the drawn `unlocked_shops`, and time sales into a
-short shelf (the price you're selling *into*, not down from). Do not dump volume of any
-premium good or fertilizer; hold/bundle, and apply fertilizer to the watering window instead of
-selling it at a discount. Watch `avg_price_<p>` in `days_seed<S>.csv` vs `base`.
+**Fix direction.** Trade output to match the drawn `unlocked_shops`, bundle and
+time sales of the crash-prone by-products into a short shelf, and apply
+fertilizer to the watering window instead of selling it at a discount. Watch
+`avg_price_<p>` / `below_base_sales_<p>` in `days_seed<S>.csv` vs `base`.
 
 ---
 
 ## E2. Fertilizer liquidated instead of used  [CRITICAL, largest single leak]
 
-**Evidence.** FERTILIZER: 960 units, 99% below base, 14% on the floor across 3 games
-(`revenue_<FERTILIZER>` realised ~$14.7k on a base-$100 good).
+**Evidence.** Across all 16 `run-1/grid/baseline` games, FERTILIZER: 5358 units
+sold, **99% below base** (`% floor` ~1%), realized ~$45/base $100 (≈ $15.6k of
+revenue/seed on a base-$100 good). Yet only ~120–136 units/seed are actually
+**applied to crops**: `plants_fertilized` is **0 on days 2–12** (the wheat/carrot
+and melon window) even though the herd is bought by day ~6 and `plants_watered`
+is 40–48/day — the agent sells 9–17 fertilizer/day during that window instead
+of using it. So we are not merely selling surplus; we are liquidating an input
+we could be farming through the bonus window.
 
 **Why it's wrong.** Fertilizer is worth $100 but is a *means of production*: applied in the
 watering window it doubles yield (the only way wheat reaches its 6-unit cap; +2/day on any
-one-shot crop in the window; doubles scheduled fruit on fertilised ongoing days). Dumping 960
-units below base is throwing away the crop boost we should be harvesting with. The engine
+one-shot crop in the window; doubles scheduled fruit on fertilised ongoing days). Dumping ~330
+units/seed below base is throwing away the crop boost we should be harvesting with. The engine
 even prices it linear both sides (target 0.40), so its *scarce* value is real when the field
 under-produces it — instead we add to the glut.
 
@@ -94,11 +103,12 @@ at ~95 as an urgent sell trigger rather than harvesting more into it. `shed_pres
 
 ---
 
-## E5. Animals go unfed / occasionally escape  [MEDIUM]
+## E5. Animals go unfed / occasionally escape  [MEDIUM → LOW in current baseline]
 
-**Evidence.** `unfed_signals` 26–104 across games; `animal_escapes`>0 in a handful
-(2–4 escaped, e.g. `new_vs_kaggriculture-cloning-agent` seeds); `at_risk_of_escape` (≥2
-consecutive unfed) present.
+**Evidence.** `animal_escapes` max 1/6 of the 16 `run-1/grid/baseline` games;
+`unfed` signals and `at_risk_of_escape` (≥2 consecutive unfed) present but rare.
+This is a real but uncommon scheduling defect, **not** the "2–4 escapes per
+game" it used to be — the current agent keeps the herd fed to near-100%.
 
 **Why it's wrong.** Two consecutive unfed end-of-day refreshes → animal escapes, unrecoverable.
 Each escape is lost structural + feed cost, and it's a pure scheduling defect (feed is not
@@ -126,12 +136,12 @@ game.
 
 ## How to recheck any of these
 
+Baseline = the current production agent's run against master-engine-v3 (16 seeds):
+
 ```bash
-PYTHONPATH=. python -m diagnose --replay-dir diag-replays/v56seeds-42 --render   # day report
-PYTHONPATH=. python -m diagnose --replay-dir diag-replays/v56seeds-42 --graph    # farm GIF / dashboards
+make render DIR=diag-replays/run-1/grid/baseline   # per-game table + games.csv/days_seed CSV
 ```
 
 Per-product: open `days_seed<S>.csv` and read `sell_qty_<p>`/`avg_price_<p>`/`revenue_<p>`
-and `below_base_sales_<p>` against `base`. E1/E2/E3 are the ones to fix first — together they
-are the difference between a mid-table bank and a top bank, and none of them requires trusting
-a cross-game average to see.
+and `below_base_sales_<p>` against `base`. E1/E2 are the ones to fix first — they are
+concrete, audit-backed below-base leaks that need no average to see.

@@ -107,10 +107,18 @@ def run_labeled_batch(label, pa_indices, n_seeds, run_dir, seed=None, combo=None
                       seat=TEST_SEAT, workers=None):
     """Run one label ("old"/"new", optionally with an E1_PARAMS combo) over
     pa_indices x n_seeds in parallel and return (saved_paths, seeds). The shared
-    wrapper for --old / --new."""
+    wrapper for --old / --new.
+
+    One task is created PER OPPONENT so the process pool actually spreads the
+    batch across cores. (A single task containing every opponent x seed made the
+    pool hit the ``n <= 1`` serial fallback and run on one core.)"""
     seeds = _make_seeds(n_seeds, seed)
     cdir = Path(run_dir)
     cdir.mkdir(parents=True, exist_ok=True)
-    tasks = [(0, label, combo, pa_indices, seeds, cdir, seat, EPISODE_STEPS)]
-    paths = run_parallel_tasks(tasks, workers=workers)
-    return paths[0], seeds
+    tasks = [
+        (i, label, combo, [pa], seeds, cdir, seat, EPISODE_STEPS)
+        for i, pa in enumerate(pa_indices)
+    ]
+    by_id = run_parallel_tasks(tasks, workers=workers)
+    saved = [p for lst in by_id.values() for p in lst]
+    return saved, seeds
