@@ -115,42 +115,7 @@ tape, every prefix needs its own clean process — the tool does that for us.
 
 ---
 
-## 4. What the data reveals (the iterative nature)
-
-Three effects repeat identically on **all three opponents** — seed-consistent,
-not a single-game fluke:
-
-**1. `layer_09` (v231 livestock substitution) made animals & crops worse, then
-`layer_19–20` (r85/r95/r97 feed) fixed the same thing.** At every opponent,
-`layer_09` jumps escapes `1→9` (cloning) / `0→8` (others), plants died `19→41`,
-missed harvests `2→10`, and feed goes negative-ish. The r70/r95/r97 feed layer
-then **reverses every one of those**: escapes `9→1`/`8→0`, plants `41→19`,
-missed harvests `10→2`, feed surplus flips strongly positive (`+55/+63/+65`).
-This is the classic "livestock expansion without matching feed capacity" defect,
-fixed later by smarter feed + reserve — the two bookends of the same system.
-
-**2. `layer_40` (r127) is the money inflection point.** It is the first stage
-that turns LOSS→WIN (cloning and top-2), cuts **floor-price sales** by roughly
-half (`155→105`, `188→99`, `193→85`), drops premium-below-base, and craters the
-**opponent's** final money (`114k→72k`, `95.9k→89.2k`). Its committed sell
-revenue roughly **doubles** on cloning (`125k→253k`) — the layer's sale ordering
-stops dumping produce at the $1/glut floor and sells into the scarcity window
-(and into the opponent). This is the single biggest structural lever, and it
-holds on every opponent.
-
-**3. Several layers are no-ops at this seed (and that's fine).** `layer_00` ≡
-`_IMPL` exactly (error-guard only), and `layer_43` ≡ `layer_40` exactly (v13v
-entry only fires in specific market states, not here). The **final I1 patch adds
-just +$23/+$18/+$17** — a small, safe monotone improvement on top of the fully
-built stack, exactly as an opening-extension should be.
-
-**4. BASE is inefficient even so:** ~7.8% idle labor, 36–49 shed discards,
-155–193 floor sales, negative feed surplus, and 36–49 overflow-risk days — i.e.
-even the raw tape wastes a lot; the layers are what make it competitive.
-
----
-
-## 5. Signals legend / how to read these numbers
+## 4. Signals legend / how to read these numbers
 
 | column | what it means |
 |---|---|
@@ -163,50 +128,3 @@ even the raw tape wastes a lot; the layers are what make it competitive.
 | `feed±` | wheat produced* minus fed (*net of audit flows) |
 
 ---
-
-## 6. Grounded defects in how the layers are written (run-1 baseline, data-backed)
-
-Cross-checked against the 16-game `run-1/grid/baseline` run (current production
-agent vs master-engine-v3) and the audited `days_seed<S>.csv` per-day numbers.
-These are the concrete, opponent-independent spots where the layer stack leaves
-real money — ground for the next test, not speculation.
-
-- **The fertilizer-worth layers (R70/R85) price fertilizer by its low market
-  resale value (~$45) instead of its marginal yield product, so the agent
-  liquidates fertilizer instead of applying it.** Evidence (identical in every
-  baseline seed): the herd is bought by day ~6 (daily `animal_cost` $800–$1000)
-  and produces fertilizer from day 6+, yet `plants_fertilized` is **0 on days
-  2–12** and only **2–8/day by days 13–18**, while **40–48 plants are watered
-  every day** and the agent **sells 9–17 fertilizer/day at 99% below base
-  (~$45)**. On a watered window crop a fertilization ≈ doubles / +2 yield →
-  worth ~$80+ at wheat/tomato prices vs the ~$45 it fetches on the market. This
-  is E2 in `ERRORS.md`, now made concrete: not an availability problem — a
-  mispricing in the worth layer. Test: value/apply fertilizer to watered window
-  crops ahead of selling it.
-- **Non-compositional layering — each patch patched the prior patch's symptom.**
-  layer_09 (livestock substitution) made things worse (escapes, plants-died,
-  negative feed) and a later feed layer re-fixed it; the two were never designed
-  together. Same shape as every failed experiment we've run: a standalone tweak
-  that fights (rather than reuses) the 45-layer stack it sits inside.
-- **Vs master-engine-v3 the two agents are near-twins.** Audited sells/spends are
-  identical between seats on almost every day; the loss is a few isolated
-  single-day over-dumps (e.g. seed704 day-25: we request MILK×39/STRAWBERRY×18 vs
-  the opponent's ×23/×11) plus per-turn fill sequencing. So fixing the defects
-  above raises bank vs the field but does **not** by itself flip this specific
-  twin matchup — a different strategy (edit layers) is what moves that one.
-
----
-
-## Reproduce it yourself
-
-```bash
-# static survey (tape nature + layer stack) — no games
-python analyze_patches.py --survey
-
-# empirical iterative loop: 11 prefixes x 3 opponents, seed 42 (takes ~20 min)
-python analyze_patches.py --iterative --pa 1,2,8 --seed 42 --batch 1 \
-    --outdir diag-replays/iterative
-
-# regenerate the markdown from saved replays (no games)
-python analyze_patches.py --report --outdir diag-replays/iterative
-```

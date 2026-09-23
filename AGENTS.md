@@ -147,47 +147,43 @@ above is not just a workflow preference.
   *wrong objective's* summary of the *wrong sample*. Trust `result` (WIN/LOSS);
   treat `final_money` as the noisy-but-high-resolution readout, never the score.
 
-## Reading rivals from replays (meta‑observations from `ntbk/`)
+## How the leaderboard is ranked (what we actually maximize)
 
-Actionable context distilled from the four community notebooks in `ntbk/`
-(`x-ray-your-agent`, `a-dna-test-for-agents`, `everyone-is-playing-the-same-opening`,
-`wins-not-money`). Use these when building the routing/decision tree or reading a
-replay of our own agent.
+Confirmed from the live ladder + our own analysis of the #1's replays (`replays/DSM/`):
 
-- **Turn convention in a replay (off‑by‑one trap).** The action *decided at turn
-  `t`* is stored at `steps[t + 1]` of the replay; `day = turn // 24`. Reading the
-  raw index shifts the whole picture by one turn. **Nothing observable differs
-  before turn 48** — early agreement between any two agents is engine
-  determinism, not kinship.
-- **The "day barcode" (DNA test).** The engine resynchronises every unit each
-  morning, so the conserved, most-own window is **hours 1–4 of each day**. Hashing
-  the plan channel over that window (farmer + hands + structural/provisioning
-  orders, never sells or quantities) yields a 30‑band genome: matching bands =
-  shared ancestry, first differing band = the in‑game day two agents forked.
-  Adaptive layers show up as *where* the barcode stops being self‑consistent.
-  Practical value: we can identify which public opponents play our exact lineage
-  and whether a rival forks at the shop draw (turns 72/144) or reacts live.
-- **Opening monoculture.** At turn 24 the field concentrates on a handful of
-  shared openings (one line historically ~15% of all seats); agreement collapses
-  after ~turn 100. Most of the field shares an *opening book*, not a strategy —
-  so early‑game differences are where a router can differentiate.
-- **Macro shape of a top agent (measured #1, 2026‑08‑30).** 2nd quadrant bought on
-  **day 5**; ~**280 CARE** actions/season; herd ≈ **7 COW**; leaves ~**13 tiles
-  fallow** late and **~$442 stranded** at the bell. A 4th‑quadrant line appears
-  in ~12% of a top‑30 agent's games, always on **day 18**, always ~10 tomato tiles.
-  Field staffing reference (490 seat‑seasons): **4 hands by day 4, 8 by day 6, 11
-  by day 10, 12 from day 13 to the bell**, IQR 0–2 hands all season. Compare our
-  own numbers against these as *shapes to understand*, not targets.
-- **Market crate (don't sell into the hole you just dug).** A large sale reprices
-  the shared book for *both* players. If we dump a product and then (or the rival
-  then) sells the same product within ~a day into the depressed window, that volume
-  eats the price drop — quantified damage = victim qty × Δprice. This is the
-  concrete mechanism behind "bundle premium‑goods and time sales"; a glut you
-  create stays cheap for a while (a $1 sale adds no supply).
-- **Labour is movement.** Measured split: the #1 spends **53.8% of unit‑turns
-  walking, 3.8% idle**; a mid‑table agent 42.9% walking / 11.8% idle. Wasted
-  labour mostly *shows up as idle in place* rather than extra walking — so
-  `idle_share_pct`/`idle_units_ready_total` are the real defect signals.
+- **The leaderboard score is a win/loss rating, not money.** Pulling the live
+  leaderboard gives scores in a tight rating band (observed top-50 span ~2801–3163,
+  mean ≈2894) — the signature of an Elo/Glicko-style rating computed from
+  head‑to‑head matches, **not** a sum/average of bank balances (those are ~10⁴–10⁵
+  per game) and not a raw win count.
+- **Each *episode* is exactly one match between two teams.** Why `games.csv --lb`
+  shows a submission *both* as seat 0 and seat 1 with mirrored WIN/LOSS and swapped
+  final/opponent amounts: two rows for the SAME game, one per seat. Seat 0/1 is just
+  random orientation — irrelevant to scoring. **Never count an episode twice or read
+  the mirror as evidence of two outcomes** (one `replays/DSM` episode is even DSM vs
+  DSM, a self-play/mirror game: both rows flip identically).
+- **Money is only the tie-break that decides who wins a match.** The env's reward is
+  `final_money` per seat; the higher-reward seat takes the match. **The dollar
+  magnitude of your bank never enters your score** — a win by $1 and a win by $50k
+  move your rating the same (the `wins-not-money` point). Your bank merely *decides*
+  each match's winner, so it's a lower-noise signal of your win probability — not the
+  objective.
+- **#1 ground-truth:** DSM tops the ladder (3163.2) with a **118W–6L record (95.2%
+  win rate) across its 124 ladder games, mean margin +$17,435** (tallied from
+  `replays/DSM/games.csv`). The ranking follows who wins more across the field.
+
+**So "maximize for this" means: maximize `Pr[win] = Φ(μ/σ)` over the match‑making
+pool — beat the field reliably, not post a bigger bank.** Rules:
+1. Judge every change on **`result` (WIN/LOSS)**; a higher median bank that loses
+   more games is a regression (the documented 28/28-loss failure mode).
+2. Treat **margin as the diagnostic readout, never the score**: use it to *measure* a
+   candidate's win probability; accept it only when it raises win rate.
+3. **Optimise consistency, not magnitude** — a µ/σ maximiser wins narrowly but
+   reliably; the leaders sit within ±80 rating points, so wins (not blowout margins)
+   decide who is #1.
+4. When diagnosing an opponent from `--lb` replays, both seats are the same match;
+   tally one win/loss per episode for the team under study. (Our harness
+   `--old`/`--new`/`--compare` already judge same-seed `result`, matching this.)
 
 
 ## Game dynamics — read `GAME_DYNAMICS.md`
@@ -355,31 +351,6 @@ python -m diagnose --grid --exp floor --pa 1,2,8 --seed 700 --batch 8 \
   and `idle_units_total`/`idle_units_ready_total`.
 - **`revenue`/`expenses`** (sign-split of money delta) undercount both when a step buys and
   sells — prefer `sell_revenue_total` + the itemized `*_cost_total` columns.
-
-## Public agent mapping
-
-`diagnose` maps numbers to files in `public_agents/`. Indices are assigned by
-alphabetical filename order at runtime (`diagnose._refresh_public_agent_map`), so
-they are derived, not fixed:
-
-| # | file |
-|---|------|
-| 1 | `kaggriculture-cloning-agent.py` |
-| 2 | `kaggriculture-master-engine-v3.py` |
-| 3 | `kaggriculture-one-more-wheat.py` |
-| 4 | `kaggriculture-pipe16-idle-workers.py` |
-| 5 | `kaggriculture-pipe7-wheat-microstructure.py` |
-| 6 | `kaggriculture-public-state-router-74-5-win-rate.py` |
-| 7 | `kaggriculture-reactive-router.py` |
-| 8 | `kaggriculture-top-2-master-engine-v4.py` |
-| 9 | `kaggriculture-v38-smarter-feed-stronger-margins.py` |
-| 10 | `kaggriculture-v47-reactive-market-coordination.py` |
-| 11 | `kaggriculture-v53-opening-signature.py` |
-| 12 | `market-smart-farming-kaggriculture.py` |
-| 13 | `shop-router-0909.py` |
-
-Run `python -c "import diagnose; print(diagnose.public_agent_names())"` for the
-live mapping.
 
 ## What to change
 
