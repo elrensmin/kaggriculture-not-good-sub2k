@@ -68,6 +68,76 @@ every sheep buy (or cut the herd) to remove the 162 floor + 532 below-base units
 (b) FERTILIZER: 2352 units at 49% of base while `plants_fertilized` is ~125 vs DSM 236 —
 Step 2 (fertilize instead of dump) is worth far more than any sell-timing change.
 
+## Demand generalisation + day-end overflow relief — MEASURED (`tools/sell_price.py`)
+
+**New read-only tool.** `tools/sell_price.py` prints, per game and per product, the
+committed units sold and the price-at-sell for **both seats** (units, avg price,
+floor%), plus an under/ahead tally, so you can see exactly where an opponent is
+undercutting us and where we undercut them. It reads `_diagnose_meta.audit` when
+present, else falls back to action × price. No averaging: one line per game
+(`--summary` gives the totals + per-game counts).
+
+```bash
+PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new8 --summary
+```
+
+**What it exposed (24 games, PA 2/3/5 × 8 seeds).** Our biggest structural leak is
+**WHEAT volume**, not price: we sell 10,055u @ $37.9 vs the opponent's 35,031u @
+$41.2 (under in 9/24 games) — we clear ~29% of their volume. WOOL and MILK we price
+*better* than them (ahead 15/15 and 12/12). So the premium-price lever is not the gap;
+**we under-produce/under-sell the bulk commodity**.
+
+**Demand check, generalised (the strawberry fix).** The strawberry rule (thin
+irrigation when `market.inventory ≥ I0 − 40`, day < 27) is now joined by:
+- **COW/MILK herd cap** — `caps = {"SHEEP": 9 if yarn else 3, "COW": 9 if milk else 3}`,
+  gated on the *unlocked shops* (`PIZZA_SHOP`/`ICE_CREAM_SHOP`/`SMOOTHIE_SHOP` for
+  MILK, `YARN_STORE` for WOOL), not on market inventory.
+- **FERTILIZER shed-gate** — `COLLECT_FERTILIZER → PASS` only while `_shed_headroom ≤ 0`.
+  (Gating on market inventory alone blocked the `FERTILIZE` input too and collapsed
+  revenue $107k → $34k — this is why the gate is keyed on shed pressure.)
+- **WHEAT/overflow relief** — see below.
+
+**Reserve raised to 60** (`_SHED_RESERVE`), so no hold/throttle layer may park stock
+above shed 40 — the feed/seed reserve is now a hard floor for every sell-side layer.
+
+**The real wheat eviction mechanism (and the fix).** `discarded_items` was showing
+WHEAT in 17/24 games (135u) once the sell levers were on. The audit localises it to
+**hour 23 — the day-end force-drop**: the engine runs unit actions → `_process_market`
+→ `_end_of_day`, and `_end_of_day` dumps *every* worker inventory into the shed,
+discarding the overflow. `_projected_shed` models only shed-adjacent `DROP`s, so the
+relief never saw the dump and never fired (`_DEMAND_REPORT["wheat_relief"] == 0`).
+
+`_wheat_relief_apply` is now `_overflow_relief_apply` (alias kept): it runs **last**,
+and **at hour 23 only** adds the forced inventory dump to the projection, then sells the
+shortfall out of the shed in the same market turn (`_process_market` commits *before*
+`_end_of_day`, so the room is real). Sell order is
+`FERTILIZER, EGG, MILK, CARROT, TOMATO, MELON, WOOL, STRAWBERRY, WHEAT` — cheap/lumpy
+first, STRAWBERRY late so it does not undo the rate limiter, and WHEAT only above
+`_WHEAT_KEEP = 25` (feed reserve).
+
+**Result, same seeds (24 games, `consol-base` → `consol-new8`):**
+
+| guard | base | sell-levers (new6) | + overflow relief (new8) |
+|---|---|---|---|
+| `discarded_units_total` /game | 2.33 | 14.67 | **2.62** |
+| `shed_overflow_days` /game | 2.62 | 2.92 | **0.79** |
+| games with WHEAT discarded | 3/24 | 17/24 | **5/24** |
+| games with STRAWBERRY discarded | 0/24 | 21/24 | **8/24** |
+| `floor_sales` total | 1561 | 514 | 551 |
+| `stranded_at_bell` /game | 0.0 | 0.0 | 0.0 |
+
+So the sell-side levers now keep their floor win (−65%) **without** converting it into
+shed pressure: discard and overflow both land at or below the frozen baseline.
+
+**Still open (structural, not cosmetic).**
+- **WHEAT volume**: 10k vs 35k units. We now sell all we produce; the gap is
+  production/feeding mix, not timing. Our WHEAT price is also $3.3 under theirs.
+- **no-YARN MILK**: floor units rose 50 → 196 when the COW cap allows 9 head in
+  `MILK` worlds whose drawn shops cannot absorb the milk.
+- **Margin/win**: the combined lever set is structurally cleaner but currently loses
+  more (median margin ≈ −$17.3k vs −$2.6k baseline; wins 0/24 vs 3/24). Per the
+  operator's direction this round is judged on the mechanics above, not the bank.
+
 ## Herd hold / release — MEASURED (`tools/herd_hold.py`)
 
 New read-only tool: per-day COW/SHEEP/GOOSE + feed + escapes + animal-product

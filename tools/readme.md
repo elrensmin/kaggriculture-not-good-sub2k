@@ -5,6 +5,7 @@ need `PYTHONPATH=src:.` (they import `diagnose` and, for a few, `main`).
 
 | tool | what it does | run |
 |---|---|---|
+| `sell_price.py` | Per-game, per-product **price-at-sell for BOTH seats** (units, avg price, floor%, under/ahead flags) — no averaging. | `PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new8 --summary` |
 | `floor_sell.py` | Per-game floor-sale inspector: which products floor, shop consumer counts (YARN/MILK/EGG/STRAW), herd d10/16/29, peak, coop count — **no averaging**. | `PYTHONPATH=src:. python -m tools.floor_sell --dir diag-replays/noyarn-base-all --summary` |
 | `herd_hold.py` | Per-day COW/SHEEP/GOOSE + feed/carry + animal-product floor sales, DSM vs ours. | `PYTHONPATH=src:. python -m tools.herd_hold --compare --max-games 40` |
 | `dsm_profile.py` | Full behavioural map of DSM vs us (herd, structures, shed, lifecycle, selling, labour). | `PYTHONPATH=src:. python -m tools.dsm_profile --compare` |
