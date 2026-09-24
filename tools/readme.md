@@ -5,6 +5,10 @@ need `PYTHONPATH=src:.` (they import `diagnose` and, for a few, `main`).
 
 | tool | what it does | run |
 |---|---|---|
+| `margin.py` | **The fast readout**: W/L/T, median margin, median WIN and median LOSS ("and by how much"), percentiles, the structural guards, and a paired same-seed delta with `--vs`. No averaging across games. | `.venv/bin/python tools/margin.py diag-replays/ctl-rate diag-replays/consol-base` |
+| `dsm_extract.py` | Parse every replay ONCE into a compact JSON cache (board, shed, inventories, market, shops, per-step orders) so analysis needs no re-parse of the raw replays. | `PYTHONPATH=src:. python tools/dsm_extract.py --dir replays/DSM/v1 --dump /tmp/dsm_cache.json` |
+| `dsm_report.py` | Render the cache as the markdown data tables behind `docs/dsm_v1.md`. | `python tools/dsm_report.py --cache /tmp/dsm_cache.json` |
+| `dsm_flows.py` | What DSM actually DOES with WHEAT and MILK: planted / harvested / bought / fed / sold, market-inventory band, price-at-sell, cows & shops, split YARN vs no-YARN. Reconstructed from the replay action+observation stream (LB replays have no audit). | `PYTHONPATH=src:. python tools/dsm_flows.py --dir replays/DSM/v1 --summary` |
 | `sell_price.py` | Per-game, per-product **price-at-sell for BOTH seats** (units, avg price, floor%, under/ahead flags) — no averaging. | `PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new8 --summary` |
 | `floor_sell.py` | Per-game floor-sale inspector: which products floor, shop consumer counts (YARN/MILK/EGG/STRAW), herd d10/16/29, peak, coop count — **no averaging**. | `PYTHONPATH=src:. python -m tools.floor_sell --dir diag-replays/noyarn-base-all --summary` |
 | `herd_hold.py` | Per-day COW/SHEEP/GOOSE + feed/carry + animal-product floor sales, DSM vs ours. | `PYTHONPATH=src:. python -m tools.herd_hold --compare --max-games 40` |

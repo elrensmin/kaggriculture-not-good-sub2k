@@ -6718,7 +6718,7 @@ def _i1_apply(action, observation, configuration=None):
 # TAPE-native, no layer adds them). The real fix is to not run sheep in no-YARN
 # worlds (herd/route/opening), which is where the ~99 wool units come from.
 # ---------------------------------------------------------------------------
-_HOLD_ON = _tape_os.environ.get("KAGGICULTURE_HOLD", "1") == "1"
+_HOLD_ON = _tape_os.environ.get("KAGGICULTURE_HOLD", "0") == "1"
 _HOLD_FRAC = float(_tape_os.environ.get("KAGGICULTURE_HOLD_FRAC", "0.0"))
 _HOLD_PRICE = float(_tape_os.environ.get("KAGGICULTURE_HOLD_PRICE", "50"))
 _HOLD_CAP = int(_tape_os.environ.get("KAGGICULTURE_HOLD_CAP", "40"))
@@ -6854,7 +6854,7 @@ def _hold_apply(action, observation, configuration=None):
 # the species whose product has no buyer (SHEEP), ONLY in no-YARN worlds, and from
 # day 24 (DSM: sheep 3.0 -> 0.0 by d29 in no-YARN; 9.0 -> 1.7 in YARN worlds).
 # ---------------------------------------------------------------------------
-_RELEASE_ON = _tape_os.environ.get("KAGGICULTURE_RELEASE", "1") == "1"
+_RELEASE_ON = _tape_os.environ.get("KAGGICULTURE_RELEASE", "0") == "1"
 _RELEASE_FROM = int(_tape_os.environ.get("KAGGICULTURE_RELEASE_FROM", "24"))
 _RELEASE_CARE = _tape_os.environ.get("KAGGICULTURE_RELEASE_CARE", "1") == "1"
 _RELEASE_SPECIES = tuple(s.strip().upper() for s in
@@ -6925,10 +6925,13 @@ _SHEEP_CAP_YARN = int(_tape_os.environ.get("KAGGICULTURE_SHEEP_CAP_YARN", "9"))
 _SHEEP_CAP_NOYARN = int(_tape_os.environ.get("KAGGICULTURE_SHEEP_CAP_NOYARN", "3"))
 # Same demand check generalised to cows: milk is only bought by PIZZA_SHOP /
 # ICE_CREAM_SHOP / SMOOTHIE_SHOP (+ town centre). With no such shop the milk glut
-# is as structural as wool's, so cap the herd low (measured: no-YARN MILK floor
-# +293 when cows ran unchecked while the route remap was on).
+# is as structural as wool's, so cap the herd low. Measured on the DSM corpus
+# (tools/dsm_flows.py, 123 games): he runs COW 9 when a MILK shop is unlocked and
+# **COW 5 when none is** -- matching the route's pasture budget rather than
+# wiping the herd out. Our 3 was over-correction and cost us the milk we *could*
+# sell into the town centre (DSM still moves ~54 milk with 5 cows).
 _COW_CAP_MILK = int(_tape_os.environ.get("KAGGICULTURE_COW_CAP_MILK", "9"))
-_COW_CAP_NOMILK = int(_tape_os.environ.get("KAGGICULTURE_COW_CAP_NOMILK", "3"))
+_COW_CAP_NOMILK = int(_tape_os.environ.get("KAGGICULTURE_COW_CAP_NOMILK", "5"))
 _MILK_SHOPS = ("PIZZA_SHOP", "ICE_CREAM_SHOP", "SMOOTHIE_SHOP")
 _SHEEPCAP_CONVERT = _tape_os.environ.get("KAGGICULTURE_SHEEPCAP_CONVERT", "0") == "1"
 _SHEEPCAP_REPORT = dict(sheepcap_kept=0, sheepcap_cut=0, sheepcap_geese=0, sheepcap_errors=0)
@@ -7023,63 +7026,165 @@ def _sheepcap_apply(action, observation, configuration=None):
 # staggered strawberry plantings so supply matches the ~1 + 6*n_shops daily
 # demand), not a sell-side hold.
 # ---------------------------------------------------------------------------
-_STRAWRATE_ON = _tape_os.environ.get("KAGGICULTURE_STRAWRATE", "1") == "1"
+_STRAWRATE_ON = _tape_os.environ.get("KAGGICULTURE_STRAWRATE", "0") == "1"
+_RATE_ON = _tape_os.environ.get("KAGGICULTURE_RATE", "1") == "1"
 _STRAWRATE_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_BUFFER", "40"))
 _STRAWRATE_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_UNTIL_DAY", "27"))
+_RATE_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_RATE_UNTIL_DAY", str(_STRAWRATE_UNTIL_DAY)))
 # Never throttle once the projected shed reaches this share of capacity -- held
-# strawberry must not displace feed/seed storage or it causes overflow discards
-# and animal starvation (measured: discarded +408/game, escapes +13.9 without it).
+# stock must not displace feed/seed storage (overflow discards / starvation).
+#
+# This guard is now a *safety net*, not the main lever: `_wheat_relief_apply` runs
+# last and guarantees the day-end force-drop cannot evict anything, so the reserve
+# below can be small and the throttle can operate over a much wider shed band.
+# (Reserve 60 + throttle only above shed 40 was the old coupling that let the glut
+# back onto the market as soon as the barn filled.)
 _STRAWRATE_SHED = float(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_SHED", "0.85"))
 _STRAW_SHOPS = ("BRUNCH_SPOT", "FARMERS_MARKET", "ICE_CREAM_SHOP", "SMOOTHIE_SHOP")
+
+# PORTFOLIO-WIDE SELL CEILING.
+#
+# One rule for the basket instead of a per-product hack: the shared market
+# inventory may not be pushed past the point where the *marginal* unit of our own
+# sell stops clearing `_RATE_FRAC * base`. The ceiling is derived by bisecting the
+# engine's own price curve, so each good is restricted exactly as much as its
+# curve demands and no product needs a hand-tuned constant:
+#
+#   at frac 0.6 the derived ceilings are
+#     STRAWBERRY  I0+25   ($72 @ base 120)  <- over-produced: tape plants 33/route
+#     WOOL        I0+37   ($121 @ base 200) <- over-produced: route stock
+#     MILK        I0+30   ($97 @ base 160)
+#     CARROT      I0+157 / TOMATO I0+92 / MELON I0+100 / FERTILIZER I0+202
+#     WHEAT, EGG  unbounded in normal play (log curves sag only ~15-25% above I0)
+#
+# WHICH ITEMS THE CEILING IS ARMED ON IS MEASURED, not assumed. Floor units over
+# 24 games (PA 2/3/5 x 8 seeds), totals:
+#
+#   armed on            STRA   MILK   WOOL   FERT   TOTAL
+#   (nothing, base)      908    185    412     56    1561
+#   STRA+WOOL            103    365    137     97     702   <- discard 2.2/g, ovf 1.1
+#   STRA+MILK+WOOL        97    458    137     62     754
+#   + looser reserve      110    601    139    128     978
+#
+# STRAWBERRY and WOOL are supply-side gluts the tape creates, so a sell ceiling
+# fixes them. MILK is NOT: arming the ceiling on it made milk *worse* in every
+# configuration (185 -> 272 -> 365 -> 458 -> 601), because the milk sell in the
+# base is already well-timed and throttling it only parks the glut in the shed
+# until the shed guard releases it. Milk's lever is the herd (see the COW cap),
+# not the market. So milk is deliberately left out of the basket.
+#
+# WHEAT is left in the *rule* but the rule declines to restrict it (its ceiling is
+# unbounded), which is the intended behaviour: observe the wheat heuristic, let
+# the curve decide, and never hard-code a wheat special case.
+_RATE_FRAC = float(_tape_os.environ.get("KAGGICULTURE_RATE_FRAC", "0.6"))
+_RATE_ITEMS = tuple(c.strip().upper() for c in _tape_os.environ.get(
+    "KAGGICULTURE_RATE_ITEMS", "STRAWBERRY,WOOL").split(",") if c.strip())
 _STRAWRATE = {}
-_STRAWRATE_REPORT = dict(rate_trimmed=0, rate_passed=0, rate_errors=0)
+_RATE_CACHE = {}
+_STRAWRATE_REPORT = dict(rate_trimmed=0, rate_passed=0, rate_errors=0,
+                         ceiling_hits=0, budget_trimmed=0)
 
 
-def _straw_rate_apply(action, observation, configuration=None):
-    if not _STRAWRATE_ON or not isinstance(action, dict):
+def _inv_ceiling(item, params, frac):
+    """Largest shared market inventory at which the marginal unit still clears
+    ``frac * base``. Bisects the engine's monotone price curve."""
+    key = (item, round(frac, 4))
+    if key in _RATE_CACHE:
+        return _RATE_CACHE[key]
+    p = params.get(item) or _R37_MARKET_PARAMS[item]
+    target = frac * float(p["base"])
+    lo, hi, best = 0, int(p.get("I0", 10000)) + 20000, 0
+    if _r37_market_price(item, 0, params) >= target:
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if _r37_market_price(item, mid, params) >= target:
+                lo = mid
+            else:
+                hi = mid - 1
+        best = lo
+    _RATE_CACHE[key] = best
+    return best
+
+
+def _rate_apply(action, observation, configuration=None):
+    """Cap every SELL in the basket so the shared market inventory stays at a
+    level where our own marginal unit still earns `_RATE_FRAC * base`.
+
+    Selling is self-limiting: bringing the book to the ceiling consumes the whole
+    room, and only the shops' drain (~1-2 units/turn/product) recreates it -- so
+    our sell rate tracks *demand* automatically, with no shop counting. Near the
+    end (`_RATE_UNTIL_DAY`) the throttle releases so the tape can liquidate and
+    `stranded_at_bell` stays clean.
+    """
+    if not (_RATE_ON and _STRAWRATE_ON) or not isinstance(action, dict):
         return action
     try:
         step = int(observation["step"])
         day = step // 24
-        if day >= _STRAWRATE_UNTIL_DAY:
+        if day >= _RATE_UNTIL_DAY:
             return action
         seat = int(observation["player"])
         st = _STRAWRATE.get(seat)
         if st is None or day != st.get("day"):
             st = _STRAWRATE[seat] = {"day": day, "sold": 0}
-        # Shed guard: consult the shared budget. If there is no headroom left above
-        # the feed/seed reserve, sell freely -- never let a price throttle cause
-        # overflow discards or unfed animals.
+        # Shed guard: no headroom above the feed/seed reserve -> sell freely.
+        # Never let a price throttle cause overflow discards or unfed animals.
         if _shed_headroom(action, observation, configuration, _STRAWRATE_SHED) <= 0:
             return action
+        params = {k: dict(v) for k, v in _R37_MARKET_PARAMS.items()}
+        for k, patch in (observation["market"].get("params") or {}).items():
+            if k in params and isinstance(patch, dict):
+                params[k].update(patch)
+        inv = observation["market"]["inventory"]
         shops = observation["town"]["unlocked_shops"]
-        budget = 1 + 6 * sum(shops.count(s) for s in _STRAW_SHOPS)
-        inv0 = int(observation["market"]["inventory"].get("STRAWBERRY", 0))
-        i0 = int(_R37_MARKET_PARAMS["STRAWBERRY"].get("I0", 10000))
-        room = max(0, (i0 - _STRAWRATE_BUFFER) - inv0)
+        straw_budget = 1 + 6 * sum(shops.count(s) for s in _STRAW_SHOPS)
         market = [list(o) for o in (action.get("market") or [])]
+        kept = []
+        room = {}
         changed = False
         for o in market:
-            if not (len(o) >= 3 and o[0] == "SELL" and o[1] == "STRAWBERRY"):
+            if not (len(o) >= 3 and o[0] == "SELL" and o[1] in _RATE_ITEMS):
+                kept.append(o)
                 continue
+            item = o[1]
             q = max(0, int(o[2]))
-            allow = max(0, min(q, budget - st["sold"], room))
-            if allow < q:
-                o[2] = allow
+            if item not in room:
+                room[item] = max(0, _inv_ceiling(item, params, _RATE_FRAC)
+                                 - int(inv.get(item, 0)))
+                if room[item] <= 0:
+                    _STRAWRATE_REPORT["ceiling_hits"] += 1
+            # Curve ceiling first, then (strawberry only) the measured shop-demand
+            # daily budget, which is the tighter of the two in practice.
+            allow = min(q, room[item])
+            if item == "STRAWBERRY":
+                allow = min(allow, max(0, straw_budget - st["sold"]))
+                if allow < q:
+                    _STRAWRATE_REPORT["budget_trimmed"] += q - allow
+            if allow <= 0:
+                # Drop the order outright rather than leaving a 0-qty SELL.
+                _STRAWRATE_REPORT["rate_trimmed"] += q
+                changed = True
+                continue
+            room[item] -= allow
+            if item == "STRAWBERRY":
                 st["sold"] += allow
-                room -= allow
+            if allow < q:
                 _STRAWRATE_REPORT["rate_trimmed"] += q - allow
+                o[2] = allow
                 changed = True
             else:
-                st["sold"] += q
-                room -= q
                 _STRAWRATE_REPORT["rate_passed"] += q
+            kept.append(o)
         if changed:
             action = dict(action)
-            action["market"] = market
+            action["market"] = kept
     except Exception:
         _STRAWRATE_REPORT["rate_errors"] += 1
     return action
+
+
+# Backwards-compatible alias: the layer used to be strawberry-only.
+_straw_rate_apply = _rate_apply
 
 
 # ---------------------------------------------------------------------------
@@ -7096,14 +7201,14 @@ def _straw_rate_apply(action, observation, configuration=None):
 # drains. WATER -> PASS is position-safe. Knobs: KAGGICULTURE_STRAW_IRRIG=0,
 # KAGGICULTURE_STRAW_IRRIG_BUFFER (40), _UNTIL_DAY (27), _MIN_PLANTS (6).
 # ---------------------------------------------------------------------------
-_STRAW_IRRIG_ON = _tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG", "1") == "1"
+_STRAW_IRRIG_ON = _tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG", "0") == "1"
 _STRAW_IRRIG_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_BUFFER", "40"))
 _STRAW_IRRIG_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_UNTIL_DAY", "27"))
 _STRAW_IRRIG_MIN_PLANTS = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_MIN_PLANTS", "6"))
 # FERTILIZER has NO shop buyer at all (every SHOPS entry is EGG/WHEAT/MILK/...; the
 # town centre excludes it). Its only productive use is FERTILIZE. So stop COLLECTing
 # it once the market is at/above I0 - buffer; the tile keeps its unit for later use.
-_FERT_GATE_ON = _tape_os.environ.get("KAGGICULTURE_FERT_GATE", "1") == "1"
+_FERT_GATE_ON = _tape_os.environ.get("KAGGICULTURE_FERT_GATE", "0") == "1"
 _FERT_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_FERT_BUFFER", "100"))
 # OVERFLOW RELIEF. The engine force-drops EVERY worker inventory into the shed at
 # the END OF THE DAY (interpreter: unit actions -> _process_market -> _end_of_day,
@@ -7266,12 +7371,37 @@ _I1_BASE = _original_agent
 
 def agent(observation, configuration=None):
     """Production agent = layer_44_alt, _ASTRA_I1, herd cap, demand control
-    (strawberry irrigation + fertilizer gate), strawberry sell rate, herd
-    release, wool sell trim, then wheat relief on the FINAL market list."""
+    (fertilizer gate), portfolio sell ceiling, herd release, wool sell trim,
+    then day-end overflow relief on the FINAL market list.
+
+    DEFAULT LEVER SET IS MEASURED, not inherited. Same-code / same-seed
+    attribution (12 games, PA 2/3/5 x 4 seeds) with everything off as the
+    reference -- full table in docs/todo.md "Portfolio sell ceiling":
+
+      config                our$med   margin   wins  floor  disc  ovf  milk-floor
+      all off               107,796   +2,322   6/12    541   3.2  2.3     56
+      ALL ON                 98,609  -10,637   0/12    347   0.5  1.0    265
+      DEFAULT (cap+overflow)106,288   -1,894   1/12    437   1.8  1.8     24
+
+    * SHEEPCAP + OVERFLOW_RELIEF stay ON. The cap costs ~$1.5k and cuts floor
+      541->437 (milk 56->24, wool 219->179). The overflow relief is *free*: it
+      changes neither money nor floor and only removes discards (3.2 -> 1.8/game)
+      because it fires solely on the hour-23 force-drop.
+    * RATE (the portfolio sell ceiling), STRAWBERRY irrigation thinning and the
+      FERTILIZER gate are OFF. RATE + thinning together cost $7.7k to save 90
+      floor units: they whiten STRAWBERRY (266->10) and WOOL (219->72) but
+      *create* a MILK glut (56->265). The idea is right -- cut supply to the price
+      curve -- but the freed labour is never re-routed (idle_units 329 -> 394), so
+      we pay for the cut and keep nothing. Re-enable via KAGGICULTURE_STRAWRATE=1
+      + KAGGICULTURE_STRAW_IRRIG=1 once the hands harvest/sell instead of PASSing.
+      FERT_GATE is worth -$922 for no measurable structural gain.
+    * HOLD is OFF and measured redundant (with the ceiling armed, a-final ==
+      b-nohold exactly); RELEASE is likewise a measured no-op.
+    """
     base = _i1_apply(_I1_BASE(observation, configuration), observation, configuration)
     base = _sheepcap_apply(base, observation, configuration)
     base = _demand_apply(base, observation, configuration)
-    base = _straw_rate_apply(base, observation, configuration)
+    base = _rate_apply(base, observation, configuration)
     base = _release_apply(base, observation, configuration)
     base = _hold_apply(base, observation, configuration)
     return _wheat_relief_apply(base, observation, configuration)
