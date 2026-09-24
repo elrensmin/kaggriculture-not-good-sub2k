@@ -1,0 +1,173 @@
+
+############ ours  (replay games=78) ############
+-- structures per game (endgame mean) --
+   COOP~2.4  PASTURE~11.3
+-- herd per game (day10 / day16 / day29, median [p25-p75]) --
+   d10: COW 6.0 [5.0-8.0]  SHEEP 3.0 [2.0-7.0]  GOOSE 1.0 [0.0-2.0]
+   d16: COW 6.0 [5.0-8.0]  SHEEP 3.0 [2.0-9.0]  GOOSE 5.0 [0.0-5.0]
+   d29: COW 6.0 [5.0-8.0]  SHEEP 3.0 [2.0-9.0]  GOOSE 4.0 [0.0-5.0]
+-- coop builds / land buys by day --
+   coop: {6: 52, 9: 44, 10: 210, 11: 23, 28: 65}
+   land: {6: 78, 11: 88, 12: 1, 18: 6}
+-- quadrant unlock day (median, games with it / total) --
+   NE=6 (78/78)  NW=0 (78/78)  SE=11 (17/78)  SW=11 (78/78)
+-- unit op mix (share) --
+   WATER=16%  NORTH=14%  WEST=13%  EAST=9%  SOUTH=8%  HARVEST=7%  PASS=7%  CARE=6%  COLLECT_FERTILIZER=5%  FEED=5%  PLANT=3%  PICKUP=3%
+-- selling per game (src=audit): units / px@sell / %at$1 floor, median [p25-p75] --
+   product            units                  px@sell              floor%          floor%p90
+   WHEAT          420.0 [333.0-443.0]       37.5 [35.3-39.9]      0.0 [0.0-0.0]          0
+   CARROT           95.0 [89.0-212.0]       47.8 [42.1-64.9]      0.0 [0.0-0.0]          0
+   TOMATO               0.0 [0.0-0.0]    217.6 [164.5-261.4]      0.0 [0.0-0.0]          0
+   STRAWBERRY     235.0 [233.0-236.0]     121.0 [83.0-190.3]     0.0 [0.0-22.1]         40
+   MELON             72.0 [72.0-72.0]    200.3 [198.2-200.3]      0.0 [0.0-0.0]          0
+   EGG              148.0 [0.0-155.0]       49.4 [43.8-56.4]      0.0 [0.0-0.0]          0
+   MILK           191.0 [138.0-224.0]      79.0 [45.7-181.5]      0.5 [0.0-8.5]         38
+   WOOL             62.0 [50.0-224.0]     102.6 [98.2-157.0]    22.0 [1.0-32.0]         35
+   FERTILIZER     303.0 [297.0-308.0]       48.9 [45.8-50.1]      0.0 [0.0-2.4]         10
+-- CROPS per game (mean tiles by day) + max single-crop share --
+   day |    WHEAT  CARROT  TOMATO  STRAWB   MELON   maxshare
+     6 |      3.0     0.0     0.0     4.0    12.0    63.2%
+     9 |      5.0     0.0     0.0    20.0    12.0    54.1%
+    12 |     20.0     0.0     0.0    33.0     0.0    62.3%
+    15 |     22.6     5.5     0.0    33.0     0.0    54.1%
+    18 |     23.2     7.0     0.0    33.0     0.0    52.2%
+    21 |     24.7     1.0    10.0    33.0     0.0    48.0%
+    24 |     32.4    18.9    10.0    20.0     0.0    39.9%
+    27 |     15.1    29.7    10.0    13.0     0.0    43.8%
+-- SHED by day (mean end / mean peak) + end-of-day composition (share) --
+   day |  end  peak | top items at day end
+     6 |   8.0  19.1 | WHEAT=83%  WOOL=13%  FERTILIZER=4%
+     9 |  21.4  30.0 | WHEAT=94%  GOOSE=4%  FERTILIZER=1%
+    12 |   9.9  51.9 | WHEAT=92%  GOOSE=4%  MILK=4%
+    15 |  12.3  55.6 | WHEAT=92%  FERTILIZER=5%  GOOSE=3%
+    18 |  13.6  73.8 | WHEAT=92%  WOOL=6%  GOOSE=3%
+    21 |  11.2  78.5 | WHEAT=95%  GOOSE=3%  WOOL=2%
+    24 |   4.1  96.2 | WHEAT=83%  GOOSE=9%  STRAWBERRY=4%
+    27 |   6.3  91.6 | WHEAT=94%  GOOSE=6%
+   season end-of-day (per-game mean): 10.1 [8.7-11.3]  p90 12
+   season mid-day peak (per-game max): 100.0 [100.0-100.0]  p90 100
+-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --
+   product      <I0   I0..+50  +50..+100   >I0+100 |  END>+100
+   WHEAT           375.3      18.2       2.9       0.4 |       1.8
+   CARROT          122.1       2.7       4.5       1.6 |       2.9
+   TOMATO            5.4       0.0       0.0       0.0 |       0.0
+   STRAWBERRY      143.0      44.7      46.5       0.0 |       0.0
+   MELON             7.8      35.0      18.2      11.1 |      15.7
+   EGG              66.1      22.4      11.8       5.6 |       7.9
+   MILK             87.4      54.7      40.9       0.0 |       0.0
+   WOOL             64.2      45.4      18.3       0.0 |       0.0
+   FERTILIZER        0.0      28.7      30.4     241.6 |     243.3
+-- DISCARDS per game (units, and share of total) --
+   WHEAT=3.6 (42%)  STRAWBERRY=2.4 (28%)  FERTILIZER=1.8 (22%)  CARROT=0.7 (8%)
+-- REVENUE MIX (median per-game share) --
+   STRAWBERRY=23.9%  MILK=17.6%  WOOL=16.4%  FERTILIZER=12.8%  MELON=12.1%  WHEAT=10.5%  CARROT=3.9%  EGG=3.8%  TOMATO=0.4%
+-- WHEAT per game: bought 150  fed 346  sold 397   buy/feed=0.43
+-- YARN_STORE present in 37/78 games
+-- GUARDS from games.csv (median / mean / min / max) --
+   idle_units_ready_total        13.0      17.3       5.0      35.0
+   locked_steps                 197.0     186.3     121.0     226.0
+   idle_share_pct                 5.0       5.6       4.4       8.0
+   discarded_units_total          3.0       8.6       0.0      22.0
+   shed_overflow_days             2.0       2.1       0.0       4.0
+   stranded_at_bell               0.0       0.0       0.0       0.0
+   floor_sales                   28.0      58.3       0.0     196.0
+   animal_escapes                 0.0       0.6       0.0       5.0
+   feed_surplus                  90.0      94.2       3.0     193.0
+-- DISTRIBUTIONS across games (median [p25-p75], p90) --
+   4 quadrants (% of games)            21.8%
+   wheat bought / fed                 0.44 [0.41-0.45]   p90 0.46
+   SHEEP max, YARN worlds             9.0 [8.0-9.0]   p90 9
+   idle_units_ready_total                 13.0 [10.0-24.0]   p90 31.0
+   locked_steps                          197.0 [197.0-201.0]   p90 226.0
+   idle_share_pct                          5.0 [4.7-7.1]   p90 7.6
+   discarded_units_total                   3.0 [2.0-18.0]   p90 20.0
+   shed_overflow_days                      2.0 [1.0-3.0]   p90 4.0
+   stranded_at_bell                        0.0 [0.0-0.0]   p90 0.0
+   floor_sales                            28.0 [16.0-107.0]   p90 134.0
+   animal_escapes                          0.0 [0.0-1.0]   p90 1.0
+   feed_surplus                           90.0 [54.0-130.0]   p90 173.0
+-- structural per day (day CSV MEDIANS [p25-p75]) --
+   day | shed_max(p50[p25-p75])  shed_end  weeds   fert   watered  idle%
+     6 |      20.0 [18.0-20.0]  11.0 [2.0-11.0]  0.00 [0.00-0.00]  0.0 [0.0-0.0]  27.0 [27.0-29.0]  7.00 [7.00-17.10]
+     9 |      32.0 [24.0-33.0]  29.0 [2.0-30.0]  0.00 [0.00-0.00]  0.0 [0.0-0.0]  39.0 [37.0-39.0]  1.40 [1.40-12.60]
+    12 |      56.0 [43.0-58.0]  9.0 [7.0-9.0]  0.00 [0.00-0.00]  0.0 [0.0-0.0]  41.0 [33.0-41.0]  3.50 [3.50-6.90]
+    15 |      51.0 [51.0-63.0]  7.0 [4.0-22.0]  0.00 [0.00-0.00]  8.0 [8.0-9.0]  41.0 [41.0-42.0]  1.20 [0.40-7.30]
+    18 |      71.0 [68.0-79.0]  17.0 [10.0-18.0]  0.00 [0.00-0.00]  5.0 [4.0-5.0]  48.0 [48.0-55.0]  3.20 [1.80-4.00]
+    21 |      87.0 [59.0-92.0]  10.0 [4.0-17.0]  0.00 [0.00-0.00]  9.0 [3.0-9.0]  45.0 [39.0-45.0]  0.70 [0.40-1.40]
+    24 |     96.0 [93.0-100.0]  1.0 [0.0-7.0]  3.00 [3.00-3.00]  23.0 [18.0-24.0]  47.0 [47.0-47.0]  1.70 [1.40-2.00]
+    27 |     91.0 [85.0-100.0]  9.0 [1.0-9.0]  0.00 [0.00-0.00]  10.0 [4.0-14.0]  47.0 [42.0-47.0]  2.80 [2.00-3.60]
+
+############ dsm  (replay games=123) ############
+-- structures per game (endgame mean) --
+   COOP~4.2  PASTURE~12.0
+-- herd per game (day10 / day16 / day29, median [p25-p75]) --
+   d10: COW 9.0 [6.0-10.0]  SHEEP 3.0 [3.0-9.0]  GOOSE 4.0 [2.0-6.0]
+   d16: COW 9.0 [6.0-11.0]  SHEEP 3.0 [3.0-11.0]  GOOSE 7.0 [3.0-8.0]
+   d29: COW 6.0 [3.0-8.0]  SHEEP 0.0 [0.0-1.0]  GOOSE 5.0 [3.0-7.0]
+-- coop builds / land buys by day --
+   coop: {6: 204, 7: 26, 9: 312, 10: 150, 11: 116}
+   land: {6: 123, 9: 162, 10: 259, 11: 48, 23: 1}
+-- quadrant unlock day (median, games with it / total) --
+   NE=6 (123/123)  NW=0 (123/123)  SE=10 (123/123)  SW=9 (123/123)
+-- unit op mix (share) --
+   WATER=18%  NORTH=12%  WEST=11%  SOUTH=10%  EAST=9%  HARVEST=8%  COLLECT_FERTILIZER=6%  CARE=5%  FEED=5%  PLANT=4%  PASS=4%  FERTILIZE=3%
+-- selling per game (src=action): units / px@sell / %at$1 floor, median [p25-p75] --
+   product            units                  px@sell              floor%          floor%p90
+   WHEAT          562.0 [490.0-630.0]       34.6 [32.0-38.2]      0.0 [0.0-0.0]          0
+   CARROT         190.0 [105.0-304.0]       39.8 [33.1-46.0]      0.0 [0.0-0.0]          0
+   TOMATO          117.0 [76.0-152.0]       66.6 [58.5-73.5]      0.0 [0.0-0.0]          0
+   STRAWBERRY     223.0 [163.0-284.0]    135.6 [114.9-163.2]      0.0 [0.0-0.0]          4
+   MELON             60.0 [60.0-60.0]    208.7 [182.1-216.5]      0.0 [0.0-0.0]          0
+   EGG            207.0 [134.0-274.0]       46.3 [43.7-52.7]      0.0 [0.0-0.0]          0
+   MILK           191.0 [138.0-247.0]      90.6 [72.7-113.3]      0.0 [0.0-3.6]          8
+   WOOL            104.0 [48.0-266.0]    128.0 [114.2-144.8]      2.4 [0.0-6.5]         13
+   FERTILIZER     266.0 [246.0-297.0]       52.1 [48.4-55.7]      0.0 [0.0-0.0]          8
+-- CROPS per game (mean tiles by day) + max single-crop share --
+   day |    WHEAT  CARROT  TOMATO  STRAWB   MELON   maxshare
+     6 |      0.0     0.0     0.0    10.0    10.0    50.0%
+     9 |      9.4     4.0     0.0    16.2    10.0    40.9%
+    12 |     32.2     9.3     4.8    22.6     1.0    46.0%
+    15 |     25.8    11.5     9.5    28.5     0.0    37.8%
+    18 |     21.2     9.6    12.5    30.8     0.0    41.6%
+    21 |     25.1    12.4    15.1    21.0     0.0    34.1%
+    24 |     31.3    13.3    10.7    15.2     0.0    44.4%
+    27 |     28.5    22.9     6.2    11.4     0.0    41.2%
+-- SHED by day (mean end / mean peak) + end-of-day composition (share) --
+   day |  end  peak | top items at day end
+     6 |   0.7   9.5 | WHEAT=98%  COW=2%
+     9 |   1.5  24.2 | WHEAT=97%  CARROT=2%  GOOSE=1%
+    12 |   2.4  63.4 | MILK=54%  WHEAT=15%  EGG=12%
+    15 |   4.8  91.2 | WOOL=32%  EGG=19%  MILK=14%
+    18 |   6.6  88.2 | MILK=30%  WOOL=29%  EGG=14%
+    21 |  10.8  90.7 | MILK=26%  EGG=17%  WOOL=16%
+    24 |  10.1  93.2 | STRAWBERRY=31%  WOOL=18%  EGG=12%
+    27 |   9.7  92.8 | STRAWBERRY=34%  EGG=16%  WHEAT=14%
+   season end-of-day (per-game mean): 6.2 [5.1-7.1]  p90 8
+   season mid-day peak (per-game max): 100.0 [100.0-100.0]  p90 100
+-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --
+   product      <I0   I0..+50  +50..+100   >I0+100 |  END>+100
+   WHEAT           490.3      33.1      23.2      44.1 |       0.0
+   CARROT          174.7      24.3      15.3       5.0 |       0.0
+   TOMATO          103.7      16.4       2.2       0.9 |       0.0
+   STRAWBERRY      153.6      66.7       6.4       0.0 |       0.0
+   MELON             0.0      27.3      22.1      10.9 |       0.0
+   EGG             103.1      41.1      27.5      47.1 |       0.0
+   MILK             48.3      81.4      66.8       0.0 |       0.0
+   WOOL             51.8      79.6      33.9       0.0 |       0.0
+   FERTILIZER        0.0      24.3      25.9     229.0 |       0.0
+-- WHEAT per game: bought 186  fed 380  sold 591   buy/feed=0.49
+-- YARN_STORE present in 78/123 games
+-- DISTRIBUTIONS across games (median [p25-p75], p90) --
+   4 quadrants (% of games)            100.0%
+   wheat bought / fed                 0.49 [0.40-0.57]   p90 0.64
+   SHEEP max, YARN worlds             10.0 [5.0-12.0]   p90 18
+-- structural per day (day CSV MEDIANS [p25-p75]) --
+   day | shed_max(p50[p25-p75])  shed_end  weeds   fert   watered  idle%
+     6 |       10.0 [7.0-11.0]  0.0 [0.0-2.0]  0.00 [0.00-0.00]  0.0 [0.0-0.0]  23.0 [22.0-24.0]  1.00 [0.50-2.90]
+     9 |      25.0 [18.0-30.0]  0.0 [0.0-5.0]  0.00 [0.00-0.00]  0.0 [0.0-0.0]  42.0 [41.0-43.0]  0.40 [0.00-0.40]
+    12 |      64.0 [58.0-69.0]  1.0 [0.0-4.0]  0.00 [0.00-1.00]  9.0 [8.0-11.0]  59.0 [52.0-62.0]  0.00 [0.00-0.00]
+    15 |      93.0 [87.0-98.0]  3.0 [1.0-7.0]  0.00 [0.00-1.00]  13.0 [10.0-15.0]  60.0 [53.0-65.0]  0.00 [0.00-0.00]
+    18 |      89.0 [84.0-94.0]  5.0 [2.0-10.0]  1.00 [0.00-1.00]  12.0 [10.0-14.0]  54.0 [50.0-58.0]  0.00 [0.00-0.00]
+    21 |      92.0 [86.0-97.0]  11.0 [5.0-15.0]  2.00 [1.00-3.00]  17.0 [14.0-20.0]  62.0 [58.0-66.0]  0.00 [0.00-0.00]
+    24 |     93.0 [90.0-100.0]  9.0 [5.0-15.0]  3.00 [2.00-4.00]  17.0 [15.0-20.0]  63.0 [57.0-66.0]  0.00 [0.00-0.00]
+    27 |      93.0 [89.0-98.0]  8.0 [4.0-13.0]  4.00 [2.00-6.00]  15.0 [13.0-17.0]  58.0 [54.0-61.0]  0.00 [0.00-0.00]

@@ -1,0 +1,70 @@
+=== targets: diag-replays/run-1  (baseline diag-replays/run-1) ===
+
+W0 land
+  TARGET 4 quadrants (% of games)                            21.79  target >= 90   FAIL
+  watch  locked_steps (median)                          197.00 -> 197.00  (<=+0%)   PASS
+  watch  idle_share_pct (mean)                             5.62 -> 5.62  (<=+5%)   PASS
+  watch  feed_surplus (min)                                    3.00  target >= 0   PASS
+  watch  final_money p10                              69555.00 -> 69555.00  (>=-10%)   PASS
+
+W3 labour
+  TARGET idle_units_ready (median)                            13.00  target <= 3   FAIL
+  TARGET locked_steps (median)                             197.00  target <= 130   FAIL
+  watch  shed_overflow_days (mean)                        2.05 -> 2.05  (<=+10%)   PASS
+
+W1 price discipline
+  TARGET floor % STRAW+MILK+WOOL                               9.51  target <= 3   FAIL
+  TARGET STRAWBERRY orders ending >I0+100                      0.00  target <= 1   PASS
+  TARGET MILK orders ending >I0+100                            0.00  target <= 1   PASS
+  TARGET WOOL orders ending >I0+100                            0.00  target <= 1   PASS
+  watch  shed_overflow_days (mean)                        2.05 -> 2.05  (<=+10%)   PASS
+  watch  stranded_at_bell (max)                                0.00  target <= 1   PASS
+  watch  discarded_units_total (mean)                     8.58 -> 8.58  (<=+10%)   PASS
+  watch  revenue mix max share                           23.86 -> 23.86  (<=+2%)   PASS
+
+W2 rotation
+  TARGET MELON tiles at d13                                  0.00  target <= 0.5   PASS
+  TARGET STRAWBERRY tiles at d28                              4.00  target <= 10   PASS
+  TARGET CARROT tiles at d26                                 20.74  target >= 15   PASS
+  watch  revenue mix max share                           23.86 -> 23.86  (<=+2%)   PASS
+  TARGET max single-crop share d10-28                        62.50  target <= 45   FAIL
+
+W4 scale
+  TARGET SHEEP (max) in YARN worlds                            9.00  target >= 8   PASS
+  watch  feed_surplus (min)                                    3.00  target >= 0   PASS
+  watch  animal_escapes (mean)                                 0.60  target <= 3   PASS
+  watch  revenue mix max share                           23.86 -> 23.86  (<=+2%)   PASS
+
+W5 discards
+  TARGET WHEAT discarded / game                              3.63  target <= 0.5   FAIL
+  TARGET STRAWBERRY discarded / game                         2.41  target <= 0.5   FAIL
+  watch  discarded_units_total (mean)                     8.58 -> 8.58  (<=+10%)   PASS
+  watch  shed_overflow_days (mean)                        2.05 -> 2.05  (<=+10%)   PASS
+
+W7 shed
+  TARGET end-of-day shed (mean)                                9.92  target <= 5   FAIL
+  TARGET mid-day shed peak (p90)                            100.00  target <= 95   FAIL
+  TARGET largest product share at day end                    94.04  target <= 50   FAIL
+  watch  discarded_units_total (mean)                     8.58 -> 8.58  (<=+10%)   PASS
+  watch  feed_surplus (min)                                    3.00  target >= 0   PASS
+
+W8 anti-wash
+  TARGET wheat bought / fed                                  0.43  target <= 1.1   PASS
+  watch  feed_surplus (min)                                    3.00  target >= 0   PASS
+
+-- info (never a pass condition) --
+   games                           78.00 -> 78.00
+   wins                            36.00 -> 36.00
+   money_med                   104311.00 -> 104311.00
+   money_p10                    69555.00 -> 69555.00
+   floor_total                   4545.00 -> 4545.00
+   mix_max                         23.86 -> 23.86
+   mix_top                    STRAWBERRY -> STRAWBERRY
+   units_STRAWBERRY               234.19 -> 234.19
+   px_STRAWBERRY                  128.78 -> 128.78
+   units_MILK                     182.99 -> 182.99
+   px_MILK                        135.89 -> 135.89
+   units_WOOL                     127.81 -> 127.81
+   px_WOOL                        164.83 -> 164.83
+
+10 target/watch FAIL(s)

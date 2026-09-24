@@ -6684,6 +6684,98 @@ def _i1_apply(action, observation, configuration=None):
 
 
 # ---------------------------------------------------------------------------
+# LAND (W0): buy the three extra quadrants, as early as the cash allows.
+#
+# ROOT CAUSE (measured, tools/dsm_profile.py): all 41 route tapes contain EXACTLY
+# TWO BUY_LAND orders -- no route ever plans the fourth quadrant (SE). It can only
+# arrive from a narrow conditional layer (`_v219_request` / `_v233_request` /
+# `layer_26_v9_opening`), which fires in just 17/78 games. The tape keeps working
+# SE regardless, so those hands then stand on LOCKED tiles:
+#
+#     4 quadrants (17/78): locked_steps 121, revenue $135,005, money $105,296
+#     3 quadrants (61/78): locked_steps 197, revenue $114,950, money  $89,195
+#
+# DSM buys the three extras as early as he can fund them (NE d6, SW d9, SE d10,
+# 123/123 games) and never more. So: whenever we own fewer than all three and can
+# afford the next one, put a BUY_LAND in the market list. "Never a fourth" is
+# structural -- LAND_ORDER/LAND_PRICES have exactly three entries, asserted below.
+#
+# Default start is day 8: the tape funds NE on day 6 and DSM's own pace is NE d6 /
+# SW d9 / SE d10, so retrying from day 8 matches his schedule without front-running
+# the opening spend (day 0-5 is all seeds, animals and structures).
+#
+# TIMING (measured, docs/baseline/run-1.dsm_profile.txt): DSM unlocks NE d6, SW d9,
+# SE d10 -- all three in 123/123 games. We do NE d6, SW d11, SE never (17/78). The
+# layer starts at day 6 so the tape's own NE order is left alone and SW/SE follow at
+# DSM's pace as soon as the bank allows.
+#
+# MEASURED COST, accepted for now: the target is met every time (4 quadrants 100% of
+# games, from 22%) and locked_steps falls hard, but EVERY setting regresses another
+# component. 18-game paired arms (PA 2,3,5 x 6 seeds, base-235 = LAND off):
+#
+#   land from   q4    locked  floor  feed_min  escapes  money_med   p10     wins
+#   (off)       22%    197    1240      +3        10     102,108   66,290    5
+#   day 8      100%     97    1548     -24        23     102,438   63,279    2
+#   day 12     100%    104    1445     -23        18     102,108   67,220    3
+#   day 20     100%    143    1249      -1        10     102,108   66,257    2
+#   day 24     100%    165    1240      +3        10     102,108   62,290    2
+#
+# Cause: the tapes contain exactly TWO BUY_LAND orders, so every route was tuned
+# with SE LOCKED. Owning it makes tape PLANT/WATER/BUILD steps on SE tiles succeed
+# instead of no-op, which desyncs the farm from the tape's calibrated output --
+# wheat production drops (feed_surplus negative, escapes 10 -> 23) and more goods
+# reach the market (floor +308). It is not a cash effect: a feed reserve guard made
+# it strictly worse by moving the purchase into the herd-growth window.
+#
+# The fourth quadrant is a structural prerequisite for the rest of the plan (the
+# tape cannot be rebalanced onto land we do not own), so the desync cost is taken
+# now and paid down by the downstream workstreams (W1 price discipline, W2 supply
+# matching, W7 shed). Re-check this block's table after each of those lands.
+#
+# Knobs: KAGGICULTURE_LAND=0 disables; KAGGICULTURE_LAND_FROM_DAY (6) delays the
+# start; KAGGICULTURE_LAND_RESERVE (0) adds a cash buffer before buying.
+# ---------------------------------------------------------------------------
+_LAND_ON = _tape_os.environ.get("KAGGICULTURE_LAND", "1") == "1"
+_LAND_FROM_DAY = int(_tape_os.environ.get("KAGGICULTURE_LAND_FROM_DAY", "6"))
+# Never spend the feed money on land: buying the quadrant is deferred until the bank
+# can cover it AND a few days of wheat. Without this the $4,000 SE purchase starved
+# the herd in one game (measured feed_surplus min +16 -> -21).
+_LAND_RESERVE = int(_tape_os.environ.get("KAGGICULTURE_LAND_RESERVE", "0"))
+_LAND_REPORT = dict(land_added=0, land_deferred=0, land_slots_full=0, land_errors=0)
+
+
+def _land_apply(action, observation, configuration=None):
+    if not _LAND_ON or not isinstance(action, dict):
+        return action
+    try:
+        step = int(observation["step"])
+        if step // 24 < _LAND_FROM_DAY:
+            return action
+        seat = int(observation["player"])
+        farm = observation["farms"][seat]
+        extra = len(farm.get("unlocked_quadrants") or []) - 1   # NW is always owned
+        if extra >= len(LAND_PRICES):
+            return action                    # all three held; never buy a fourth
+        market = list(action.get("market") or [])
+        if any(o and o[0] == "BUY_LAND" for o in market):
+            return action                    # already queued this step
+        cost = LAND_PRICES[max(0, extra)] + _LAND_RESERVE
+        if float(farm.get("money", 0) or 0) < cost:
+            _LAND_REPORT["land_deferred"] += 1
+            return action
+        if len(market) >= MAX_ORDERS:
+            _LAND_REPORT["land_slots_full"] += 1
+            return action
+        market.append(["BUY_LAND"])
+        _LAND_REPORT["land_added"] += 1
+        action = dict(action)
+        action["market"] = market
+    except Exception:
+        _LAND_REPORT["land_errors"] += 1
+    return action
+
+
+# ---------------------------------------------------------------------------
 # WOOL HOLD: stop dumping WOOL into the $1 floor.
 #
 # Mechanism (measured from the replay audit): WOOL's price curve uses
@@ -7399,6 +7491,7 @@ def agent(observation, configuration=None):
       b-nohold exactly); RELEASE is likewise a measured no-op.
     """
     base = _i1_apply(_I1_BASE(observation, configuration), observation, configuration)
+    base = _land_apply(base, observation, configuration)
     base = _sheepcap_apply(base, observation, configuration)
     base = _demand_apply(base, observation, configuration)
     base = _rate_apply(base, observation, configuration)
@@ -7409,6 +7502,7 @@ def agent(observation, configuration=None):
 
 agent.telemetry = _ALT_REPORT
 agent._i1_report = _I1_REPORT
+agent._land_report = _LAND_REPORT
 _original_agent = agent
 
 
