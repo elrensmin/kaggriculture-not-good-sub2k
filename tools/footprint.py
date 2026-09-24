@@ -248,10 +248,21 @@ def print_animal_rev(label, q, rev, games=1):
     print(f"TOTAL animal revenue/game: {tot/games:.1f}")
 
 
+def _dsm_dir(explicit=None):
+    """DSM replays may live directly in replays/DSM or in a versioned subdir."""
+    if explicit:
+        return explicit
+    for cand in ("replays/DSM/v1", "replays/DSM"):
+        if globmod.glob(f"{cand}/*.json"):
+            return cand
+    return "replays/DSM"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", choices=("ours", "dsm"), default="ours")
     ap.add_argument("--run-dir", default="diag-replays/run-5")
+    ap.add_argument("--dsm-dir", default=None, help="DSM replay dir (default: replays/DSM/v1 if present)")
     ap.add_argument("--max-games", type=int, default=40)
     ap.add_argument("--workers", type=int, default=0, help="0 = all cores")
     ap.add_argument("--compare", action="store_true")
@@ -260,6 +271,7 @@ def main():
     ap.add_argument("--animal-rev", action="store_true",
                     help="print animal-product units/revenue/avg_price per game")
     args = ap.parse_args()
+    dsm = _dsm_dir(args.dsm_dir)
 
     if args.animal_rev:
         want = ("ours", "dsm") if args.compare else (args.profile,)
@@ -269,7 +281,7 @@ def main():
             print_animal_rev(f"ours[{args.run_dir}]", q, rev, max(1, n // 2))
         if "dsm" in want:
             games, _herd, pq, prev = _replay_stats(
-                sorted(globmod.glob("replays/DSM/*.json")), _dsm_seat, args.max_games)
+                sorted(globmod.glob(f"{dsm}/*.json")), _dsm_seat, args.max_games)
             print_animal_rev("dsm (replay sell proxy)", pq, prev, max(1, games))
         return
 
@@ -279,7 +291,7 @@ def main():
             n, acc = herd_curve(f"{args.run_dir}/*_vs_*.json", "ours", args.workers)
             print_herd_curve(f"ours[{args.run_dir}]", n, acc)
         if "dsm" in want:
-            n, acc = herd_curve("replays/DSM/*.json", "dsm", args.workers)
+            n, acc = herd_curve(f"{dsm}/*.json", "dsm", args.workers)
             print_herd_curve("dsm", n, acc)
         return
 
@@ -292,7 +304,7 @@ def main():
             "old", lambda rep: 1, args.max_games))
     if "dsm" in want:
         profiles.append(profile(
-            "dsm", "replays/DSM/days_seed*.csv", "replays/DSM/*.json",
+            "dsm", f"{dsm}/days_seed*.csv", f"{dsm}/*.json",
             "DSM", _dsm_seat, args.max_games))
     for p in profiles:
         print_profile(p)

@@ -734,6 +734,18 @@ _R110_OLD_SHOPS={('BAKERY', 'BAKERY'): 0, ('BAKERY', 'BRUNCH_SPOT'): 0, ('BAKERY
 _V92_TABLE={('BAKERY', 'YARN_STORE'): 9, ('BRUNCH_SPOT', 'YARN_STORE'): 9, ('FARMERS_MARKET', 'YARN_STORE'): 9, ('ICE_CREAM_SHOP', 'YARN_STORE'): 9, ('PET_CAFE', 'YARN_STORE'): 9, ('PIZZA_SHOP', 'YARN_STORE'): 9, ('SMOOTHIE_SHOP', 'YARN_STORE'): 9, ('YARN_STORE', 'BAKERY'): 9, ('YARN_STORE', 'BRUNCH_SPOT'): 9, ('YARN_STORE', 'FARMERS_MARKET'): 9, ('YARN_STORE', 'ICE_CREAM_SHOP'): 9, ('YARN_STORE', 'PET_CAFE'): 9, ('YARN_STORE', 'PIZZA_SHOP'): 9, ('YARN_STORE', 'SMOOTHIE_SHOP'): 9, ('YARN_STORE', 'YARN_STORE'): 9}
 
 _V93_ROUTE_BY_RIVAL = {(229.0, 9989): 128}
+# NO-YARN ROUTE (experiment): in a world that has unlocked no YARN_STORE yet, the
+# wool market has no buyer and the tape's sheep-heavy route floods it to $1. DSM's
+# no-YARN farm runs 3 sheep / 8.4 geese, which needs ~9 coops; our default route
+# plans ~5. So instead of converting tokens, route the no-YARN world to a
+# goose-heavy schedule (route 110/117 build 7 coops / 4 goose buys). Set e.g.
+# KAGGICULTURE_NOYARN_ROUTE=110 to arm; unset (default) = keep the tuned route.
+# NB shops are drawn uniformly with replacement, so this is a commitment under
+# uncertainty: DSM commits by ~day 12-15 (11-16 sheep if YARN is in by d14, else
+# 3 sheep / 8.3 geese even if YARN arrives at d15+).
+_NOYARN_ROUTE = _tape_os.environ.get("KAGGICULTURE_NOYARN_ROUTE", "").strip()
+
+
 def _router(observation,step,state):
     if step==2:
         try:
@@ -747,6 +759,8 @@ def _router(observation,step,state):
         state['expert']='EXP240' if use_new else 'V39'
         state['route']=_R108_SHOP_ROUTES.get(shops,100) if use_new else _R110_OLD_SHOPS.get(shops,0)
         state['route']=_V92_TABLE.get(shops,state['route'])
+        if _NOYARN_ROUTE and use_new and 'YARN_STORE' not in (observation.get('town',{}).get('unlocked_shops') or []):
+            state['route']=int(_NOYARN_ROUTE)
         if 'YARN_STORE' in shops and state.get('rkey') in _V93_ROUTE_BY_RIVAL:
             state['route']=_V93_ROUTE_BY_RIVAL[state['rkey']]
         state['day6']=True
@@ -5060,8 +5074,24 @@ _HD2_LOOKBACK = 3
 # the exact baseline (goose option absent, sheep anchor never used) for paired runs.
 # See "Changing the tape's trajectory" in AGENTS.md.
 _HD2_GOOSE = _tape_os.environ.get("KAGGICULTURE_HD2_GOOSE", "1") == "1"
-# Force the goose arm regardless of the EV model, so the hypothesis "geese beat
-# the optimizer's sheep/cow choice" can be measured paired (WIN/LOSS).
+# Shop-aware herd pivot (DSM behaviour, measured with tools/herd_hold.py). In a
+# world with NO YARN_STORE there is no wool buyer (town centre only, 1/day), so
+# ~59 units of wool surplus crash the price 200 -> $1 for the rest of the season.
+# DSM caps sheep at the opening cohort (3.0 flat, d8->d24), pivots the freed
+# capacity to geese (8.4) and releases the sheep late; in YARN worlds he runs
+# 9 sheep. So: force the goose arm ONLY when no YARN_STORE is unlocked.
+# `_HD2_FORCE_GOOSE` stays as an unconditional test override.
+#
+# MEASURED VERDICT: default OFF. The pivot fires correctly (SHEEP 5 -> 2, capped at
+# the opening cohort) but only adds +1 goose (3 -> 4), because our route's coop
+# budget is the binding constraint -- DSM's no-YARN farm runs 8.4 geese, which
+# needs ~9 coops and our route plans ~5. So we simply lose the sheep production:
+# on the 3 affected seeds, floor -9.9/game but revenue -$1,288 and margin -$3,279
+# (the rival also gains +$2,607 from our withheld wool). Also note the decision
+# timing: shops known at day 9 can miss a YARN_STORE that unlocks later (543252346
+# unlocked one on day 18 and still got pivoted). The real lever is the ROUTE (a
+# goose-heavy schedule in no-YARN worlds), not token conversion.
+_NOYARN_PIVOT = _tape_os.environ.get("KAGGICULTURE_NOYARN_PIVOT", "0") == "1"
 _HD2_FORCE_GOOSE = _tape_os.environ.get("KAGGICULTURE_HD2_FORCE_GOOSE", "0") == "1"
 _HD2_OPTIONS = ('GOOSE', 'COW', 'SHEEP') if _HD2_GOOSE else ('COW', 'SHEEP')
 _HD2_CARE = 0.8
@@ -5220,13 +5250,21 @@ def _hd2_decide(obs, action, st):
     k_plan = max(k, 3)
     evs = {opt: _hd2_ev(opt, k_plan, obs, st)[0] for opt in ("GOOSE",) + tuple(_HD2_OPTIONS)}
     _HD2_REPORT["hd2_ev"] = ",".join("%s:%d" % (o, v) for o, v in sorted(evs.items()))
-    best = max(_HD2_OPTIONS, key=lambda o: evs[o]) if _HD2_OPTIONS else None
+    best = None
+    yarn_n = sum(1 for s_ in (obs.get("town", {}).get("unlocked_shops") or []) if s_ == "YARN_STORE")
+    options = _HD2_OPTIONS
+    if _NOYARN_PIVOT and yarn_n == 0:
+        # No wool buyer here: sheep are a pure glut, so drop them from the menu.
+        options = tuple(o for o in options if o != "SHEEP")
+    best = max(options, key=lambda o: evs[o]) if options else None
     goose = evs["GOOSE"]
     if best is None:
         return
     cash = float(farm.get("money", 0))
-    if _HD2_FORCE_GOOSE:
-        # Experimental arm: take geese even when the EV model prefers sheep/cow.
+    if _HD2_FORCE_GOOSE or (_NOYARN_PIVOT and yarn_n == 0 and anchor == "SHEEP"):
+        # No-YARN world (or explicit override): take geese and switch the tape's
+        # remaining sheep flow to geese (structure + placement + sells), so we stop
+        # adding wool to a market with no buyer.
         st["mode"] = "GOOSE"
         st["add_geese"] = (anchor == "SHEEP")
         _HD2_REPORT["hd2_decision"] = "force-goose%s@%d" % ("+" if st["add_geese"] else "", step)
@@ -6623,12 +6661,391 @@ def _i1_apply(action, observation, configuration=None):
         return action
 
 
+# ---------------------------------------------------------------------------
+# WOOL HOLD: stop dumping WOOL into the $1 floor.
+#
+# Mechanism (measured from the replay audit): WOOL's price curve uses
+# above_func='sq', above_target=3.2, so only ~59 units of surplus over the 10,000
+# baseline crash it 200 -> $1, and it then STAYS floored (in a PA2 game the price
+# is $1 for 208 of 720 steps, days 17-29). Our tape trickles 1-4 units at $1 from
+# day 16 to 28 -- pure waste -- while DSM spreads his sales (191->146->92->53->43)
+# and dumps the remainder on the final day at ~$69, so DSM floors 4 units/game vs
+# our 20.
+#
+# Fix: never sell WOOL while its marginal price is below _HOLD_PRICE (50 = 25% of
+# base); keep it in the shed and release it when the market recovers above the
+# threshold, or at the terminal liquidation. Bounded (cap 40 units, shed <=90%,
+# release from step 680) so it cannot overflow the shed or strand stock at the
+# bell. Market-order-only, placed LAST so nothing downstream can undo it.
+#
+# Knobs: KAGGICULTURE_HOLD=1 enables; KAGGICULTURE_HOLD_ITEMS (WOOL),
+# KAGGICULTURE_HOLD_PRICE (50), KAGGICULTURE_HOLD_CAP (40),
+# KAGGICULTURE_HOLD_SHED (0.9), KAGGICULTURE_HOLD_END (680).
+#
+# MEASURED VERDICT: default OFF. Holding WOOL does NOT fix the floor, and the
+# 8-seed paired run vs no-hold was WORSE (floor +4.3, revenue -$297, margin -$288,
+# overflow +0.6) because (a) held wool still gets dumped at the terminal at $1, and
+# (b) the floor is NOT a timing problem at all -- see below.
+#
+# ROOT CAUSE (decisive): the floor is a DEMAND failure, not a sell-timing failure.
+# Across the 8 seeds, final WOOL price is $1 and 26-55% of units floor in EVERY
+# world with no YARN_STORE shop, and $66-236 with 0-16% floor whenever a YARN_STORE
+# is present. WOOL's only other buyer is the town centre (1/day), so ~59 units of
+# surplus crash it 200 -> $1 permanently -- no sell schedule can fix that. The
+# tape sells WOOL at steps 385-718 on route 124 (verified: the floor orders are
+# TAPE-native, no layer adds them). The real fix is to not run sheep in no-YARN
+# worlds (herd/route/opening), which is where the ~99 wool units come from.
+# ---------------------------------------------------------------------------
+_HOLD_ON = _tape_os.environ.get("KAGGICULTURE_HOLD", "0") == "1"
+_HOLD_FRAC = float(_tape_os.environ.get("KAGGICULTURE_HOLD_FRAC", "0.0"))
+_HOLD_PRICE = float(_tape_os.environ.get("KAGGICULTURE_HOLD_PRICE", "50"))
+_HOLD_CAP = int(_tape_os.environ.get("KAGGICULTURE_HOLD_CAP", "40"))
+_HOLD_SHED = float(_tape_os.environ.get("KAGGICULTURE_HOLD_SHED", "0.9"))
+_HOLD_END = int(_tape_os.environ.get("KAGGICULTURE_HOLD_END", "680"))
+_HOLD_ITEMS = tuple(c.strip().upper() for c in
+                    _tape_os.environ.get("KAGGICULTURE_HOLD_ITEMS", "WOOL").split(",") if c.strip())
+# INVENTORY GATE: hold the item while the SHARED market inventory is at/above
+# I0 - margin. This is DSM's actual strawberry control: his STRAWBERRY inventory
+# stays just BELOW I0 (9,889-9,988, price 139-211 all season) while ours crosses
+# I0 at d22 (10,012-10,029 -> price 42). A ~50-unit net-supply swing is decisive
+# because the price curve is sqrt-steep around I0. Set e.g.
+# KAGGICULTURE_HOLD_INV_MARGIN=50 with HOLD_ITEMS=STRAWBERRY.
+_HOLD_INV_MARGIN = int(_tape_os.environ.get("KAGGICULTURE_HOLD_INV_MARGIN", "0"))
+_HOLD_STATE = {}
+_HOLD_REPORT = dict(hold_units=0, hold_turns=0, release_units=0, hold_errors=0)
+
+
+def _hold_apply(action, observation, configuration=None):
+    if not _HOLD_ON or not isinstance(action, dict):
+        return action
+    try:
+        step = int(observation["step"])
+        seat = int(observation["player"])
+        st = _HOLD_STATE.get(seat)
+        if st is None or step <= st["step"]:
+            st = _HOLD_STATE[seat] = {"step": -1, "held": {}}
+            if step == 0:
+                _HOLD_REPORT.update(hold_units=0, hold_turns=0, release_units=0, hold_errors=0)
+        st["step"] = step
+        market = action.get("market") or []
+        if not market:
+            return action
+        params = {k: dict(v) for k, v in _R37_MARKET_PARAMS.items()}
+        for k, patch in (observation["market"].get("params") or {}).items():
+            if k in params and isinstance(patch, dict):
+                params[k].update(patch)
+        inv = observation["market"]["inventory"]
+        proj = dict(projected_shed(action, FarmView(observation)))
+        cap = int((configuration or {}).get("shedCapacity", 100)) if isinstance(configuration, dict) else 100
+        room = max(0, int(_HOLD_SHED * cap) - sum(max(0, int(v)) for v in proj.values()))
+        orders = []
+        changed = False
+        for o in market:
+            if not (len(o) >= 3 and o[0] == "SELL" and o[1] in _HOLD_ITEMS):
+                orders.append(o)
+                continue
+            item = o[1]
+            qty = max(0, int(o[2]))
+            held = st["held"].get(item, 0)
+            base = params[item]["base"]
+            inv0 = int(inv.get(item, 0))
+            cur_px = _r37_market_price(item, inv0, params)
+            # Hold floor/near-floor units by default (absolute price trigger) and,
+            # if configured, anything below base*hold_frac.
+            threshold = max(base * _HOLD_FRAC, _HOLD_PRICE)
+            # Largest prefix of the order whose marginal unit still clears the
+            # threshold. The tail is what walks the price into the $1 floor, so
+            # trim it and keep the rest (up to room/cap) for a later, thinner sale.
+            # Inventory gate: if the shared market is already at/above I0-margin
+            # there is no room to sell without crashing the price, so hold it all.
+            if _HOLD_INV_MARGIN > 0 and inv0 >= int(params[item].get("I0", 10 ** 9)) - _HOLD_INV_MARGIN:
+                sell_q = 0
+            else:
+                sell_q = qty
+                while sell_q > 0 and _r37_market_price(item, inv0 + sell_q, params) < threshold:
+                    sell_q -= 1
+            excess = qty - sell_q
+            if (excess > 0 and step < _HOLD_END and room > 0 and held < _HOLD_CAP):
+                take = min(excess, room, _HOLD_CAP - held)
+                if take > 0:
+                    st["held"][item] = held + take
+                    _HOLD_REPORT["hold_units"] += take
+                    _HOLD_REPORT["hold_turns"] += 1
+                    room -= take
+                    orders.append(["SELL", item, qty - take])
+                    changed = True
+                    continue
+            if held > 0 and (cur_px >= threshold or step >= _HOLD_END):
+                # Release ONLY when the price has recovered above the threshold or we
+                # have reached the terminal. Never dump held WOOL back at the floor:
+                # that is how the earlier version ended up flooring *more* units.
+                orders.append(["SELL", item, qty + held])
+                st["held"][item] = 0
+                _HOLD_REPORT["release_units"] += held
+                changed = True
+            else:
+                orders.append(o)
+        if changed:
+            action = dict(action)
+            action["market"] = orders
+    except Exception:
+        _HOLD_REPORT["hold_errors"] += 1
+    return action
+
+
+# ---------------------------------------------------------------------------
+# RELEASE (DSM behaviour, tools/herd_hold.py): stop feeding the herd near the end
+# so the animals escape and stop producing, instead of carrying 15 head (and their
+# wool/milk) to the bell. Measured with herd_hold on the DSM leaderboard replays:
+# DSM peaks ~23 head then lets them go over days 20-29 (fed 10.8 -> 0.2, escapes
+# ~10.7/game, end herd ~10.6); we hold 15 flat and escape 0.1.
+#
+# Dropping FEED/CARE is position-safe -- both are stationary commands, so the
+# tape's movement schedule is untouched (see "Changing the tape's trajectory" in
+# AGENTS.md). Unfed animals produce 1 unit (no care bonus) and escape after two
+# consecutive unfed end-of-days.
+#
+# Knobs: KAGGICULTURE_RELEASE=0 disables; KAGGICULTURE_RELEASE_FROM (24, day),
+# KAGGICULTURE_RELEASE_SPECIES (SHEEP), KAGGICULTURE_RELEASE_CARE (1),
+# KAGGICULTURE_RELEASE_NOYARN (1 = only in worlds with no YARN_STORE).
+#
+# MEASURED, first attempt (8 seeds, PA2): releasing ALL animals from day 27 cost
+# revenue -$2,324 and margin -$2,708 for floor -2.1 -> REJECTED. Cause: it dropped
+# cows/geese that were still earning. Hence this targeted version: release ONLY
+# the species whose product has no buyer (SHEEP), ONLY in no-YARN worlds, and from
+# day 24 (DSM: sheep 3.0 -> 0.0 by d29 in no-YARN; 9.0 -> 1.7 in YARN worlds).
+# ---------------------------------------------------------------------------
+_RELEASE_ON = _tape_os.environ.get("KAGGICULTURE_RELEASE", "0") == "1"
+_RELEASE_FROM = int(_tape_os.environ.get("KAGGICULTURE_RELEASE_FROM", "24"))
+_RELEASE_CARE = _tape_os.environ.get("KAGGICULTURE_RELEASE_CARE", "1") == "1"
+_RELEASE_SPECIES = tuple(s.strip().upper() for s in
+                         _tape_os.environ.get("KAGGICULTURE_RELEASE_SPECIES", "SHEEP").split(",") if s.strip())
+_RELEASE_NOYARN = _tape_os.environ.get("KAGGICULTURE_RELEASE_NOYARN", "1") == "1"
+_RELEASE_REPORT = dict(release_turns=0, release_feed=0, release_care=0, release_errors=0)
+
+
+def _release_apply(action, observation, configuration=None):
+    if not _RELEASE_ON or not isinstance(action, dict):
+        return action
+    try:
+        step = int(observation["step"])
+        if step // 24 < _RELEASE_FROM or step >= 718:
+            return action
+        # Only release the worthless species, and (by default) only in worlds with
+        # no wool demand -- DSM releases sheep to 0.0 in no-YARN worlds but keeps
+        # 1.7 in YARN worlds, where wool still pays.
+        if _RELEASE_NOYARN and sum(1 for s_ in (observation.get("town", {}).get("unlocked_shops") or [])
+                                   if s_ == "YARN_STORE") > 0:
+            return action
+        seat = int(observation["player"])
+        farm = observation["farms"][seat]
+        positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
+        units = [action.get("farmer")] + list(action.get("hands") or [])
+        changed = False
+        for i, c in enumerate(units):
+            if not (c and c[0] in ("FEED", "CARE") and i < len(positions)):
+                continue
+            if c[0] == "CARE" and not _RELEASE_CARE:
+                continue
+            x, y = positions[i]
+            tile = farm["tiles"][y][x]
+            if not (isinstance(tile, dict) and tile.get("animal") in _RELEASE_SPECIES):
+                continue
+            units[i] = ["PASS"]
+            if c[0] == "FEED":
+                _RELEASE_REPORT["release_feed"] += 1
+            else:
+                _RELEASE_REPORT["release_care"] += 1
+            changed = True
+        if changed:
+            _RELEASE_REPORT["release_turns"] += 1
+            action = dict(action)
+            action["farmer"] = units[0]
+            action["hands"] = units[1:]
+    except Exception:
+        _RELEASE_REPORT["release_errors"] += 1
+    return action
+
+
+# ---------------------------------------------------------------------------
+# SHEEP CAP (measured with tools/floor_sell.py): even WITH a YARN_STORE buyer the
+# tape overproduces wool -- seed 703 (YARN=3) runs 17 sheep and still floors 34
+# WOOL units (+145 STRAWBERRY). DSM's herd is 3 sheep in no-YARN worlds and 9-16
+# in YARN worlds. WOOL crashes 200 -> $1 at only ~59 units of surplus, so the
+# count is the lever, not the schedule. This layer caps total sheep (on farm +
+# shed + carried) by trimming BUY_ANIMAL SHEEP, converting the excess to GOOSE
+# where possible. Position-safe (market order only) and placed LAST.
+#
+# Knobs: KAGGICULTURE_SHEEPCAP=0 disables; KAGGICULTURE_SHEEP_CAP_YARN (9),
+# KAGGICULTURE_SHEEP_CAP_NOYARN (3), KAGGICULTURE_SHEEPCAP_CONVERT (0 = drop the
+# excess; 1 = turn it into geese, but note the tape has no PLACE GOOSE for those
+# units so they strand in the shed unless a coop path also rewrites the placement).
+# ---------------------------------------------------------------------------
+_SHEEPCAP_ON = _tape_os.environ.get("KAGGICULTURE_SHEEPCAP", "1") == "1"
+_SHEEP_CAP_YARN = int(_tape_os.environ.get("KAGGICULTURE_SHEEP_CAP_YARN", "9"))
+_SHEEP_CAP_NOYARN = int(_tape_os.environ.get("KAGGICULTURE_SHEEP_CAP_NOYARN", "3"))
+_SHEEPCAP_CONVERT = _tape_os.environ.get("KAGGICULTURE_SHEEPCAP_CONVERT", "0") == "1"
+_SHEEPCAP_REPORT = dict(sheepcap_kept=0, sheepcap_cut=0, sheepcap_geese=0, sheepcap_errors=0)
+
+
+def _sheepcap_apply(action, observation, configuration=None):
+    if not _SHEEPCAP_ON or not isinstance(action, dict):
+        return action
+    try:
+        step = int(observation["step"])
+        if step < 144:                       # never touch the opening cohort
+            return action
+        seat = int(observation["player"])
+        farm = observation["farms"][seat]
+        priv = observation["private"]
+        shops = observation["town"]["unlocked_shops"]
+        yarn = sum(1 for s in shops if s == "YARN_STORE")
+        cap = _SHEEP_CAP_YARN if yarn > 0 else _SHEEP_CAP_NOYARN
+        have = int((priv.get("shed") or {}).get("SHEEP", 0))
+        for inv in (priv.get("inventories") or []):
+            have += int((inv or {}).get("SHEEP", 0))
+        for row in farm["tiles"]:
+            for t in row:
+                if isinstance(t, dict) and t.get("animal") == "SHEEP":
+                    have += 1
+        # Converting the excess to geese only pays if a coop can actually house
+        # them -- otherwise we just strand $300 birds in the shed (measured on
+        # seed 703: 8 geese bought, 0 placed).
+        empty_coop = any(isinstance(t, dict) and t.get("kind") == "COOP" and "animal" not in t
+                         for row in farm["tiles"] for t in row)
+        market = [list(o) for o in (action.get("market") or [])]
+        changed = False
+        for o in market:
+            if not (len(o) >= 3 and o[0] == "BUY_ANIMAL" and o[1] == "SHEEP"):
+                continue
+            q = max(0, int(o[2]))
+            allowed = max(0, cap - have)
+            if q <= allowed:
+                have += q
+                continue
+            if allowed <= 0 and _SHEEPCAP_CONVERT and empty_coop:
+                o[1] = "GOOSE"               # over cap, and a coop is free
+                _SHEEPCAP_REPORT["sheepcap_geese"] += q
+            else:
+                o[2] = allowed
+                _SHEEPCAP_REPORT["sheepcap_cut"] += q - allowed
+                have += allowed
+            changed = True
+        if changed:
+            _SHEEPCAP_REPORT["sheepcap_kept"] += 1
+            action = dict(action)
+            action["market"] = market
+    except Exception:
+        _SHEEPCAP_REPORT["sheepcap_errors"] += 1
+    return action
+
+
+# ---------------------------------------------------------------------------
+# STRAWBERRY RATE (measured, tools/floor_sell.py + dsm_profile.py): we sell the
+# SAME strawberry volume as DSM (234 vs 235 units/game in no-YARN worlds) but
+# floor 17/game vs his 0. The whole difference is the ~50-unit net-supply
+# position around I0=10,000 -- his inventory sits just BELOW I0 (9,889-9,967,
+# price 139-211 all season) and ours crosses it at d22 (10,019 -> price 42),
+# because the strawberry curve is sqrt-steep at I0 (120 +/- 8.4*sqrt|inv-I0|).
+#
+# Fix: rate-match the sales to what the town actually consumes, exactly like DSM.
+# Each strawberry-demanding shop consumes 1 unit every 4 turns (6/day) and the
+# town centre 1/day, so the daily budget is `1 + 6 * n_strawberry_shops`. Cap the
+# day's strawberry SELLs to that budget AND to the room left below I0-buffer, so
+# inventory can never cross into the crash zone. The withheld units stay in the
+# shed and go out on later days as consumption reopens room.
+#
+# Knobs: KAGGICULTURE_STRAWRATE=1 enables; KAGGICULTURE_STRAWRATE_BUFFER (40),
+# KAGGICULTURE_STRAWRATE_UNTIL_DAY (27), KAGGICULTURE_STRAWRATE_SHED (0.85).
+#
+# MEASURED VERDICT: default OFF. Tested on 8 seeds x PA 2,3,5 (24 games, split
+# YARN/no-YARN) vs the same code with it off:
+#   no-YARN (n=12): STRAWBERRY floor 11 -> 0, WOOL flat, but discarded +9.6/game,
+#                   feed_surplus -28, shed_overflow +1.4 days.
+#   YARN    (n=12): STRAWBERRY floor 897 -> 880 only (WORSE in 7 of 12 games),
+#                   WOOL -41, FERTILIZER -56, but discarded +189/game(!),
+#                   escapes +1.8, feed_surplus -108, shed_overflow +5.3 days.
+# The throttle works on the price, but the held fruit occupies the 100-cap shed
+# and displaces feed/seed storage -> overflow discards and starved animals. Even
+# a 0.85*cap shed guard does not contain it, because the tape keeps harvesting
+# into a shed that is already full. The correct lever is PRODUCTION (fewer /
+# staggered strawberry plantings so supply matches the ~1 + 6*n_shops daily
+# demand), not a sell-side hold.
+# ---------------------------------------------------------------------------
+_STRAWRATE_ON = _tape_os.environ.get("KAGGICULTURE_STRAWRATE", "0") == "1"
+_STRAWRATE_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_BUFFER", "40"))
+_STRAWRATE_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_UNTIL_DAY", "27"))
+# Never throttle once the projected shed reaches this share of capacity -- held
+# strawberry must not displace feed/seed storage or it causes overflow discards
+# and animal starvation (measured: discarded +408/game, escapes +13.9 without it).
+_STRAWRATE_SHED = float(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_SHED", "0.85"))
+_STRAW_SHOPS = ("BRUNCH_SPOT", "FARMERS_MARKET", "ICE_CREAM_SHOP", "SMOOTHIE_SHOP")
+_STRAWRATE = {}
+_STRAWRATE_REPORT = dict(rate_trimmed=0, rate_passed=0, rate_errors=0)
+
+
+def _straw_rate_apply(action, observation, configuration=None):
+    if not _STRAWRATE_ON or not isinstance(action, dict):
+        return action
+    try:
+        step = int(observation["step"])
+        day = step // 24
+        if day >= _STRAWRATE_UNTIL_DAY:
+            return action
+        seat = int(observation["player"])
+        st = _STRAWRATE.get(seat)
+        if st is None or day != st.get("day"):
+            st = _STRAWRATE[seat] = {"day": day, "sold": 0}
+        # Shed guard: if the projected shed is already near capacity, sell freely
+        # (never let the throttle cause overflow discards or unfed animals).
+        try:
+            proj = dict(projected_shed(action, FarmView(observation)))
+            cap = int((configuration or {}).get("shedCapacity", 100)) if isinstance(configuration, dict) else 100
+            if sum(max(0, int(v)) for v in proj.values()) >= _STRAWRATE_SHED * cap:
+                return action
+        except Exception:
+            pass
+        shops = observation["town"]["unlocked_shops"]
+        budget = 1 + 6 * sum(shops.count(s) for s in _STRAW_SHOPS)
+        inv0 = int(observation["market"]["inventory"].get("STRAWBERRY", 0))
+        i0 = int(_R37_MARKET_PARAMS["STRAWBERRY"].get("I0", 10000))
+        room = max(0, (i0 - _STRAWRATE_BUFFER) - inv0)
+        market = [list(o) for o in (action.get("market") or [])]
+        changed = False
+        for o in market:
+            if not (len(o) >= 3 and o[0] == "SELL" and o[1] == "STRAWBERRY"):
+                continue
+            q = max(0, int(o[2]))
+            allow = max(0, min(q, budget - st["sold"], room))
+            if allow < q:
+                o[2] = allow
+                st["sold"] += allow
+                room -= allow
+                _STRAWRATE_REPORT["rate_trimmed"] += q - allow
+                changed = True
+            else:
+                st["sold"] += q
+                room -= q
+                _STRAWRATE_REPORT["rate_passed"] += q
+        if changed:
+            action = dict(action)
+            action["market"] = market
+    except Exception:
+        _STRAWRATE_REPORT["rate_errors"] += 1
+    return action
+
+
 _I1_BASE = _original_agent
 
 
 def agent(observation, configuration=None):
-    """Production agent = layer_44_alt then the promoted _ASTRA_I1 patch."""
-    return _i1_apply(_I1_BASE(observation, configuration), observation, configuration)
+    """Production agent = layer_44_alt, _ASTRA_I1, sheep cap, strawberry rate,
+    herd release, sell trim."""
+    base = _i1_apply(_I1_BASE(observation, configuration), observation, configuration)
+    base = _sheepcap_apply(base, observation, configuration)
+    base = _straw_rate_apply(base, observation, configuration)
+    base = _release_apply(base, observation, configuration)
+    return _hold_apply(base, observation, configuration)
 
 
 agent.telemetry = _ALT_REPORT

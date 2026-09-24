@@ -182,10 +182,19 @@ def show(p):
               f"{c.get('discarded_units',0):5.1f} {c.get('idle_share_pct',0):5.2f}")
 
 
+def _dsm_dir():
+    """DSM replays may live directly in replays/DSM or in a versioned subdir."""
+    for cand in ("replays/DSM/v1", "replays/DSM"):
+        if globmod.glob(f"{cand}/*.json"):
+            return cand
+    return "replays/DSM"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", choices=("ours", "dsm"), default="dsm")
     ap.add_argument("--run-dir", default="diag-replays/run-5")
+    ap.add_argument("--dsm-dir", default=None, help="DSM replay dir (default: replays/DSM/v1 if present)")
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--compare", action="store_true")
     args = ap.parse_args()
@@ -194,7 +203,8 @@ def main():
     if "ours" in want:
         profs.append(profile("ours", f"{args.run_dir}/*_vs_*.json", f"{args.run_dir}/days_seed*.csv", "old", args.workers))
     if "dsm" in want:
-        profs.append(profile("dsm", "replays/DSM/*.json", "replays/DSM/days_seed*.csv", "DSM", args.workers))
+        d = args.dsm_dir or _dsm_dir()
+        profs.append(profile("dsm", f"{d}/*.json", f"{d}/days_seed*.csv", "DSM", args.workers))
     for p in profs:
         show(p)
 
