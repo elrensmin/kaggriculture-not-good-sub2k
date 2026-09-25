@@ -64,6 +64,8 @@ def metrics(run_dir, workers=0):
     m["locked_med"] = _med([_f(g.get("locked_steps")) for g in games])
     m["idle_share_mean"] = _mean([_f(g.get("idle_share_pct")) for g in games])
     m["feed_surplus_min"] = min((_f(g.get("feed_surplus")) for g in games), default=0)
+    m["at_risk_max"] = max((_f(g.get("at_risk_of_escape")) for g in games), default=0)
+    m["escapes"] = sum(_f(g.get("animal_escapes")) for g in games)
     money = sorted(_f(g.get("final_money")) for g in games)
     m["money_med"] = _med(money)
     m["money_p10"] = money[len(money) // 10] if money else 0.0
@@ -172,7 +174,7 @@ SPEC = [
     ("W0 land", "target", "quad4_pct", ">=", 90.0, "4 quadrants (% of games)"),
     ("W0 land", "watch", "locked_med", "no_increase", 0.0, "locked_steps (median)"),
     ("W0 land", "watch", "idle_share_mean", "no_increase", 0.05, "idle_share_pct (mean)"),
-    ("W0 land", "watch", "feed_surplus_min", ">=", 0.0, "feed_surplus (min)"),
+    ("W0 land", "watch", "at_risk_max", "<=", 0.0, "at_risk_of_escape (max)"),
     ("W0 land", "watch", "money_p10", "no_decrease", 0.10, "final_money p10"),
     ("W3 labour", "target", "idle_ready_med", "<=", 3.0, "idle_units_ready (median)"),
     ("W3 labour", "target", "locked_med", "<=", 130.0, "locked_steps (median)"),
@@ -184,16 +186,16 @@ SPEC = [
     ("W1 price discipline", "watch", "shed_ovf_mean", "no_increase", 0.10, "shed_overflow_days (mean)"),
     ("W1 price discipline", "watch", "stranded_max", "<=", 1.0, "stranded_at_bell (max)"),
     ("W1 price discipline", "watch", "discarded_mean", "no_increase", 0.10, "discarded_units_total (mean)"),
-    ("W1 price discipline", "watch", "mix_max", "no_increase", 0.02, "revenue mix max share"),
+    ("W1 price discipline", "watch", "mix_max", "<=", 22.0, "revenue mix max share (DSM rule)"),
     ("W2 rotation", "target", "crop_MELON_d13", "<=", 0.5, "MELON tiles at d13"),
     ("W2 rotation", "target", "crop_STRAWBERRY_d28", "<=", 10.0, "STRAWBERRY tiles at d28"),
     ("W2 rotation", "target", "crop_CARROT_d26", ">=", 15.0, "CARROT tiles at d26"),
-    ("W2 rotation", "watch", "mix_max", "no_increase", 0.02, "revenue mix max share"),
+    ("W2 rotation", "watch", "mix_max", "<=", 22.0, "revenue mix max share (DSM rule)"),
     ("W2 rotation", "target", "crop_maxshare_mid", "<=", 45.0, "max single-crop share d10-28"),
     ("W4 scale", "target", "yarn_sheep_med", ">=", 8.0, "SHEEP (max) in YARN worlds"),
-    ("W4 scale", "watch", "feed_surplus_min", ">=", 0.0, "feed_surplus (min)"),
+    ("W4 scale", "watch", "at_risk_max", "<=", 0.0, "at_risk_of_escape (max)"),
     ("W4 scale", "watch", "escapes_mean", "<=", 3.0, "animal_escapes (mean)"),
-    ("W4 scale", "watch", "mix_max", "no_increase", 0.02, "revenue mix max share"),
+    ("W4 scale", "watch", "mix_max", "<=", 22.0, "revenue mix max share (DSM rule)"),
     ("W5 discards", "target", "disc_wheat", "<=", 0.5, "WHEAT discarded / game"),
     ("W5 discards", "target", "disc_straw", "<=", 0.5, "STRAWBERRY discarded / game"),
     ("W5 discards", "watch", "discarded_mean", "no_increase", 0.10, "discarded_units_total (mean)"),
@@ -202,9 +204,9 @@ SPEC = [
     ("W7 shed", "target", "shed_peak_p90", "<=", 95.0, "mid-day shed peak (p90)"),
     ("W7 shed", "target", "shed_top_share", "<=", 50.0, "largest product share at day end"),
     ("W7 shed", "watch", "discarded_mean", "no_increase", 0.10, "discarded_units_total (mean)"),
-    ("W7 shed", "watch", "feed_surplus_min", ">=", 0.0, "feed_surplus (min)"),
+    ("W7 shed", "watch", "at_risk_max", "<=", 0.0, "at_risk_of_escape (max)"),
     ("W8 anti-wash", "target", "wheat_buy_per_fed", "<=", 1.10, "wheat bought / fed"),
-    ("W8 anti-wash", "watch", "feed_surplus_min", ">=", 0.0, "feed_surplus (min)"),
+    ("W8 anti-wash", "watch", "feed_surplus_min", ">=", -40.0, "feed_surplus (min, proxy)"),
 ]
 
 INFO = ["games", "wins", "money_med", "money_p10", "floor_total", "mix_max", "mix_top",

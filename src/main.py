@@ -54,7 +54,7 @@ DEFAULT_SETTINGS = {
     "board_size": 10,
     "max_orders": 10,
     "turns_per_day": 24,
-    "min_sell_price": 2,
+    "min_sell_price": 5,
 }
 
 
@@ -7118,7 +7118,7 @@ def _sheepcap_apply(action, observation, configuration=None):
 # staggered strawberry plantings so supply matches the ~1 + 6*n_shops daily
 # demand), not a sell-side hold.
 # ---------------------------------------------------------------------------
-_STRAWRATE_ON = _tape_os.environ.get("KAGGICULTURE_STRAWRATE", "0") == "1"
+_STRAWRATE_ON = _tape_os.environ.get("KAGGICULTURE_STRAWRATE", "1") == "1"
 _RATE_ON = _tape_os.environ.get("KAGGICULTURE_RATE", "1") == "1"
 _STRAWRATE_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_BUFFER", "40"))
 _STRAWRATE_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_STRAWRATE_UNTIL_DAY", "27"))
@@ -7168,34 +7168,32 @@ _STRAW_SHOPS = ("BRUNCH_SPOT", "FARMERS_MARKET", "ICE_CREAM_SHOP", "SMOOTHIE_SHO
 # WHEAT is left in the *rule* but the rule declines to restrict it (its ceiling is
 # unbounded), which is the intended behaviour: observe the wheat heuristic, let
 # the curve decide, and never hard-code a wheat special case.
-_RATE_FRAC = float(_tape_os.environ.get("KAGGICULTURE_RATE_FRAC", "0.6"))
+# The ceiling is DSM's measured hard stop: he sells literally ZERO STRAWBERRY /
+# MILK / WOOL units while the shared inventory is above I0+100 (dsm_v1.md 8.2).
+# Expressed as an absolute band above I0 rather than a price fraction, because
+# these three curves collapse within 50-100 units of I0 -- a fraction of base
+# lands in a different place on each of the three.
+_RATE_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_RATE_BUFFER", "100"))
+# Step aside only when the shed is about to overflow THIS step. The shared
+# _shed_headroom() guard (reserve 60 -> releases above shed 40) disabled the
+# ceiling exactly when it was needed: measured, it left floor at 1708 -> 1686,
+# i.e. no effect, while the day-end relief still guarantees no eviction.
+_RATE_SHED_SLACK = int(_tape_os.environ.get("KAGGICULTURE_RATE_SHED_SLACK", "2"))
 _RATE_ITEMS = tuple(c.strip().upper() for c in _tape_os.environ.get(
-    "KAGGICULTURE_RATE_ITEMS", "STRAWBERRY,WOOL").split(",") if c.strip())
+    "KAGGICULTURE_RATE_ITEMS", "STRAWBERRY,MILK,WOOL").split(",") if c.strip())
 _STRAWRATE = {}
 _RATE_CACHE = {}
 _STRAWRATE_REPORT = dict(rate_trimmed=0, rate_passed=0, rate_errors=0,
                          ceiling_hits=0, budget_trimmed=0)
 
 
-def _inv_ceiling(item, params, frac):
-    """Largest shared market inventory at which the marginal unit still clears
-    ``frac * base``. Bisects the engine's monotone price curve."""
-    key = (item, round(frac, 4))
-    if key in _RATE_CACHE:
-        return _RATE_CACHE[key]
+def _inv_ceiling(item, params, buffer=None):
+    """Largest shared market inventory we may sell into: ``I0 + buffer``.
+
+    Kept as a function so the per-item curve stays available if a product ever
+    needs a curve-derived band instead of the flat DSM one."""
     p = params.get(item) or _R37_MARKET_PARAMS[item]
-    target = frac * float(p["base"])
-    lo, hi, best = 0, int(p.get("I0", 10000)) + 20000, 0
-    if _r37_market_price(item, 0, params) >= target:
-        while lo < hi:
-            mid = (lo + hi + 1) // 2
-            if _r37_market_price(item, mid, params) >= target:
-                lo = mid
-            else:
-                hi = mid - 1
-        best = lo
-    _RATE_CACHE[key] = best
-    return best
+    return int(p.get("I0", 10000)) + (int(_RATE_BUFFER) if buffer is None else int(buffer))
 
 
 def _rate_apply(action, observation, configuration=None):
@@ -7221,7 +7219,15 @@ def _rate_apply(action, observation, configuration=None):
             st = _STRAWRATE[seat] = {"day": day, "sold": 0}
         # Shed guard: no headroom above the feed/seed reserve -> sell freely.
         # Never let a price throttle cause overflow discards or unfed animals.
-        if _shed_headroom(action, observation, configuration, _STRAWRATE_SHED) <= 0:
+        try:
+            proj_total = sum(max(0, int(v))
+                             for v in projected_shed(action, FarmView(observation)).values())
+        except Exception:
+            proj_total = sum(max(0, int(v)) for v in
+                             (observation.get("private", {}).get("shed") or {}).values())
+        cap = int((configuration or {}).get("shedCapacity", 100)) \
+            if isinstance(configuration, dict) else 100
+        if proj_total >= cap - _RATE_SHED_SLACK:
             return action
         params = {k: dict(v) for k, v in _R37_MARKET_PARAMS.items()}
         for k, patch in (observation["market"].get("params") or {}).items():
@@ -7241,7 +7247,7 @@ def _rate_apply(action, observation, configuration=None):
             item = o[1]
             q = max(0, int(o[2]))
             if item not in room:
-                room[item] = max(0, _inv_ceiling(item, params, _RATE_FRAC)
+                room[item] = max(0, _inv_ceiling(item, params)
                                  - int(inv.get(item, 0)))
                 if room[item] <= 0:
                     _STRAWRATE_REPORT["ceiling_hits"] += 1
@@ -7293,7 +7299,9 @@ _straw_rate_apply = _rate_apply
 # drains. WATER -> PASS is position-safe. Knobs: KAGGICULTURE_STRAW_IRRIG=0,
 # KAGGICULTURE_STRAW_IRRIG_BUFFER (40), _UNTIL_DAY (27), _MIN_PLANTS (6).
 # ---------------------------------------------------------------------------
-_STRAW_IRRIG_ON = _tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG", "0") == "1"
+# W2 production cut, shipped WITH W1 (they are one change in two halves -- see the
+# W1 block comment: the ceiling alone just parks the glut in the shed).
+_STRAW_IRRIG_ON = _tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG", "1") == "1"
 _STRAW_IRRIG_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_BUFFER", "40"))
 _STRAW_IRRIG_UNTIL_DAY = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_UNTIL_DAY", "27"))
 _STRAW_IRRIG_MIN_PLANTS = int(_tape_os.environ.get("KAGGICULTURE_STRAW_IRRIG_MIN_PLANTS", "6"))
@@ -7494,9 +7502,15 @@ def agent(observation, configuration=None):
     base = _land_apply(base, observation, configuration)
     base = _sheepcap_apply(base, observation, configuration)
     base = _demand_apply(base, observation, configuration)
-    base = _rate_apply(base, observation, configuration)
     base = _release_apply(base, observation, configuration)
     base = _hold_apply(base, observation, configuration)
+    # The price ceiling must see the final market list, so no layer can re-add
+    # supply above I0+_RATE_BUFFER after it has been applied...
+    base = _rate_apply(base, observation, configuration)
+    # ...but the day-end overflow relief must see the POST-ceiling shed, or it
+    # under-sells the room the ceiling just consumed and the force-drop evicts
+    # WHEAT (measured: feed_surplus -77 with the relief running first). It only
+    # ever ADDS sells, so it can safely run last.
     return _wheat_relief_apply(base, observation, configuration)
 
 

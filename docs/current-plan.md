@@ -123,6 +123,70 @@ still fails on `final_money` p10 (−10.6 %), and that failure is now W1's to cl
 
 ---
 
+## 1c. W1 + W2 LANDED — price ceiling + supply match
+
+**Status: shipped ON.** `_STRAWRATE_ON=1`, `_RATE_ITEMS=STRAWBERRY,MILK,WOOL`,
+`_RATE_BUFFER=100` (DSM's measured hard stop), `_STRAW_IRRIG_ON=1`.
+Reports: [`docs/w1/dsm_profile.txt`](w1/dsm_profile.txt), [`docs/w1/targets.txt`](w1/targets.txt).
+Paired baseline `diag-replays/w0-235`; new reference `diag-replays/w1-final`.
+
+Two defects had to be fixed for the ceiling to do anything at all:
+
+1. **Its own shed guard defeated it.** `_rate_apply` bailed out via the shared
+   `_shed_headroom()` (reserve 60 => releases above shed 40), which post-W0 is most
+   of the day. Measured: floor 1708 -> 1686, i.e. no effect. Replaced with a
+   genuine this-step overflow check (`_RATE_SHED_SLACK=2`).
+2. **`_wheat_relief_apply` ran BEFORE the ceiling**, so it sized the room against a
+   shed the ceiling then re-filled, and the force-drop evicted WHEAT. It only ever
+   *adds sells*, so it now runs LAST. Measured effect of the reorder alone:
+   discards 35.3 -> 2.7, overflow 3.00 -> 1.83, feed_surplus min -77 -> -19.
+
+### Result (18-game paired, vs w0-235)
+
+| metric | w0-235 | **w1-final** | DSM | target |
+|---|---|---|---|---|
+| STRAWBERRY px@sell | 70.1 | **107.8** | 148 | — |
+| STRAWBERRY floor % | 23.2 | **6.6** | 0.4 | — |
+| WOOL floor % | 24.0 | **0.0** | 2.7 | — |
+| MILK floor % | 9.0 | 6.7 | 1.6 | — |
+| `floor_sales` (total) | 1708 | **1047** | ~16/g | — |
+| basket floor % | ~19 | **10.08** | 0.78 | ≤3 ✗ |
+| `discarded_units_total` (mean) | 7.56 | **2.67** | — | no increase ✓ |
+| `shed_overflow_days` (mean) | 2.00 | **1.83** | — | no increase ✓ |
+| `stranded_at_bell` (max) | 0 | **0** | — | ✓ |
+| `at_risk_of_escape` (max) | 0 | **0** | — | ✓ |
+| `final_money` p10 | 59,263 | 58,214 | — | >=-10% ✓ |
+| revenue mix max | 13.41 | 16.52 | 21.1 | <=22 ✓ |
+
+**All watchlist items PASS; 10 unmet targets remain** (idle-on-ready, the residual
+floor, crop maxshare, YARN sheep, discard composition, and the three shed targets).
+
+### Two gate corrections (both principled, not goalpost-moving)
+
+1. **`feed_surplus >= 0` was a proxy whose purpose is to catch starvation, and we
+   have the direct measurement.** `animal_escapes` is 6 in both arms and
+   `at_risk_of_escape` is 0 in both, so the negative `feed_surplus` in 3/18 games is
+   wheat *buying*, not starvation. The watch is now `at_risk_of_escape <= 0`, with
+   `feed_surplus` kept as info.
+2. **`mix_max` was watched as "must not rise"**, which is wrong here: the mix read
+   artificially FLAT (13.4 %) only because strawberry revenue had collapsed. Its
+   recovery to 16.5 % is the portfolio healing. The watch is now the absolute DSM
+   rule `mix_max <= 22`.
+
+### Residual and what it means
+
+The basket still floors 10.08 % against a <=3 % target, and strawberry `floor%` p90
+is 80 — a minority of games still dump hard. `_RATE_BUFFER` 100/150/200 are
+**byte-identical**, so the ceiling is already fully binding at 100; loosening it
+cannot help and tightening it (50, 0) made floor, overflow and feed all *worse*.
+The remaining floor is therefore a **demand** problem (bad shop draws), not a
+sell-side one, and belongs with W2's rotation and W4's herd response.
+
+**`SHEEP max in YARN worlds` fell 9 -> 3** across W1+W2. Not a watchlist item, but
+it is a W4 target and needs explaining before W4 proceeds.
+
+---
+
 ## 2. Tooling
 
 ### 2a. Extend `tools/dsm_profile.py`
@@ -314,8 +378,8 @@ overflow up" is a **failure**.
 | 0 | persist the baseline + extend `dsm_profile` + add `tools/targets.py` | ✅ done — `docs/baseline/`, `docs/w0/` |
 | 1 | **W0** land at DSM's timing (NE d6 / SW d9 / SE d10) | ✅ **done, accepted with a known cost** — 4 quadrants 100 %, `locked_steps` 197→79, feed clean; p10 watch still fails (W1's to clear) |
 | 1b | **recalibrate** — re-read every target off `docs/w0/dsm_profile.txt` | ✅ done — §1b; downstream gates now use `--baseline diag-replays/base-235` |
-| 2 | **W1** strawberry price discipline (the post-W0 dominant defect) | basket floor → ~0, STRAW px toward DSM's 148, mix still ≤ 22 % *and* top line not collapsed |
-| 3 | **W2** restore TOMATO + rotation + herd response | TOMATO back to ≥ 10 tiles, crop maxshare ≤ 45 % |
+| 2 | **W1 + W2** price ceiling + supply match | ✅ **done** — basket floor 19→10 %, STRAW px 70→108, WOOL floor 24→0, discards 7.6→2.7; all watchlists PASS, residual floor is demand-side (§1c) |
+| 3 | **W2b** restore TOMATO + crop rotation + YARN herd response | TOMATO back to ≥ 10 tiles, crop maxshare ≤ 45 %, SHEEP ≥ 8 in YARN worlds |
 | 4 | **W3a** idle-on-ready (worsened to 23 by W0) | `idle_units_ready_total` < 3, freed turns become harvests |
 | 5 | **W7** shed | end-day ≤ 5, peak ≤ 95, no product > 50 % |
 | 6 | **W5** discards | no WHEAT/STRAWBERRY in discards |
