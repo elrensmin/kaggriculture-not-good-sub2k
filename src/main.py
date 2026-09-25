@@ -1084,6 +1084,10 @@ def _v219_native_day(native, day):
 # discarded_units_total 2.7 -> 3.6/game (+33%, past the +10% watch) -- that is
 # exactly what W5 targets, so it is taken here and paid down there.
 _V219_MIN_SHOPS = int(_tape_os.environ.get("KAGGICULTURE_V219_MIN_SHOPS", "1"))
+# Retry window: starts early enough that a planting still yields well before the
+# bell (first_yield_day 8, max_yield_day 8 -> a d10 planting peaks ~d18-20).
+_V219_FROM_DAY = int(_tape_os.environ.get("KAGGICULTURE_V219_FROM_DAY", "11"))
+_V219_TO_DAY = int(_tape_os.environ.get("KAGGICULTURE_V219_TO_DAY", "18"))
 
 
 def _spare_land(tile):
@@ -1099,26 +1103,37 @@ def _spare_land(tile):
         isinstance(tile, dict) and tile.get('kind') == 'WEED')
 
 
+_V219_REJECT = {}
+
+
+def _v219_rej(why):
+    _V219_REJECT[why] = _V219_REJECT.get(why, 0) + 1
+    return False
+
+
 def _v219_qualifies(obs, native):
     farm=obs['farms'][obs['player']]
     if len(farm['tiles']) != 10 or not {'NW','NE','SW'} <= set(farm['unlocked_quadrants']):
-        return False
-    if farm['money'] < 12000 or obs['market']['prices']['TOMATO'] < CROP_MIN_PRICE:
-        return False
+        return _v219_rej('quadrants')
+    if farm['money'] < 12000:
+        return _v219_rej('money<12k')
+    if obs['market']['prices']['TOMATO'] < CROP_MIN_PRICE:
+        return _v219_rej('tomato_px')
     if sum(s in ('PIZZA_SHOP','FARMERS_MARKET') for s in obs['town']['unlocked_shops']) < _V219_MIN_SHOPS:
-        return False
+        return _v219_rej('shops')
     if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,10)):
-        return False
+        return _v219_rej('spare_land')
     if obs['private']['seeds'].get('TOMATO',0) or obs['private']['shed'].get('TOMATO',0):
-        return False
+        return _v219_rej('seed_in_hand')
     if any(isinstance(t,dict) and t.get('crop')=='TOMATO' for row in farm['tiles'] for t in row):
-        return False
+        return _v219_rej('tomato_exists')
     # The investment uses spare land and new worker indices. Avoid taking over
     # any native tomato or land purchase obligation on the known own schedule.
     for tape in _IMPL.chassis.routes.values():
         for a in tape[432:719]:
-            if any(o and o[0]=='BUY_LAND' for o in a.get('market',[])):return False
-            if any(c==['PLANT','TOMATO'] for c in [a.get('farmer')]+a.get('hands',[])):return False
+            if any(o and o[0]=='BUY_LAND' for o in a.get('market',[])):return _v219_rej('tape_land')
+            if any(c==['PLANT','TOMATO'] for c in [a.get('farmer')]+a.get('hands',[])):return _v219_rej('tape_tomato')
+    _V219_REJECT['PASS'] = _V219_REJECT.get('PASS', 0) + 1
     return True
 
 
@@ -1138,7 +1153,18 @@ def _v219_request(obs, action, state, native):
     farm=obs['farms'][obs['player']];private=obs['private']
     # If the planting-day transaction could not complete, abandon investment.
     # Later purchases would miss the finite day26..29 production window.
-    if not state.get('committed') and day!=18:return action
+    # MEASURED: adding this window changed TOMATO seeds 10.0 -> 10.0/game and left the
+    # tile peak on day 29, so it is NEUTRAL -- a second gate downstream still pins the
+    # commit to the day-18 shape (most likely an hour-of-day guard in this request, as
+    # `_v233_request` has). Kept because it is a strict superset of opportunities and
+    # measured no harm; the real limiter is still to be found.
+    #
+    # The single-shot structure was the finding: this only ever ran on day 18, and eligibility was
+    # evaluated once at step 432. Miss that instant and the project is off for the
+    # season -- measured 0 TOMATO seeds across 24 seeds. Retry across a window
+    # instead. Earlier planting also fixes the day-29 peak: TOMATO first yields 8
+    # days after planting, so a day-18 planting cannot produce before d26.
+    if not state.get('committed') and not (_V219_FROM_DAY <= day <= _V219_TO_DAY):return action
     if state.get('requested_day')==day:return action
     planned=_v219_native_day(native,day)
     # EXP240: committed crops must wait for the native worker indices.
@@ -1256,8 +1282,14 @@ def layer_05_v219(parent, observation, configuration=None):
         _V219_STATES[player]=state
     state['last_step']=step
     native=_IMPL.chassis.players[player]
-    if step==432:state['eligible']=_v219_qualifies(observation,native)
-    if not state.get('eligible') or day<18:return action
+    if _V219_FROM_DAY*24 <= step <= _V219_TO_DAY*24+23 and not state.get('eligible'):
+        state['eligible']=_v219_qualifies(observation,native)
+    # THIS was the real second gate (found by instrumenting rather than guessing):
+    # the consumer hard-required day >= 18 even after eligibility was evaluated
+    # earlier, so widening the evaluation window alone was neutral. TOMATO needs
+    # first_yield_day=8, so a day-18 plant cannot yield before d26 -- which is why
+    # the tile peak sat on day 29. Gate on the window start instead.
+    if not state.get('eligible') or day<_V219_FROM_DAY:return action
     if state['day']!=day:
         state['day']=day;state['workers']={};state['last_work']={}
     farm=observation['farms'][player]
@@ -1816,21 +1848,32 @@ _V233_REPORT=dict(sheep_commit_requests=0,sheep_committed=0,sheep_hire_requests=
 _V233_MIN_WOOL = float(_tape_os.environ.get("KAGGICULTURE_V233_MIN_WOOL", "220"))
 
 
+_V233_REJECT = {}
+
+
+def _v233_rej(why):
+    _V233_REJECT[why] = _V233_REJECT.get(why, 0) + 1
+    return False
+
+
 def _v233_eligible(obs,native):
     farm=obs['farms'][obs['player']];prices=obs['market']['prices']
-    if len(farm['tiles'])!=10 or not {'NW','NE','SW'}<=set(farm['unlocked_quadrants']):return False
+    if len(farm['tiles'])!=10 or not {'NW','NE','SW'}<=set(farm['unlocked_quadrants']):return _v233_rej('quadrants')
     # Was `YARN_STORE count < 2` -- the same over-strict gate that killed the tomato
     # project (measured there: 0/18 games ever reached 3). One YARN_STORE is enough
     # demand to justify up to _SHEEP_CAP_YARN sheep, and the spare pastures this
     # project uses are only ~2-3 anyway (W0 buys SE, so the route leaves fewer).
     # The WOOL price floor stays: it is a genuine "wool is scarce" signal.
-    if obs['town']['unlocked_shops'].count('YARN_STORE')<1 or prices['WOOL']<_V233_MIN_WOOL or prices['WHEAT']>45:return False
-    if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,8)):return False
-    if obs['private']['shed'].get('SHEEP',0) or any(i.get('SHEEP',0) for i in obs['private']['inventories']):return False
+    if prices['WHEAT']>45:return _v233_rej('wheat_px>45')
+    if obs['town']['unlocked_shops'].count('YARN_STORE')<1:return _v233_rej('no_yarn')
+    if prices['WOOL']<_V233_MIN_WOOL:return _v233_rej('wool_px')
+    if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,8)):return _v233_rej('spare_land')
+    if obs['private']['shed'].get('SHEEP',0) or any(i.get('SHEEP',0) for i in obs['private']['inventories']):return _v233_rej('sheep_in_hand')
     for day in range(12,30):
         for a in _v219_native_day(native,day):
-            if any(o and (o[0]=='BUY_LAND' or o[:2]==['BUY_ANIMAL','SHEEP']) for o in a.get('market',[])):return False
-            if any(c and c[0] in ('PICKUP','PLACE') and len(c)>1 and c[1]=='SHEEP' for c in [a.get('farmer')]+a.get('hands',[])):return False
+            if any(o and (o[0]=='BUY_LAND' or o[:2]==['BUY_ANIMAL','SHEEP']) for o in a.get('market',[])):return _v233_rej('tape_land')
+            if any(c and c[0] in ('PICKUP','PLACE') and len(c)>1 and c[1]=='SHEEP' for c in [a.get('farmer')]+a.get('hands',[])):return _v233_rej('tape_sheep')
+    _V233_REJECT['PASS'] = _V233_REJECT.get('PASS', 0) + 1
     return True
 
 def _v233_request(obs,action,state,native):
@@ -6585,8 +6628,10 @@ is_new_agent = False
 
 _original_agent = agent
 
+# ---------------------- elrensmin updates ----------------------------------
+
 # ===========================================================================
-# NEW PATCH (promoted from agent.py) -- _ASTRA_I1 opening extension  [BASELINE]
+# _ASTRA_I1 opening extension  [BASELINE]
 # ---------------------------------------------------------------------------
 # Extends the opening temporary-wheat crop by one growth refresh. The base
 # HybridOpening tape (installed live by layer_44_alt above) harvests the day-0
@@ -6596,17 +6641,6 @@ _original_agent = agent
 # to water / harvest / restore-pasture / deliver, and on the drop (step 91)
 # sells the extra delivered wheat. Net: more opening wheat sold without losing
 # the pasture build -- a small, seed-independent efficiency.
-#
-# This WAS the agent.py experiment (see git history before this promotion); it
-# is now folded into the production baseline. agent.py has been reset to a clean
-# template for the next experiment. To change it, re-edit the _i1_* helpers /
-# _i1_apply below and treat "old" as this promoted baseline.
-#
-# Empirics (clean --compare, old vs new on the same seeds, F2 wobble eliminated):
-#   vs master-engine-v3: +18,+29,+28,+15,+22,+17 (6/6 seeds improved);
-#   vs cloning-agent +21/+21/+19, vs top-2-master-engine-v4 +21/+59/+19 (6/6);
-#   vs one-more-wheat +16/+32 (2/3, one seed -123 with +3 floor sales).
-#   No new escapes/overflow/unwatered in any tested game.
 # ===========================================================================
 _I1_REPORT = dict(
     installed=0, harvested_units=0, delivered_units=0,
