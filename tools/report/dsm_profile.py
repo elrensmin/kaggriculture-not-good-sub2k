@@ -22,8 +22,8 @@ quantities, which for our tape are `SELL <item> 1000` sentinels and must not be
 read as volume. The `src=` tag on each selling row says which was used.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.dsm_profile --compare --run-dir=diag-replays/run-1
-  PYTHONPATH=src:. python -m tools.dsm_profile --profile dsm
+  PYTHONPATH=src:. python -m tools.report.dsm_profile --compare --run-dir=diag-replays/run-1
+  PYTHONPATH=src:. python -m tools.report.dsm_profile --profile dsm
 """
 from __future__ import annotations
 
@@ -141,10 +141,18 @@ def _one(arg):
         # ---- shed: peak within the day, and the composition at the day end
         shed = priv.get("shed") or {}
         tot = sum(v for v in shed.values() if v > 0)
-        rec = out["shed_day"].setdefault(d, [0, 0])
+        carried = sum(max(0, int(v)) for inv in (priv.get("inventories") or [])
+                      for v in (inv or {}).values())
+        # [shed@end, shed_peak, carried@end, carried_peak, system_peak]
+        rec = out["shed_day"].setdefault(d, [0, 0, 0, 0, 0])
+        while len(rec) < 5:
+            rec.append(0)
         rec[1] = max(rec[1], tot)
+        rec[3] = max(rec[3], carried)
+        rec[4] = max(rec[4], tot + carried)
         if i % 24 == 23:
             rec[0] = tot
+            rec[2] = carried
             out["shed_comp"][d] = {k: v for k, v in shed.items() if v > 0}
 
         # ---- committed selling when the audit exists
@@ -223,7 +231,10 @@ def _one(arg):
     ends = [v[0] for v in out["shed_day"].values()]
     peaks = [v[1] for v in out["shed_day"].values()]
     out["sell_g"] = {k: list(v) for k, v in out["sell"].items()}
-    out["shed_g"] = [_mean(ends), max(peaks) if peaks else 0]
+    carried_end = [v[2] for v in out["shed_day"].values() if len(v) > 2]
+    syspeak = [v[4] for v in out["shed_day"].values() if len(v) > 4]
+    out["shed_g"] = [_mean(ends), max(peaks) if peaks else 0,
+                     _mean(carried_end), max(syspeak) if syspeak else 0]
     out["wheat_g"] = out["wheat"][0] / max(1, out["wheat"][1])
     out["yarn_sheep_g"] = (max((v[1] for v in out["days"].values()), default=0)
                            if out["yarn_day"] is not None else None)
@@ -321,6 +332,8 @@ def profile(name, replay_glob, days_glob, agent, workers=0, run_dir=None):
                 for cr, n in rec.items():
                     agg["crop_day"][d][cr].append(n)
             for d, rec in r["shed_day"].items():
+                while len(rec) < 5:
+                    rec.append(0)
                 agg["shed_day"][d].append(rec)
             for d, rec in r["shed_comp"].items():
                 for k, v in rec.items():
@@ -422,8 +435,8 @@ def show(p):
         s = sum(tots.values())
         share = (max(tots.values()) / s) if s else 0.0
         print(f"   {d:3d} | " + "".join(f"{tots[c]:8.1f}" for c in CROPS) + f"   {100*share:5.1f}%")
-    print("-- SHED by day (mean end / mean peak) + end-of-day composition (share) --")
-    print("   day |  end  peak | top items at day end")
+    print("-- SHED + CARRIED by day (mean shed end / shed peak / carried end / system peak) --")
+    print("   day |   end  peak | carry |  SYSTEM | top items at day end")
     for d in range(6, 30, 3):
         v = a["shed_day"].get(d)
         if not v:
@@ -432,10 +445,15 @@ def show(p):
         ct = sum(comp.values()) or 1
         top = "  ".join(f"{k}={100*x/ct:.0f}%" for k, x in
                         sorted(comp.items(), key=lambda kv: -kv[1])[:3])
-        print(f"   {d:3d} | {_mean([r[0] for r in v]):5.1f} {_mean([r[1] for r in v]):5.1f} | {top}")
+        print(f"   {d:3d} | {_mean([r[0] for r in v]):5.1f} {_mean([r[1] for r in v]):5.1f} |"
+              f" {_mean([r[2] for r in v]):5.1f} | {_mean([r[4] for r in v]):7.1f} | {top}")
     if a["shed_g"]:
-        print(f"   season end-of-day (per-game mean): {_band([r[0] for r in a['shed_g']])}  p90 {_tail([r[0] for r in a['shed_g']])}")
-        print(f"   season mid-day peak (per-game max): {_band([r[1] for r in a['shed_g']])}  p90 {_tail([r[1] for r in a['shed_g']])}")
+        print(f"   end-of-day SHED    (per-game mean): {_band([r[0] for r in a['shed_g']])}  p90 {_tail([r[0] for r in a['shed_g']])}")
+        print(f"   end-of-day CARRIED (per-game mean): {_band([r[2] for r in a['shed_g']])}  p90 {_tail([r[2] for r in a['shed_g']])}")
+        print(f"   peak SHED          (per-game max) : {_band([r[1] for r in a['shed_g']])}  p90 {_tail([r[1] for r in a['shed_g']])}")
+        print(f"   peak SYSTEM        (per-game max) : {_band([r[3] for r in a['shed_g']])}  p90 {_tail([r[3] for r in a['shed_g']])}")
+        print("   NOTE: shed alone understates stock -- the market can only SELL from the")
+        print("   shed, so units carried in hands are unsellable until dropped.")
     print("-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --")
     print("   product      <I0   I0..+50  +50..+100   >I0+100 |  END>+100")
     for prod in SELL_PRODUCTS:

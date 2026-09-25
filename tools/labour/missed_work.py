@@ -17,8 +17,8 @@ tile's pending work each step, records which units address it, and tallies:
   * Uncovered work: pending tiles that no unit acted on all day (candidates for routing).
 
 Usage:
-  python -m tools.missed_work --path <game.json>
-  python -m tools.missed_work --dir diag-replays/run-5 [--glob 'old_vs_*.json']
+  python -m tools.labour.missed_work --path <game.json>
+  python -m tools.labour.missed_work --dir diag-replays/run-5 [--glob 'old_vs_*.json']
 Run from the repo root with PYTHONPATH=. (or python -m from repo root).
 """
 from __future__ import annotations

@@ -22,7 +22,7 @@ Reads replay JSONs (the tile state is only in the observation), so it is slower
 than the CSV tools; cap it with --max-games / --dsm-max.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.ready_idle --dir diag-replays/w1-final \
+  PYTHONPATH=src:. python -m tools.labour.ready_idle --dir diag-replays/w1-final \
       --dsm-dir replays/DSM/v1 --dsm-max 40 --out docs/w3/ready_idle.txt
 """
 from __future__ import annotations

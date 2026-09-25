@@ -17,10 +17,10 @@ specific seed. Floor units come from the replay's market audit when present
 SELL order and the observation price at that step.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.floor_sell --dir diag-replays/woolbase-543
-  PYTHONPATH=src:. python -m tools.floor_sell --dir replays/DSM/v1 --glob '*.json' --seat 0
-  PYTHONPATH=src:. python -m tools.floor_sell --path some_replay.json
-  PYTHONPATH=src:. python -m tools.floor_sell --dir diag-replays/woolbase-543 --product WOOL
+  PYTHONPATH=src:. python -m tools.market.floor_sell --dir diag-replays/woolbase-543
+  PYTHONPATH=src:. python -m tools.market.floor_sell --dir replays/DSM/v1 --glob '*.json' --seat 0
+  PYTHONPATH=src:. python -m tools.market.floor_sell --path some_replay.json
+  PYTHONPATH=src:. python -m tools.market.floor_sell --dir diag-replays/woolbase-543 --product WOOL
 """
 from __future__ import annotations
 

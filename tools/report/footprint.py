@@ -22,8 +22,8 @@ Profiles:
   --compare                                      (print both side by side)
 
 Usage:
-  PYTHONPATH=src:. python -m tools.footprint --compare
-  PYTHONPATH=src:. python -m tools.footprint --profile ours --run-dir diag-replays/run-5
+  PYTHONPATH=src:. python -m tools.report.footprint --compare
+  PYTHONPATH=src:. python -m tools.report.footprint --profile ours --run-dir diag-replays/run-5
 """
 from __future__ import annotations
 

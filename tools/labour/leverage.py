@@ -15,7 +15,7 @@ FREE. We group idle-hand events by forfeit value so you can see which bucket is
 large enough to matter.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.leverage --dir diag-replays/run-5 --glob 'old_vs_*.json' [--horizon 8]
+  PYTHONPATH=src:. python -m tools.labour.leverage --dir diag-replays/run-5 --glob 'old_vs_*.json' [--horizon 8]
 """
 from __future__ import annotations
 

@@ -18,7 +18,7 @@ It also prints, at each drop, the shed composition and the market price of each
 item -- i.e. what we threw away versus what we chose to keep.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.discards --dir diag-replays/w3a-a \
+  PYTHONPATH=src:. python -m tools.market.discards --dir diag-replays/w3a-a \
       --dsm-max 30 --out docs/w5/discards.txt
 """
 from __future__ import annotations

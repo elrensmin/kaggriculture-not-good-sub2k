@@ -326,6 +326,169 @@ than only at hour 23.
 
 ---
 
+## 1g. Why W7's targets are not met — the "peak" is the overnight dump
+
+Traced the intraday shed curve over the w7-final arm (18 games). It refutes the
+"harvests outpace the market mid-day" explanation I had assumed:
+
+| hour | shed (mean) | carried in hands (mean) | total |
+|---|---|---|---|
+| h20 | 9.5 | 38.4 | 47.9 |
+| h23 | 9.3 | **38.9** | 48.2 |
+| **h0** | **49.0** | 0.0 | 49.0 |
+| h1 | 38.3 | 1.9 | 40.2 |
+| h2 | 18.0 | 9.0 | 27.0 |
+| h3-h23 | ~10.7 | - | - |
+
+**The shed is ~10 all day and is fullest at hour 0.** The `max_shed_total` of 100 is
+not a mid-day production peak: it is the **overnight force-drop**. Every night ~39
+units leave the workers' hands and land in the shed at once (9.3 -> 49.0 mean; p90
+~90; games that cross 100 discard the excess). `shed>=95` occurs only at h0 and h1.
+It then drains back to ~10 within two hours.
+
+So:
+
+- **"mid-day peak <= 95" is really "don't let the overnight dump exceed 95".** The
+  fix is to get hands to **DROP at the shed during the day** instead of carrying
+  produce to the bell -- a labour/routing change, not a shed-size one.
+- **"end-of-day <= 5"** is the real shed level, currently ~9.3, and the residual is
+  the WHEAT reserve (`_WHEAT_KEEP=5`) plus whatever has not sold.
+- **"largest product <= 50 %"** is measured at h23 and is WHEAT-led.
+
+**The broader lesson, and it invalidates a metric I have been quoting all along:**
+`shed_total` reads only `private.shed`, so it has been reporting ~9 when the farm
+was actually holding ~48 units across the shed AND the workers' hands. Every "shed"
+figure in this plan should be read as "shed + carried", and `dsm_profile`'s
+`max_shed_total` is dominated by the overnight dump rather than by daytime load.
+Worth fixing in the tool before W7 is judged again.
+
+---
+
+## 1h. W7 — tooling fixed, targets still NOT met
+
+**Tooling fixed first, because the metric was lying.** `tools/dsm_profile.py` now
+prints shed AND carried AND the system peak:
+
+| | w7-final | DSM (reference) |
+|---|---|---|
+| end-of-day SHED | 8.3 | ~4 |
+| end-of-day **CARRIED** | **39.8** [37.5-40.4] | not measured (needs the same fix) |
+| peak SHED | 100 [95-100] | 91-93 |
+| **peak SYSTEM (shed+carried)** | **118 [108-129]**, p90 138 | ? |
+
+So the farm holds **118-138 units at peak against a 100-item shed cap**, and ~39 of
+them are stuck in workers' hands all season (carried grows d12 30 -> d24 83 -> d27
+85). **The market can only SELL from the shed**, so carried stock is unsellable
+until dropped — which is why the overnight force-drop spikes the shed to 100 and
+discards the excess. This also explains why W3a *raised* discards: harvesting more
+fed the carried pile.
+
+**Lever added: deposit-on-PASS** (`_READY_DROP`). When a unit PASSes while already
+standing shed-adjacent and carrying stock, it DROPs instead. Position-safe, same
+substitution family as W3a.
+
+**Measured, and deliberately NOT claimed as a W7 fix** (18-game paired):
+
+| metric | w7-final | w7-b |
+|---|---|---|
+| discards | 3.11 | **1.89** (-39%) |
+| money | 75,449 | 87,625 (+16%) |
+| **revenue** | **111,931** | **113,199 (+1.1%)** |
+| harvests | 651 | 641 |
+| carried (end of day) | 39.8 | 38.9 |
+| peak SYSTEM | 118 | 117 |
+
+The +16 % money is **confounded**: the shop draw moved (YARN_STORE 12 -> 15 games,
+PET_CAFE 12 -> 15), revenue only moved +1.1 %, and the shed/carried metrics barely
+budged. So this lever helps (discards -39 %) but does **not** close W7, and the
+money figure must not be attributed to it. Re-measure over more seeds before
+believing either number.
+
+**W7 remains open.** The targets (end-of-day <= 5, peak <= 95, no product > 50 %)
+are all still unmet, and the binding constraint is now identified precisely: ~39
+units parked in hands, above a 100 cap, all season. Closing it needs either hands
+depositing far more often than a PASS allows, or production cut to match.
+
+---
+
+## 1i. CONSOLIDATION — why there is surplus to floor at all
+
+Pulling the market tools together (18 games, `w7-b`, `tools.market.sell_price`):
+
+| product | OUR units | OPP units | our floor% | opp floor% |
+|---|---|---|---|---|
+| STRAWBERRY | 2,352 | **4,440 (1.9x)** | **6 %** | **10 %** |
+| WOOL | 2,118 | **3,912 (1.8x)** | **12 %** | 13 % |
+| MILK | 3,031 | 3,514 | 3 % | 4 % |
+| FERTILIZER | 5,425 | 6,406 | 3 % | 3 % |
+| WHEAT | 6,889 | 8,941 | 0 % | 0 % |
+
+**We are not the surplus.** In exactly the goods that floor, we are the *minority*
+supplier -- the opponent puts 1.8-1.9x our volume into strawberry and wool -- and our
+own floor rate is LOWER than his on every floored product (6 % vs 10 %, 12 % vs 13 %).
+Because the market inventory is shared, his volume crashes the price and our sells
+floor alongside his.
+
+Floor timing confirms it is not a sell-schedule artefact of ours: floors run d18-29
+with 38 % of them on d27-29, where `_RATE_UNTIL_DAY=27` releases the ceiling -- but
+the ceiling cannot help against a price the opponent has already walked down.
+
+**What this means for the plan.** The sell-side levers (W1 ceiling, W5 relief margin,
+W7 deposit) are all second-order: they trim *our* contribution to a glut we do not
+own. The first-order levers are the ones that change **volume and mix**:
+
+1. **W2b crop rotation / TOMATO** -- production mix, not timing (partly landed).
+2. **W2c herd vs shops** -- the herd is set by the route before the shops are known,
+   which is why a 1-YARN world still runs 6 sheep into a 45-unit wool floor.
+3. **W8 anti-wash** -- suppressing the wheat round-trip reduces our own supply into
+   goods that do not need it.
+
+The correct question is not "how do we sell this surplus better" but "why are we
+producing into a market the drawn shops cannot absorb". Sell-side work should stop
+until (1)-(3) have moved.
+
+---
+
+## 1j. SUPPLY SIDE — the tool says we UNDER-produce, and one crop peaks on the last day
+
+New tool: **`tools/market/crop_demand.py`** -> [`docs/supply/crop_demand.txt`](supply/crop_demand.txt).
+Per crop and per day it prints our tiles vs DSM's, the number of buying shops open
+that day, the implied daily absorption (shops x 6 units/day, single-product shops
+x2), and a SUPPLY/DEMAND ratio.
+
+**Peak tiles (median per game):**
+
+| crop | our peak | our peak day | DSM peak | DSM peak day |
+|---|---|---|---|---|
+| WHEAT | 38 | d24 | **57** | d24 |
+| CARROT | 33 | d28 | **50** | d27 |
+| TOMATO | 10 | **d29** | **33** | d20 |
+| STRAWBERRY | 24 | d21 | **56** | d18 |
+| MELON | 12 | d10 | 10 | d10 |
+
+Three findings, all of which cut against the "we over-produce into a glut" framing:
+
+1. **We under-produce at peak across the board** -- strawberry 24 vs 56, tomato 10 vs
+   33, carrot 33 vs 50, wheat 38 vs 57. Combined with §1i (we are the *minority*
+   supplier in the goods that floor), the supply problem is that we are too SMALL,
+   not too large. This matches the standing measurements: seed spend -37 %, harvests
+   -16 %, units sold -25 % versus DSM.
+2. **TOMATO peaks on day 29** (DSM: d20). The W2b revival brought tomato back but
+   plants it so late it cannot yield before the bell -- a timing error, not a
+   quantity one, and cheap to fix.
+3. Strawberry supply/demand falls below 1.0 from d22 (ratio 0.8 -> 0.1 by d28): we
+   retire the crop while demand is still open. DSM holds 0.5-0.9 over the same days.
+
+**Caveat, stated in the tool:** WHEAT's ratio ignores animal feed, which is its
+largest consumer (~342/game), so a wheat ratio above 1 is expected and correct.
+
+**W8 is a no-op and was not built.** Measured on w7-b: wheat bought 158/game vs sold
+383/game (ratio 0.41) against 342/game fed -- we are a net wheat BUYER. The 3,599-unit
+wash belonged to the older `consol-base` tree. Adding a guard would be dead code, so
+none was added.
+
+---
+
 ## 2. Tooling
 
 ### 2a. Extend `tools/dsm_profile.py`

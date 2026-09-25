@@ -1806,10 +1806,25 @@ _V233_REPORT=dict(sheep_commit_requests=0,sheep_committed=0,sheep_hire_requests=
     sheep_wool_harvested=0,sheep_fert_collected=0,sheep_extra_wool_sales=0,
     sheep_extra_fert_sales=0,sheep_rescue_feed_requests=0)
 
+# MEASURED: relaxing this 220 -> 200 (and YARN_STORE 2 -> 1) did NOT make the project
+# fire -- SHEEP stayed 10/10/3/3 across the unlock buckets, identical to the relaxed
+# run -- while discards 34 -> 72 and overflow 10 -> 15 got worse. So the gate is not
+# what blocks it; something later in _v233_eligible still rejects every game, most
+# likely the "no SHEEP in shed/inventories" precondition combined with the day 12-30
+# tape scan. W2c is therefore genuinely blocked at the route level, not at the gate.
+# Left at 220: the honest "wool is scarce" test, and the one that does no harm.
+_V233_MIN_WOOL = float(_tape_os.environ.get("KAGGICULTURE_V233_MIN_WOOL", "220"))
+
+
 def _v233_eligible(obs,native):
     farm=obs['farms'][obs['player']];prices=obs['market']['prices']
     if len(farm['tiles'])!=10 or not {'NW','NE','SW'}<=set(farm['unlocked_quadrants']):return False
-    if obs['town']['unlocked_shops'].count('YARN_STORE')<2 or prices['WOOL']<220 or prices['WHEAT']>45:return False
+    # Was `YARN_STORE count < 2` -- the same over-strict gate that killed the tomato
+    # project (measured there: 0/18 games ever reached 3). One YARN_STORE is enough
+    # demand to justify up to _SHEEP_CAP_YARN sheep, and the spare pastures this
+    # project uses are only ~2-3 anyway (W0 buys SE, so the route leaves fewer).
+    # The WOOL price floor stays: it is a genuine "wool is scarce" signal.
+    if obs['town']['unlocked_shops'].count('YARN_STORE')<1 or prices['WOOL']<_V233_MIN_WOOL or prices['WHEAT']>45:return False
     if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,8)):return False
     if obs['private']['shed'].get('SHEEP',0) or any(i.get('SHEEP',0) for i in obs['private']['inventories']):return False
     for day in range(12,30):
@@ -7495,7 +7510,21 @@ _READY_ON = _tape_os.environ.get("KAGGICULTURE_READY", "1") == "1"
 _READY_CROP = _tape_os.environ.get("KAGGICULTURE_READY_CROP", "1") == "1"
 _READY_ANIMAL = _tape_os.environ.get("KAGGICULTURE_READY_ANIMAL", "1") == "1"
 _READY_FERT = _tape_os.environ.get("KAGGICULTURE_READY_FERT", "1") == "1"
-_READY_REPORT = dict(ready_harvest=0, ready_collect=0, ready_errors=0)
+# W7: deposit carried stock. Measured (dsm_profile, shed+carried): hands hold
+# 39.8u at end of day rising to 85u by d27, so the SYSTEM peak is 118 [108-129]
+# against a 100 shed cap -- and the market can only SELL from the shed, so anything
+# carried is unsellable until dropped. The overnight force-drop is what then spikes
+# the shed to 100 and discards the excess. Turning a PASS into a DROP when the unit
+# is already standing shed-adjacent is position-safe and unlocks that stock.
+#
+# MEASURED, and NOT yet proven: discards 3.11 -> 1.89 (-39%) and money 75,449 ->
+# 87,625, BUT the shop draw moved (YARN 12 -> 15 games) and REVENUE only moved
+# +1.1% (111,931 -> 113,199), so the money jump is confounded by the world and must
+# not be attributed to this lever. The shed/carried metrics barely moved (carried
+# 39.8 -> 38.9, system peak 118 -> 117), so this does NOT fix W7 -- it only helps.
+# Re-measure over more seeds before believing the money.
+_READY_DROP = _tape_os.environ.get("KAGGICULTURE_READY_DROP", "1") == "1"
+_READY_REPORT = dict(ready_harvest=0, ready_collect=0, ready_drop=0, ready_errors=0)
 
 
 def _ready_apply(action, observation, configuration=None):
@@ -7530,6 +7559,15 @@ def _ready_apply(action, observation, configuration=None):
                 units[i] = ["COLLECT_FERTILIZER"]
                 _READY_REPORT["ready_collect"] += 1
                 changed = True
+            elif _READY_DROP and _shed_adjacent((x, y), len(tiles)):
+                inv = None
+                invs = (observation.get("private") or {}).get("inventories") or []
+                if i < len(invs):
+                    inv = invs[i] or {}
+                if inv and any(int(v) > 0 for v in inv.values()):
+                    units[i] = ["DROP"]
+                    _READY_REPORT["ready_drop"] += 1
+                    changed = True
         if changed:
             action = dict(action)
             action["farmer"] = units[0]

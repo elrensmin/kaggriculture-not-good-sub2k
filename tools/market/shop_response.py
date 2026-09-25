@@ -21,9 +21,9 @@ Everything is read from `days_seed*.csv` (per day, audit-backed), so this is fas
 and needs no replay parsing.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.shop_response --dir diag-replays/w1-final
-  PYTHONPATH=src:. python -m tools.shop_response --dir A --vs B
-  PYTHONPATH=src:. python -m tools.shop_response --dir A --games "SHEEP"
+  PYTHONPATH=src:. python -m tools.market.shop_response --dir diag-replays/w1-final
+  PYTHONPATH=src:. python -m tools.market.shop_response --dir A --vs B
+  PYTHONPATH=src:. python -m tools.market.shop_response --dir A --games "SHEEP"
 """
 from __future__ import annotations
 

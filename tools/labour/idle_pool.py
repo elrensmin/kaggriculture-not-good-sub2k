@@ -16,7 +16,7 @@ Everything else is either movement-needed (pending work at another tile — the
 revenue-negative path) or truly idle (no pending work anywhere it can help).
 
 Usage:
-  PYTHONPATH=src:. python -m tools.idle_pool --dir diag-replays/run-5 --glob 'old_vs_*.json'
+  PYTHONPATH=src:. python -m tools.labour.idle_pool --dir diag-replays/run-5 --glob 'old_vs_*.json'
 """
 from __future__ import annotations
 

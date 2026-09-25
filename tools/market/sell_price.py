@@ -14,10 +14,10 @@ which records *executed* units and prices for BOTH seats. Leaderboard replays
 carry no audit, so it falls back to each seat's SELL orders x the step price.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new2
-  PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new2 --game 543252345
-  PYTHONPATH=src:. python -m tools.sell_price --dir diag-replays/consol-new2 --product WOOL
-  PYTHONPATH=src:. python -m tools.sell_price --path some_replay.json --seat 1
+  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2
+  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2 --game 543252345
+  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2 --product WOOL
+  PYTHONPATH=src:. python -m tools.market.sell_price --path some_replay.json --seat 1
 """
 from __future__ import annotations
 

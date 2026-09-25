@@ -7,7 +7,7 @@ but is never the pass condition. Exit code is non-zero if any watchlist item
 regressed against the baseline.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.targets --run-dir diag-replays/<arm> \
+  PYTHONPATH=src:. python -m tools.gates.targets --run-dir diag-replays/<arm> \
       --baseline diag-replays/run-1
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ import sys
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 
-from tools.dsm_profile import SELL_PRODUCTS, _one
+from tools.report.dsm_profile import SELL_PRODUCTS, _one
 
 BASKET = ("STRAWBERRY", "MILK", "WOOL")
 LB_START = ">I0+100"
