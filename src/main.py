@@ -7467,6 +7467,68 @@ def _demand_apply(action, observation, configuration=None):
     return action
 
 
+# ---------------------------------------------------------------------------
+# W3a READY WORK (tools/ready_idle.py). A PASS while standing on a tile that has
+# work available is pure waste, and it is position-safe to fix: no movement, and
+# the tape had nothing planned for that unit this step.
+#
+# MEASURED (ready_idle, 18 ours vs 30 DSM games, per game):
+#     PASS-on-ready events   ours 184.7   DSM 30.7
+#     value left on the tile ours $27,221 DSM $7,459   (gap ~$19.8k/game)
+#       MELON $17,516/$7,056   WHEAT $4,689/$148   MILK $1,984/$74
+# DSM's crop passes are concentrated in the opening (d0-5) and then stop; ours run
+# all season, and our animal passes (MILK 780u) grow from d8.
+#
+# Knobs (KAGGICULTURE_READY=0 disables; the three kinds are separable so each can
+# be swept on its own).
+_READY_ON = _tape_os.environ.get("KAGGICULTURE_READY", "1") == "1"
+_READY_CROP = _tape_os.environ.get("KAGGICULTURE_READY_CROP", "1") == "1"
+_READY_ANIMAL = _tape_os.environ.get("KAGGICULTURE_READY_ANIMAL", "1") == "1"
+_READY_FERT = _tape_os.environ.get("KAGGICULTURE_READY_FERT", "1") == "1"
+_READY_REPORT = dict(ready_harvest=0, ready_collect=0, ready_errors=0)
+
+
+def _ready_apply(action, observation, configuration=None):
+    """Turn a PASS on a ready tile into the collect it could have done."""
+    if not _READY_ON or not isinstance(action, dict):
+        return action
+    try:
+        seat = int(observation["player"])
+        farm = observation["farms"][seat]
+        tiles = farm["tiles"]
+        positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
+        units = [action.get("farmer")] + list(action.get("hands") or [])
+        changed = False
+        for i, cmd in enumerate(units):
+            if i >= len(positions):
+                break
+            if not (isinstance(cmd, list) and cmd and cmd[0] == "PASS"):
+                continue
+            x, y = positions[i]
+            if not (0 <= y < len(tiles) and 0 <= x < len(tiles[y])):
+                continue
+            tile = tiles[y][x]
+            if not isinstance(tile, dict):
+                continue
+            if tile.get("yield_units", 0) > 0:
+                is_crop = tile.get("kind") == "PLANT"
+                if (is_crop and _READY_CROP) or (tile.get("animal") and _READY_ANIMAL):
+                    units[i] = ["HARVEST"]
+                    _READY_REPORT["ready_harvest"] += 1
+                    changed = True
+            elif tile.get("fertilizer_available") and _READY_FERT:
+                units[i] = ["COLLECT_FERTILIZER"]
+                _READY_REPORT["ready_collect"] += 1
+                changed = True
+        if changed:
+            action = dict(action)
+            action["farmer"] = units[0]
+            action["hands"] = units[1:]
+    except Exception:
+        _READY_REPORT["ready_errors"] += 1
+    return action
+
+
 def _wheat_relief_apply(action, observation, configuration=None):
     """Day-end overflow relief (see the block comment above the knobs).
 
@@ -7563,6 +7625,7 @@ def agent(observation, configuration=None):
     base = _land_apply(base, observation, configuration)
     base = _sheepcap_apply(base, observation, configuration)
     base = _demand_apply(base, observation, configuration)
+    base = _ready_apply(base, observation, configuration)
     base = _release_apply(base, observation, configuration)
     base = _hold_apply(base, observation, configuration)
     # The price ceiling must see the final market list, so no layer can re-add
@@ -7578,6 +7641,7 @@ def agent(observation, configuration=None):
 agent.telemetry = _ALT_REPORT
 agent._i1_report = _I1_REPORT
 agent._land_report = _LAND_REPORT
+agent._ready_report = _READY_REPORT
 _original_agent = agent
 
 

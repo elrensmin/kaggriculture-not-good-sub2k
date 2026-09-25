@@ -187,6 +187,63 @@ it is a W4 target and needs explaining before W4 proceeds.
 
 ---
 
+## 1d. W3a LANDED — ready-work substitution
+
+**Status: shipped ON** (`_READY_ON`, `_READY_CROP/_ANIMAL/_FERT` separable).
+Trace tool: **`tools/ready_idle.py`** -> [`docs/w3/ready_idle.txt`](w3/ready_idle.txt).
+Gate: [`docs/w3/targets.txt`](w3/targets.txt). Baseline `w2b-b`, new reference `w3a-a`.
+
+### What DSM does that we did not
+
+`ready_idle` walks both arms and counts PASSes made while STANDING on a tile with
+work available (position-safe to fix: no movement, and the tape had nothing planned
+for that unit that step). Per game, 18 ours vs 30 DSM:
+
+| metric | ours | DSM | gap |
+|---|---|---|---|
+| PASS-on-READY events | **184.7** | 30.7 | +154 |
+| ...crop | 134.8 | 26.7 | +108 |
+| ...animal | 20.1 | 0.3 | +19.8 |
+| ...fert | 29.8 | 3.8 | +26 |
+| units left on the tile | 306.5 | 36.8 | +270 |
+| **value left ($)** | **27,221** | 7,459 | **+19,762** |
+| MELON | 17,516 | 7,056 | +10,460 |
+| WHEAT | **4,689** | 148 | +4,541 |
+| MILK | **1,984** | 74 | +1,910 |
+| LOCKED turns | **46.7** | 58.3 | **-11.7 (already better)** |
+
+Two things fall straight out:
+- **DSM's crop passes are concentrated in the opening** (d0-5: 180/93/70/193/51/145)
+  and then stop. Ours run all season. Our animal passes (MILK 780u) grow from d8.
+- **W3b is DONE.** `locked_steps` 46.7/game is already below DSM's 58.3/game —
+  W0's land purchase resolved it. Nothing left to do there beyond keeping the
+  guard.
+
+### Result (18-game paired, vs w2b-b)
+
+| metric | w2b-b | **w3a-a** | target |
+|---|---|---|---|
+| `idle_units_ready_total` | 21.6 | **2.7** | <3 ✅ |
+| `idle_share_pct` | 6.18 | **4.36** (-29%) | — |
+| `floor_sales` | 980 | **686** (-30%) | — |
+| `shed_overflow_days` | 1.89 | **1.17** (-38%) | — |
+| `final_money` p10 | 60,644 | **65,689** (+8.3%) | — |
+| `locked_steps` | 82 | 82 | <=130 ✅ |
+| `at_risk_of_escape` | 0 | **0** | ✅ |
+| **`discarded_units_total`** | 3.56 | **6.22** (+75%) | no increase ❌ |
+| `final_money` median | 77,231 | 75,138 (-2.7%) | info |
+
+**Target met, with one watchlist regression: discards nearly double.** Collecting
+work we used to walk past puts more into a shed that is already pinned at the cap,
+so the day-end relief throws more away. It is the same coupling that has bitten
+every workstream, and it is exactly what **W5** (discard composition) and **W7**
+(shed) exist to fix — both now carry a measured, specific debt rather than a
+hypothetical one. Also note the world moved again (YARN 15 -> 18 games), so
+shop-conditioned columns here are not controlled; the W3a metrics are unconditional
+and clean.
+
+---
+
 ## 2. Tooling
 
 ### 2a. Extend `tools/dsm_profile.py`
@@ -363,9 +420,10 @@ projected remainder of `item_need["WHEAT"]` (already computed in `_budget_guard`
 | 2 | **W1 + W2** price ceiling + supply match | ✅ **done** — basket floor 19→10 %, STRAW px 70→108, WOOL floor 24→0, discards 7.6→2.7; all watchlists PASS, residual floor is demand-side (§1c) |
 | 3 | **W2b** restore TOMATO + crop rotation | TOMATO back to ≥ 10 tiles, crop maxshare ≤ 45 % — **NOT STARTED** |
 | 3b | **W2c** late-YARN sheep response (§W2c) | SHEEP ≥ 8 whenever YARN opens before d20 — **NOT STARTED**, runs before W4 |
-| 4 | **W3a** idle-on-ready (worsened to 23 by W0) | `idle_units_ready_total` < 3, freed turns become harvests |
+| 4 | **W3a** ready-work substitution | ✅ **done** — `idle_units_ready` 21.6 → 2.7, idle share −29 %, floor −30 %, overflow −38 %, p10 +8.3 %; one regression: discards 3.6 → 6.2 (debt handed to W5/W7) |
+| 4b | **W3b** locked tiles | ✅ **already done by W0** — 46.7/game vs DSM 58.3, nothing left to do |
 | 5 | **W7** shed | end-day ≤ 5, peak ≤ 95, no product > 50 % |
-| 6 | **W5** discards | no WHEAT/STRAWBERRY in discards |
+| 6 | **W5** discards (**raised**: now 6.2/game after W3a, watch failing) | no WHEAT/STRAWBERRY in discards |
 | 7 | **W6** endgame | `weeds_peak` ≥ 9 |
 | 8 | **W4** scale | COW ≥ 9 / GOOSE ≥ 6, mix ≤ 22 %, feed_surplus ≥ 0 |
 | 9 | **W8** guard | buy/feed ≤ 1.1 |
