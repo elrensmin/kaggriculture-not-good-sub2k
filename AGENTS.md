@@ -188,6 +188,27 @@ Signal = a concrete defect observed in a specific game / day / step that hurts
 every game regardless of seed or opponent. If you can't point at one, it isn't an
 improvement — even if some mean moved.
 
+### Confound you must read every table with: the shop draw is a function of OUR play
+
+`_spawn_weeds` draws `rng.random()` once per **empty tile of both farms**, and the
+day's shop unlock is drawn from that **same RNG** immediately afterwards
+(`_end_of_day`). So the number of empty tiles we leave moves the shop RNG stream.
+
+Measured: the shop draw differs between arms in **18/18 games** (same seeds, same
+opponents). Concretely, `YARN_STORE` appeared in **9/18** games in `w0-235` and
+**15/18** in `w1-final`, and seed 5243533 has no YARN in one arm and YARN in the
+other.
+
+Consequences, for every table in this document:
+- A metric conditioned on a shop (e.g. "SHEEP in YARN worlds") is **not a
+  controlled comparison across arms** — the worlds themselves changed.
+- Seed+opponent pairing still holds (the episode seed is fixed); what diverges is
+  everything downstream of the RNG.
+- Always print the shop mix beside a shop-conditioned metric, and prefer
+  unconditional metrics when judging a patch.
+
+
+
 ## Why "never trust averages" runs deeper: the win‑vs‑money objective
 
 Distilled from the community notebook `wins-not-money.ipynb` (destbreso) — the

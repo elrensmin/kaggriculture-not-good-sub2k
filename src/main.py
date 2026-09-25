@@ -1072,15 +1072,42 @@ def _v219_native_day(native, day):
     return tape[day*24:min((day+1)*24,719)]
 
 
+# The TOMATO project required >= 3 PIZZA_SHOP/FARMERS_MARKET instances before it
+# would plant. With 5 shop slots drawn with replacement from 8 types that is
+# almost never true: measured across 18 games the maximum was 2, and 0/18 games
+# qualified -- which is why TOMATO sold 0 units in every one of them while DSM
+# runs 9.5-15.1 tiles. >= 1 is the honest "there is a buyer" test.
+#
+# MEASURED (18-game paired, shop_response shows the world shifted so treat the
+# shop-conditioned columns with care): TOMATO revives from 0 -> px $97, p10
+# 58,214 -> 60,644, floor 1047 -> 980, overflow 1.83 -> 1.89. ONE REGRESSION:
+# discarded_units_total 2.7 -> 3.6/game (+33%, past the +10% watch) -- that is
+# exactly what W5 targets, so it is taken here and paid down there.
+_V219_MIN_SHOPS = int(_tape_os.environ.get("KAGGICULTURE_V219_MIN_SHOPS", "1"))
+
+
+def _spare_land(tile):
+    """Land the spare-land projects may use.
+
+    These projects were written for a farm that never bought the SE quadrant, so
+    they required the target tiles to read `'LOCKED'`. W0 now buys SE (matching
+    DSM's NE d6 / SW d9 / SE d10), which turns those tiles into plain `None` and
+    silently switched both projects OFF -- TOMATO tiles went 10-16 -> 0 and the
+    YARN six-sheep project stopped firing. Owned-but-bare land is just as spare as
+    locked land, so accept both (and a weed, which the project digs anyway)."""
+    return tile == 'LOCKED' or tile is None or (
+        isinstance(tile, dict) and tile.get('kind') == 'WEED')
+
+
 def _v219_qualifies(obs, native):
     farm=obs['farms'][obs['player']]
-    if len(farm['tiles']) != 10 or set(farm['unlocked_quadrants']) != {'NW','NE','SW'}:
+    if len(farm['tiles']) != 10 or not {'NW','NE','SW'} <= set(farm['unlocked_quadrants']):
         return False
     if farm['money'] < 12000 or obs['market']['prices']['TOMATO'] < CROP_MIN_PRICE:
         return False
-    if sum(s in ('PIZZA_SHOP','FARMERS_MARKET') for s in obs['town']['unlocked_shops']) < 3:
+    if sum(s in ('PIZZA_SHOP','FARMERS_MARKET') for s in obs['town']['unlocked_shops']) < _V219_MIN_SHOPS:
         return False
-    if any(farm['tiles'][y][x] != 'LOCKED' for y in (5,6) for x in range(5,10)):
+    if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,10)):
         return False
     if obs['private']['seeds'].get('TOMATO',0) or obs['private']['shed'].get('TOMATO',0):
         return False
@@ -1781,9 +1808,9 @@ _V233_REPORT=dict(sheep_commit_requests=0,sheep_committed=0,sheep_hire_requests=
 
 def _v233_eligible(obs,native):
     farm=obs['farms'][obs['player']];prices=obs['market']['prices']
-    if len(farm['tiles'])!=10 or set(farm['unlocked_quadrants'])!={'NW','NE','SW'}:return False
+    if len(farm['tiles'])!=10 or not {'NW','NE','SW'}<=set(farm['unlocked_quadrants']):return False
     if obs['town']['unlocked_shops'].count('YARN_STORE')<2 or prices['WOOL']<220 or prices['WHEAT']>45:return False
-    if any(farm['tiles'][y][x]!='LOCKED' for y in (5,6) for x in range(5,8)):return False
+    if any(not _spare_land(farm['tiles'][y][x]) for y in (5,6) for x in range(5,8)):return False
     if obs['private']['shed'].get('SHEEP',0) or any(i.get('SHEEP',0) for i in obs['private']['inventories']):return False
     for day in range(12,30):
         for a in _v219_native_day(native,day):
@@ -7179,6 +7206,33 @@ _RATE_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_RATE_BUFFER", "100"))
 # ceiling exactly when it was needed: measured, it left floor at 1708 -> 1686,
 # i.e. no effect, while the day-end relief still guarantees no eviction.
 _RATE_SHED_SLACK = int(_tape_os.environ.get("KAGGICULTURE_RATE_SHED_SLACK", "2"))
+# DEMAND-SCALED CEILING. How fast the market drains depends on how many shops buy
+# the good: each shop consumes on its own timer, so 0 buyer shops means only the
+# town centre (1/day) is drawing the book down. A flat I0+100 ceiling therefore
+# over-sells exactly the worlds that cannot absorb it. Measured (tools/shop_response.py,
+# w1-final): MILK with its first buyer shop unlocking d9+ prices at $39 vs $219 for
+# d0-5, and floors 14.5%; WOOL with no YARN_STORE at all floors 37.6%. DSM's own
+# no-shop behaviour agrees: with no YARN_STORE he sells 46 wool at $117 (a band of
+# ~I0+35) and with no milk shop 54 milk at $66 (~I0+45), against I0+100 when the
+# shops are there.
+#
+# MEASURED VERDICT: default OFF. Narrowing the band when the buyer shops are absent
+# made things WORSE, not better -- WOOL floor in the no-YARN games went 37.6 % ->
+# 54.4 % (total floor 1047 -> 1140) with the shop draws held identical between the
+# two arms (verified: shop_response --vs reports no divergence). The reason is the
+# same trap as everywhere else on this tape: for a good with essentially no buyer,
+# holding does not fetch a better price, it only fills the shed until the day-end
+# relief dumps it. The no-shop leg is a PRODUCTION problem (run fewer sheep; see
+# _SHEEP_CAP_NOYARN), not a sell-timing one.
+_RATE_SHOP_SCALE = _tape_os.environ.get("KAGGICULTURE_RATE_SHOP_SCALE", "0") == "1"
+_RATE_MIN_BUFFER = int(_tape_os.environ.get("KAGGICULTURE_RATE_MIN_BUFFER", "40"))
+# item -> the shops that buy it (single-product shops consume 2/turn, multi 1, but
+# for a band ceiling the count is what matters).
+_RATE_BUYERS = {
+    "WOOL": ("YARN_STORE",),
+    "MILK": ("PIZZA_SHOP", "ICE_CREAM_SHOP", "SMOOTHIE_SHOP"),
+    "STRAWBERRY": ("BRUNCH_SPOT", "ICE_CREAM_SHOP", "SMOOTHIE_SHOP", "FARMERS_MARKET"),
+}
 _RATE_ITEMS = tuple(c.strip().upper() for c in _tape_os.environ.get(
     "KAGGICULTURE_RATE_ITEMS", "STRAWBERRY,MILK,WOOL").split(",") if c.strip())
 _STRAWRATE = {}
@@ -7187,13 +7241,19 @@ _STRAWRATE_REPORT = dict(rate_trimmed=0, rate_passed=0, rate_errors=0,
                          ceiling_hits=0, budget_trimmed=0)
 
 
-def _inv_ceiling(item, params, buffer=None):
+def _inv_ceiling(item, params, n_shops=None):
     """Largest shared market inventory we may sell into: ``I0 + buffer``.
 
-    Kept as a function so the per-item curve stays available if a product ever
-    needs a curve-derived band instead of the flat DSM one."""
+    With ``_RATE_SHOP_SCALE`` the buffer narrows when few buyer shops are open:
+    buffer * (min(n,2)+1)/3, floored at `_RATE_MIN_BUFFER`. So 2+ shops -> I0+100
+    (DSM's hard stop), 1 shop -> ~I0+67, 0 shops -> I0+40."""
     p = params.get(item) or _R37_MARKET_PARAMS[item]
-    return int(p.get("I0", 10000)) + (int(_RATE_BUFFER) if buffer is None else int(buffer))
+    buf = int(_RATE_BUFFER)
+    buyers = _RATE_BUYERS.get(item)
+    if _RATE_SHOP_SCALE and n_shops is not None and buyers is not None:
+        n = min(int(n_shops), 2)
+        buf = max(int(buf * (n + 1) / 3), _RATE_MIN_BUFFER)
+    return int(p.get("I0", 10000)) + buf
 
 
 def _rate_apply(action, observation, configuration=None):
@@ -7247,7 +7307,8 @@ def _rate_apply(action, observation, configuration=None):
             item = o[1]
             q = max(0, int(o[2]))
             if item not in room:
-                room[item] = max(0, _inv_ceiling(item, params)
+                n_shops = sum(1 for b in _RATE_BUYERS.get(item, ()) if b in shops)
+                room[item] = max(0, _inv_ceiling(item, params, n_shops)
                                  - int(inv.get(item, 0)))
                 if room[item] <= 0:
                     _STRAWRATE_REPORT["ceiling_hits"] += 1

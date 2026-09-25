@@ -353,24 +353,6 @@ projected remainder of `item_need["WHEAT"]` (already computed in `_budget_guard`
 
 ---
 
-## 5. The W1/W2 trap
-
-Holding supply → the glut sits in the shed → the shed guard fires → we dump anyway,
-and floor goes *up* (measured MILK 56 → 265). Four patches, all required:
-
-1. **Ordering** — `_rate_apply` last, so nothing reapplies supply.
-2. **`_wheat_relief_apply` respects the ceiling** for basket items (W5) — the
-   previous failure's direct cause.
-3. **Production matches** (W2) — supply never exceeds what the shops absorb; this
-   is the half that was missing.
-4. **W7 gives held stock somewhere to live** — peak ≤ 93 and a thin day-end
-   reserve leaves ~35 units of headroom before the force-drop is at risk.
-
-**Gate:** `shed_overflow_days` and `stranded_at_bell` must not move. "Floor down,
-overflow up" is a **failure**.
-
----
-
 ## 6. Sequencing
 
 | # | step | gate |
@@ -379,7 +361,8 @@ overflow up" is a **failure**.
 | 1 | **W0** land at DSM's timing (NE d6 / SW d9 / SE d10) | ✅ **done, accepted with a known cost** — 4 quadrants 100 %, `locked_steps` 197→79, feed clean; p10 watch still fails (W1's to clear) |
 | 1b | **recalibrate** — re-read every target off `docs/w0/dsm_profile.txt` | ✅ done — §1b; downstream gates now use `--baseline diag-replays/base-235` |
 | 2 | **W1 + W2** price ceiling + supply match | ✅ **done** — basket floor 19→10 %, STRAW px 70→108, WOOL floor 24→0, discards 7.6→2.7; all watchlists PASS, residual floor is demand-side (§1c) |
-| 3 | **W2b** restore TOMATO + crop rotation + YARN herd response | TOMATO back to ≥ 10 tiles, crop maxshare ≤ 45 %, SHEEP ≥ 8 in YARN worlds |
+| 3 | **W2b** restore TOMATO + crop rotation | TOMATO back to ≥ 10 tiles, crop maxshare ≤ 45 % — **NOT STARTED** |
+| 3b | **W2c** late-YARN sheep response (§W2c) | SHEEP ≥ 8 whenever YARN opens before d20 — **NOT STARTED**, runs before W4 |
 | 4 | **W3a** idle-on-ready (worsened to 23 by W0) | `idle_units_ready_total` < 3, freed turns become harvests |
 | 5 | **W7** shed | end-day ≤ 5, peak ≤ 95, no product > 50 % |
 | 6 | **W5** discards | no WHEAT/STRAWBERRY in discards |
@@ -413,3 +396,96 @@ the acceptance command, plus `tools.dsm_profile --compare` for the deep read.
   revenue suffers, but the target is the bucket count, not the buffer value.
 - **Deliverable:** rewrite `docs/todo.md` from the strategic version to this
   per-function plan with the targets/watchlists, so the gates live in the repo.
+
+
+------------------------------------------
+
+
+### late-YARN sheep response (do this BEFORE W4)
+
+**Symptom.** `SHEEP max in YARN worlds` reads 9 (w0-235) -> 3 (w1-final) -> DSM 10.
+Most of that is the confound above (more games have YARN now), but the residual is
+a real defect with a clean mechanism.
+
+**Diagnosis (one command).** `tools/shop_response.py` exists so this is not a
+hand-parse again — it prints the shop mix, then every animal->product->shop pair by
+unlock-day bucket:
+
+```
+PYTHONPATH=src:. python -m tools.shop_response --dir diag-replays/w1-final \
+    --vs diag-replays/w0-235
+```
+
+```
+  WOOL <- SHEEP   (buyer: YARN_STORE)
+   shop present        15    3    4    4    8 |   93  192   5.1%
+     unlock d0-5        3   10   11   11   10 |  230  245   0.0%
+     unlock d6-8        3   10   11   11   10 |  208  111  16.5%
+     unlock d9+         9    2    2    2    0 |   67  192   0.0%
+   shop ABSENT          3    3    4    4    8 |   62   83  37.6%
+```
+
+Report stored at [`docs/w1/shop_response.txt`](w1/shop_response.txt). The same run
+also shows **TOMATO sold 0 units in 18/18 games** (W2b) and **WOOL floor 37.6 % in
+the no-YARN games**.
+
+Bucketing the w1-final YARN games by the day `YARN_STORE` unlocked:
+
+| YARN unlock day | games | SHEEP bought | last sheep buy |
+|---|---|---|---|
+| d3 | 3 | **10** | d10 |
+| d6 | 3 | **10** | d10 |
+| d9 | 3 | **2** | d0 |
+| d12 | 6 | **3** | d8 |
+
+`_sheepcap_apply` caps SHEEP at `_SHEEP_CAP_YARN=9` when `YARN_STORE` is in
+`town.unlocked_shops`, else `_SHEEP_CAP_NOYARN=3`. That is correct *at the moment
+it runs* — but the tape's sheep buys all land on **days 8-10**. When YARN opens at
+d9 or d12 we have already been capped at 3, and **we never re-attempt the buy
+after the unlock**. DSM's median YARN unlock is d6 and he runs 10 sheep.
+
+**The ceiling on this fix is CAPACITY, not policy.** Structure occupancy at the bell,
+by YARN unlock bucket (w1-final, n=18):
+
+| YARN unlock | n | sheep | geese | pastures | coops | **empty pastures** |
+|---|---|---|---|---|---|---|
+| d0-5 | 3 | **9** | 0 | 17 | 1 | 3 |
+| d6-8 | 3 | **9** | 0 | 17 | 1 | 3 |
+| d9+ | 9 | **2** | 5 | 12 | 6 | **2** |
+| absent | 3 | 3 | 6 | 10 | 8 | 2 |
+
+When YARN is not among the **first two shops** the router commits to a goose route
+(12 pastures / 6 coops, 5 geese), so a late unlock arrives to ~2 spare pastures.
+The realistic late-YARN gain is therefore **~2-3 sheep, not 7** — unless the *route
+selection* changes, which AGENTS.md warns is the expensive direction. W2c should
+target "use the spare pastures", and the route question should be logged separately
+rather than smuggled in.
+
+**A sell-side variant was tried and REJECTED.** Narrowing the price band when the
+buyer shops are absent (`_RATE_SHOP_SCALE`, now default OFF) made WOOL floor in the
+no-YARN games go **37.6 % -> 54.4 %** (total floor 1047 -> 1140) with the shop draws
+verified identical between arms (`shop_response --vs` reported no divergence, so the
+comparison is controlled). Same trap as everywhere on this tape: for a good with no
+buyer, holding does not fetch a better price, it only fills the shed until the
+day-end relief dumps it. **The no-shop leg is a production problem, not a timing
+one.**
+
+**Change.** When `YARN_STORE` appears *after* the tape's last sheep buy, re-run the
+herd decision once: if we are under `_SHEEP_CAP_YARN` and empty PASTUREs exist,
+herd decision once: if we are under `_SHEEP_CAP_YARN` and empty PASTUREs exist,
+issue `BUY_ANIMAL SHEEP` plus the matching `PICKUP`/`PLACE` path so the animals are
+housed and not stranded in the shed. The machinery exists (`_v231_controller` does
+sheep<->cow swaps at the day-8/9 anchor with reservation tracking; `_SHEEPCAP_CONVERT`
+already handles the over-cap direction) — extend it rather than adding a layer, and
+keep it downstream of `layer_38_hd2` per the AGENTS.md warning.
+
+**Guard against the opposite error.** Do NOT simply raise `_SHEEP_CAP_NOYARN`: in a
+world that never unlocks YARN, wool's only other buyer is the town centre (1/day),
+so ~59 surplus units crash the price 200 -> $1 permanently. The cap is right; only
+the *timing* is wrong.
+
+**Accept.** SHEEP >= 8 in YARN worlds **conditioned on the unlock day** (i.e. buy
+count >= 8 whenever YARN opens before day 20), `animal_escapes` not increased,
+`feed_surplus`/`at_risk_of_escape` clean, and no wool floor regression in the
+no-YARN games.
+

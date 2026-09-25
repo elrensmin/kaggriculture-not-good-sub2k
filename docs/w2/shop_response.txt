@@ -1,0 +1,97 @@
+
+############ w2b-b  (18 games) ############
+-- 1. SHOP MIX (read this before any shop-conditioned number) --
+   shop                games   unlock-day distribution
+   YARN_STORE             18   d3:3  d6:3  d9:3  d12:6  d24:3
+   PIZZA_SHOP             12   d12:3  d21:8  d24:1
+   ICE_CREAM_SHOP         12   d3:3  d6:3  d9:1  d15:3  d18:2
+   SMOOTHIE_SHOP          15   d6:3  d9:2  d12:1  d15:3  d24:6
+   BAKERY                  9   d3:3  d6:3  d9:3
+   BRUNCH_SPOT             6   d12:3  d18:3
+   PET_CAFE               15   d3:6  d9:3  d15:3  d18:3
+   FARMERS_MARKET          9   d3:3  d9:3  d24:3
+
+-- 2. ANIMAL PAIRS: herd response to the buyer shop --
+   condition            n       buy  placed   herd   lastbuy |     sold     px  floor%  nosale
+  WOOL <- SHEEP   (buyer: YARN_STORE)
+   shop present        18         3       4      4         8 |       93    192    6.5%       0
+     unlock d0-5        3        10      11     11        10 |      230    245    0.0%       0
+     unlock d6-8        3        10      11     11        10 |      208    111   16.5%       0
+     unlock d9+        12         3       4      4         8 |       67    192    4.6%       0
+  MILK <- COW   (buyer: PIZZA_SHOP, ICE_CREAM_SHOP, SMOOTHIE_SHOP)
+   shop present        18         6       6      6         7 |      161     59    8.5%       0
+     unlock d0-5        3         6       6      6         7 |      161    219    0.0%       0
+     unlock d6-8        6         8       8      8         7 |      208     59    5.5%       0
+     unlock d9+         9         5       6      6         7 |      130     39   14.7%       0
+  EGG  <- GOOSE   (buyer: BAKERY, BRUNCH_SPOT)
+   shop present        12         7       7      7        11 |      220     49    0.0%       3
+     unlock d0-5        3         6       7      7        11 |      155     49    0.0%       0
+     unlock d6-8        3         7       7      7        11 |      220     50    0.0%       0
+     unlock d9+         6         7       7      7        11 |      222     45    0.0%       3
+   shop ABSENT          6        12       7      7        12 |      122     45    0.0%       3
+
+-- 3. CROP/PRODUCT PAIRS: supply response to the buyer shop --
+  MELON   (buyer: FARMERS_MARKET)
+   shop present         9                                    |       72    200    0.0%       0
+   shop ABSENT          9                                    |       72    198    0.0%       0
+  TOMATO   (buyer: PIZZA_SHOP, FARMERS_MARKET)
+   shop present        15                                    |        0     97    0.0%      12
+   shop ABSENT          3                                    |        0      0    0.0%       3
+  CARROT   (buyer: PET_CAFE, FARMERS_MARKET)
+   shop present        15                                    |      172     57    0.0%       0
+   shop ABSENT          3                                    |       83     28    0.0%       0
+  STRAWBERRY   (buyer: BRUNCH_SPOT, ICE_CREAM_SHOP, SMOOTHIE_SHOP, FARMERS_MARKET)
+   shop present        18                                    |      130    108   12.9%       0
+  WHEAT   (buyer: BAKERY, PIZZA_SHOP, BRUNCH_SPOT, ICE_CREAM_SHOP, FARMERS_MARKET)
+   shop present        18                                    |      432     36    0.0%       0
+
+############ w1-final  (18 games) ############
+-- 1. SHOP MIX (read this before any shop-conditioned number) --
+   shop                games   unlock-day distribution
+   YARN_STORE             15   d3:3  d6:3  d9:3  d12:6
+   PIZZA_SHOP             12   d12:3  d21:8  d24:1
+   ICE_CREAM_SHOP         12   d3:3  d6:3  d9:1  d15:3  d18:2
+   SMOOTHIE_SHOP          15   d6:3  d9:2  d12:1  d15:3  d24:6
+   BAKERY                  9   d3:3  d6:3  d9:3
+   BRUNCH_SPOT             6   d12:3  d18:3
+   PET_CAFE               15   d3:6  d9:3  d15:3  d18:3
+   FARMERS_MARKET          9   d3:3  d9:3  d24:3
+
+-- 2. ANIMAL PAIRS: herd response to the buyer shop --
+   condition            n       buy  placed   herd   lastbuy |     sold     px  floor%  nosale
+  WOOL <- SHEEP   (buyer: YARN_STORE)
+   shop present        15         3       4      4         8 |       93    192    5.1%       0
+     unlock d0-5        3        10      11     11        10 |      230    245    0.0%       0
+     unlock d6-8        3        10      11     11        10 |      208    111   16.5%       0
+     unlock d9+         9         2       2      2         0 |       67    192    0.0%       0
+   shop ABSENT          3         3       4      4         8 |       62     83   37.6%       0
+  MILK <- COW   (buyer: PIZZA_SHOP, ICE_CREAM_SHOP, SMOOTHIE_SHOP)
+   shop present        18         6       6      6         7 |      161     59    8.5%       0
+     unlock d0-5        3         6       6      6         7 |      161    219    0.0%       0
+     unlock d6-8        6         8       8      8         7 |      208     59    5.5%       0
+     unlock d9+         9         5       6      6         7 |      130     39   14.5%       0
+  EGG  <- GOOSE   (buyer: BAKERY, BRUNCH_SPOT)
+   shop present        12         7       7      7        11 |      222     48    0.0%       3
+     unlock d0-5        3         6       7      7        11 |      155     49    0.0%       0
+     unlock d6-8        3         7       7      7        11 |      222     48    0.0%       0
+     unlock d9+         6         7       7      7        11 |      222     45    0.0%       3
+   shop ABSENT          6         6       7      7        11 |      122     45    0.0%       3
+
+-- 3. CROP/PRODUCT PAIRS: supply response to the buyer shop --
+  MELON   (buyer: FARMERS_MARKET)
+   shop present         9                                    |       72    200    0.0%       0
+   shop ABSENT          9                                    |       72    198    0.0%       0
+  TOMATO   (buyer: PIZZA_SHOP, FARMERS_MARKET)
+   shop present        15                                    |        0      0    0.0%      15
+   shop ABSENT          3                                    |        0      0    0.0%       3
+  CARROT   (buyer: PET_CAFE, FARMERS_MARKET)
+   shop present        15                                    |      178     58    0.0%       0
+   shop ABSENT          3                                    |       83     28    0.0%       0
+  STRAWBERRY   (buyer: BRUNCH_SPOT, ICE_CREAM_SHOP, SMOOTHIE_SHOP, FARMERS_MARKET)
+   shop present        18                                    |      130    108   14.1%       0
+  WHEAT   (buyer: BAKERY, PIZZA_SHOP, BRUNCH_SPOT, ICE_CREAM_SHOP, FARMERS_MARKET)
+   shop present        18                                    |      432     36    0.0%       0
+
+-- 4. SHOP-MIX DIVERGENCE between the two arms --
+   YARN_STORE          18 -> 15   (worlds differ)
+   NOTE: any shop-conditioned number above is NOT controlled across arms unless this section is empty.
