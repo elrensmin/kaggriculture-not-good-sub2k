@@ -7387,8 +7387,18 @@ _OVERFLOW_RELIEF_ON = _tape_os.environ.get("KAGGICULTURE_OVERFLOW_RELIEF", "1") 
 _WHEAT_RELIEF_ON = _OVERFLOW_RELIEF_ON          # backwards-compatible alias
 # Its own threshold, NOT the hold reserve: reusing cap-reserve made it dump feed
 # wheat from the 40s and starve the herd (measured: revenue collapsed to $42k).
-_WHEAT_RELIEF_MARGIN = int(_tape_os.environ.get("KAGGICULTURE_WHEAT_RELIEF_MARGIN", "15"))
-_WHEAT_KEEP = int(_tape_os.environ.get("KAGGICULTURE_WHEAT_KEEP", "25"))
+# The relief can only SELL FROM THE SHED, but the units the day-end drop evicts
+# are in the WORKERS' HANDS -- so the margin must cover the incoming dump, not
+# just tidy the shed. 15 was too small: measured, 40 cuts discards 6.22 -> 5.56
+# (-11%) and floor 686 -> 666 with overflow flat at 1.17 (18-game paired).
+_WHEAT_RELIEF_MARGIN = int(_tape_os.environ.get("KAGGICULTURE_WHEAT_RELIEF_MARGIN", "40"))
+# End-of-day feed ballast. Measured at the hour-23 drop we hold 8.84u of WHEAT
+# against DSM's 1.47u -- six times his ballast -- and it is what the force-drop
+# evicts. Selling it down is the single strongest W5/W7 lever: discards 6.22 ->
+# 3.11/game (-50%) and overflow 1.17 -> 0.67 at KEEP=5, with floor, money, p10 and
+# at_risk_of_escape all flat-to-better (feed_surplus min -28 in every setting; the
+# herd simply buys the wheat it used to warehouse).
+_WHEAT_KEEP = int(_tape_os.environ.get("KAGGICULTURE_WHEAT_KEEP", "5"))
 # Sell order: cheapest/lumpiest goods first. STRAWBERRY is deliberately late
 # because `_straw_rate_apply` throttles it to shop demand on purpose; FERTILIZER
 # and EGG are the classic overflow victims and cost least to move.

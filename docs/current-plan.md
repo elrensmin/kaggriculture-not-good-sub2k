@@ -244,6 +244,88 @@ and clean.
 
 ---
 
+## 1e. W5 — discards: the premise was wrong, and one real fix found
+
+Trace tool: **`tools/discards.py`** -> [`docs/w5/discards.txt`](w5/discards.txt).
+
+**Our discards are exact (audit); DSM's are not measurable.** The audit wraps
+`_drop_inventories_to_shed`, so for our arm we have the real numbers, and they show
+that **100 % of our discards are day-end** (mid-turn = 0):
+
+| item | units/game | share |
+|---|---|---|
+| WHEAT | **3.28** | 53 % |
+| FERTILIZER | 1.50 | 24 % |
+| STRAWBERRY | **1.33** | 21 % |
+| CARROT | 0.11 | 2 % |
+| **total** | **6.22** | |
+
+LB replays carry no audit, so DSM's composition has to be modelled from the hour-23
+force-drop. Calibrating that model against our own audit puts its **total** within
+-10 % (5.61 vs 6.22) but its **per-item** split is badly wrong (it reports WHEAT
+0.44 / STRAWBERRY 0.22 against an actual 3.28 / 1.33), because it computes room
+from the start-of-step shed rather than the post-market, post-unit shed. **So the
+`dsm_v1.md` claim that DSM's discards are "EGG-dominated, ~16/game, spread over all
+nine" is not verifiable by this method** and should be treated as an artefact of an
+earlier estimator, not a target to chase. `docs/w5/discards.txt` prints the model
+and the calibration side by side and labels which is which.
+
+**The real mechanism, and the fix.** `_wheat_relief_apply` correctly adds the forced
+inventory dump to its projection, but it can only **SELL FROM THE SHED** — while the
+units the drop actually evicts are in the **workers' hands**. The margin therefore
+has to cover the whole incoming dump, and `_WHEAT_RELIEF_MARGIN=15` was far too
+small. Measured at 40: **discards 6.22 -> 5.56 (-11 %), floor 686 -> 666, overflow
+flat at 1.17, risk 0**. Promoted (default 40).
+
+**Still open.** WHEAT + STRAWBERRY are still 4.6 of the 5.56 units. Closing that
+needs the shed to stop being pinned at 100 (W7) so the relief is not fighting for
+space every night — the two are one fix, and W7 is next.
+
+---
+
+## 1f. W7 / W5-residual — the feed ballast was the whole problem
+
+**Status: shipped ON.** `_WHEAT_KEEP` 25 -> **5**. Reports: [`docs/w7/`](w7/).
+Trace: `tools/dsm_profile.py` (it already prints end/peak shed per day plus the
+end-of-day composition, so no new tool was needed here).
+
+**The measurement that found it.** At the hour-23 drop we hold **8.84u of WHEAT**
+against DSM's **1.47u** -- six times his feed ballast -- and WHEAT is what the
+force-drop then evicts. That single number explains both W5's residual (WHEAT 3.28
+of 6.22 discarded units) and W7's composition target (WHEAT ~90 % of the day-end
+shed).
+
+**Sweep (18-game paired; all else equal including the margin-40 relief):**
+
+| `_WHEAT_KEEP` | discards/game | overflow days | floor | money | p10 | risk |
+|---|---|---|---|---|---|---|
+| 25 | 6.22 | 1.17 | 686 | 75,138 | 65,689 | 0 |
+| 12 | 4.94 | 1.00 | 675 | 75,154 | 65,450 | 0 |
+| **5 (shipped)** | **3.11** | **0.67** | 670 | 75,449 | 65,428 | 0 |
+| 0 | 2.11 | 0.50 | 678 | 75,635 | 65,427 | 0 |
+
+Monotonic, with **no regression anywhere**: discards -50 %, overflow -43 %, floor
+flat-to-better, money slightly up, p10 flat, `at_risk_of_escape` 0 throughout, and
+`stranded_at_bell` 0. `feed_surplus` min is -28 in *every* setting including KEEP=25,
+so that is not caused by this change -- the herd simply buys the wheat it used to
+warehouse. 0 was marginally better but keeps no reserve at all; 5 is the safe point.
+
+**W7 targets after the change** (baseline was end-day 11.35, peak 100 [100-100]):
+
+| target | before | after | met? |
+|---|---|---|---|
+| end-of-day shed mean <= 5 | 11.35 | **8.3 [8.1-9.7]** | improved, NOT met |
+| mid-day peak <= 95 | 100 [100-100] | **100 [95-100]** | NOT met |
+| largest product <= 50 % at day end | ~90 % WHEAT | still WHEAT-led most days | NOT met |
+
+So the **W5 residual is closed** (discards 6.22 -> 3.11) but **W7's own targets are
+only partly met**: the shed still touches 100 mid-day. The ballast was the ballast;
+the peak is a separate mechanism (harvests landing mid-day faster than the market
+drains them) and needs its own lever -- likely selling earlier in the day rather
+than only at hour 23.
+
+---
+
 ## 2. Tooling
 
 ### 2a. Extend `tools/dsm_profile.py`
@@ -422,7 +504,7 @@ projected remainder of `item_need["WHEAT"]` (already computed in `_budget_guard`
 | 3b | **W2c** late-YARN sheep response (§W2c) | SHEEP ≥ 8 whenever YARN opens before d20 — **NOT STARTED**, runs before W4 |
 | 4 | **W3a** ready-work substitution | ✅ **done** — `idle_units_ready` 21.6 → 2.7, idle share −29 %, floor −30 %, overflow −38 %, p10 +8.3 %; one regression: discards 3.6 → 6.2 (debt handed to W5/W7) |
 | 4b | **W3b** locked tiles | ✅ **already done by W0** — 46.7/game vs DSM 58.3, nothing left to do |
-| 5 | **W7** shed | end-day ≤ 5, peak ≤ 95, no product > 50 % |
+| 5 | **W7** shed + **W5 residual** | ⚠️ **partly done** — `_WHEAT_KEEP` 25→5 closes the W5 residual (discards 6.22→3.11, overflow 1.17→0.67, no regression) and takes end-day 11.35→8.3; **peak still 100**, needs its own lever |
 | 6 | **W5** discards (**raised**: now 6.2/game after W3a, watch failing) | no WHEAT/STRAWBERRY in discards |
 | 7 | **W6** endgame | `weeds_peak` ≥ 9 |
 | 8 | **W4** scale | COW ≥ 9 / GOOSE ≥ 6, mix ≤ 22 %, feed_surplus ≥ 0 |

@@ -1,8 +1,10 @@
 # DSM — the complete picture
 
 A data-backed anatomy of the team sitting at the top of the ladder, rebuilt from
-their own 123 leaderboard replays. Everything here is measured; nothing is
-inferred from a vibe. Where a number is an estimate, it says so.
+their own 123 leaderboard replays. Every figure is tagged by provenance at the top
+of this file, and nothing here is inferred from a vibe. Where a number is modelled
+rather than measured it says so — and where it turned out to be **unmeasurable** it
+has been retracted rather than kept (see §7).
 
 - **Source:** `replays/DSM/v1/` — 123 episode replays (`episode-*.json`), 4.2 GB.
 - **Extraction:** `tools/dsm_extract.py` → `tools/dsm_report.py`
@@ -13,6 +15,34 @@ inferred from a vibe. Where a number is an estimate, it says so.
   audit**, so every `revenue_*` / `avg_price_*` column in `days_seed*.csv` is
   zero. All flows here are reconstructed from the replay's own per-step
   `action` + `observation` stream, which is exact for counts and positions.
+
+---
+
+> ## Measurement provenance — read before using any number in this file
+>
+> Every figure here is tagged by *how* it was obtained, and the tag decides how much
+> weight it can carry:
+>
+> | tag | meaning | safe for |
+> |---|---|---|
+> | **audited** | the env's market audit (`_diagnose_meta.audit`) | everything |
+> | **observed** | read straight off a replay observation — tiles, shed, worker inventories, market inventory/prices, `town.unlocked_shops` | exact counts and states |
+> | **derived** | arithmetic over audited/observed values (e.g. `harvested = dW - bought + fed + sold`) | totals, under the stated assumption |
+> | **modelled** | reconstructed where the data does not exist (e.g. the day-end discard of an unaudited replay) | orders of magnitude only |
+>
+> **Leaderboard replays carry no market audit.** So for DSM the audit-backed fields
+> are missing entirely — `discarded_units_total`, `sell_revenue_total`, `revenue_*`,
+> realised `avg_price_*` — and anything built on them is *modelled*. Two rules:
+>
+> 1. **Never promote a modelled number to a target.** If it cannot be audited or
+>    directly observed it cannot be a KPI. §7's discard table was withdrawn for
+>    exactly this reason; it had been used as a target.
+> 2. **Calibrate any model against the audited arm first.** A model that gets the
+>    total right can still get the composition wrong — measured: −10 % on the
+>    discard total, but ~7× wrong on WHEAT (0.44 modelled vs 3.28 actual per game).
+>
+> Where a claim below is modelled it now says so inline, and the tools print the
+> model and its calibration side by side (`tools/discards.py`).
 
 ---
 
@@ -255,25 +285,21 @@ WHEAT is the ballast — it is the feed reserve and the most liquid commodity.
 FERTILIZER is almost absent (3.4/game), which is the tell: he collects it and
 gets rid of it, he does not warehouse it.
 
-**Some discards still happen** (estimated from units force-dropped at hour 23
-that did not fit — an estimate, since there is no audit):
+**Discards: RETRACTED — not measurable from this corpus.** An earlier revision of
+this file claimed DSM discards "≈19 units/game, ~0.65 per game-day, spread thinly
+across all nine products, EGG-dominated (497 units)". That came from a *model* of the
+hour-23 force-drop, and the model does not survive calibration. Run against our own
+arm, where the audit gives the exact answer, it lands the **total** within −10 %
+(5.61 modelled vs 6.22 actual per game) but gets the **composition** badly wrong —
+WHEAT 0.44 modelled vs 3.28 actual, STRAWBERRY 0.22 vs 1.33 — because it computes
+the free room from the start-of-step shed instead of the post-market, post-unit one.
 
-| item | units over 123 games | per game |
-|---|---|---|
-| EGG | 497 | 4.0 |
-| MILK | 385 | 3.1 |
-| STRAWBERRY | 348 | 2.8 |
-| WHEAT | 306 | 2.5 |
-| TOMATO | 295 | 2.4 |
-| CARROT | 249 | 2.0 |
-| WOOL | 235 | 1.9 |
-| FERTILIZER | 58 | 0.5 |
-| MELON | 11 | 0.1 |
+There is no market audit in these replays, so DSM's true discard composition is
+**unrecoverable**, and the claim above was being used as a target. Do not rebuild it.
 
-≈ **19 units/game, ~0.65 per game-day**, spread thinly across all nine products.
-115 of 123 games have at least one discard. So the leader is *not* discard-free —
-he is discard-*flat*: no single product ever piles up enough to dominate the
-loss, because the sell rule keeps every one of them moving.
+What *is* observed and safe to build on: the **end-of-day shed total** — median **4**,
+min 0, max 11, with 1112 of 3690 game-days ending at exactly 0 — and the fact that
+the shed is a transit buffer, not storage (§7 above).
 
 ---
 
@@ -474,9 +500,9 @@ Distilled, in priority order. Each one is directly supported by a table above.
    output the market can no longer take.
 6. **Diversify revenue.** Nine lines, none above 22 %. Do not optimise a single
    product's throughput.
-7. **Keep the shed full but rotating, and let the loss be flat.** ~19 discard
-   units/game spread across all nine products; no product ever becomes the
-   dumping ground.
+7. **Keep the shed full but rotating.** The end-of-day shed total (median 4) is
+   the observed signal; the earlier "~19 discard units/game, spread evenly" figure
+   is withdrawn as unmeasurable — see §7.
 8. **The objective is the loss tail, not the win size.** 118–5, and all five
    losses are under $3 600. Nothing DSM does is worth a $20 000 blow-up.
 
@@ -484,9 +510,13 @@ Distilled, in priority order. Each one is directly supported by a table above.
 
 ## 12. Known gaps in this analysis
 
-- **Discards are estimated**, not audited: the day-end figure is the overflow
-  from the hour-23 force-drop under the assumption that the drop order is the
-  inventory iteration order. Treat the totals as ±10 %.
+- **Discards are NOT measurable here.** The day-end figure has to be modelled from
+  the hour-23 force-drop, and that model calibrates badly against our own audited
+  arm: −10 % on the total but ~7x wrong per item. See the retraction in §7 — no
+  per-item discard claim for DSM should be used at all.
+- **`land_cost_total` is unusable for LB replays** — it reports up to 88,000 against
+  a real ceiling of 7,000 (1,000 + 2,000 + 4,000). Read quadrants from the replay's
+  `unlocked_quadrants` instead.
 - **Revenue per product** is computed from the quoted price at order time
   (`market.prices[item]` when the SELL was issued), not from a committed-trade
   audit. Because the engine quotes per unit in lockstep, this is close but not
