@@ -129,7 +129,7 @@ per-defect form of the headline, and it is where the *shape* of the loss lives:
 
 The `harvests` row is the whole document in one line. Note also the pairing of rows 2 and 8: **we lose
 6.5× the plants and leave 12× the harvest on the table while being no worse at watering** — so this
-is not carelessness, it is the *scheduling* defects of §3.4–§3.5.
+is not carelessness, it is the *scheduling* defects of §3 (GROUP B).
 
 And note the two rows where we "win": `shed_overflow_days` and `floor_sales` are both **better than
 DSM's**, and both are *artefacts of being small*. A shed that never reaches 80 units cannot overflow;
@@ -209,7 +209,7 @@ day (median):
 
 We do eventually buy all four (12/12 games), so this is not a decision failure — it is a 4–11 day
 *timing* failure. For ten days we farm 40 tiles where DSM farms 100, and that cap is what makes the
-wheat curve in §3.2 look the way it does.
+wheat curve in §3.1 look the way it does.
 
 ### 2.2 The movement signature of the opening
 
@@ -226,7 +226,7 @@ structural and it is the same reason as (b). At every day boundary `_end_of_day`
 clears every carried inventory; each re-hired hand enters on a free shed-access tile
 (`_spawn_hand`). **So the shed is the daily origin of every unit in the game, for both players.**
 DSM's animal ring is shed-adjacent, so his hands begin work on the first or second turn; ours walk
-3–6 tiles to crops before the first act — visible in the raw trace in §3.5, where our farmer starts
+3–6 tiles to crops before the first act — visible in the trace below, where our farmer starts
 at `h00@4,4` and does not perform her first act until `h07@3,0`, six moves later. `movement`
 measures the whole-game consequence over the full 96-game arm versus 12 leaderboard replays:
 
@@ -274,6 +274,8 @@ Both arms through the **same extractor and aggregation**. Ours live, `--pa 1-12 
 
 | d0-d5 metric | ours | #1 | ratio | |
 |---|---|---|---|---|
+| **sell revenue (d0-d5)** | **$2,208** | **$2,772** | **0.80** | **ok - the opening earns its keep** |
+| bank at d5 | $665 | $848 | 0.78 | ok |
 | **CARE ops** | **23.0** | **34.0** | **0.68** | BAD (his 34 includes no-ops; effective 30) |
 | opening cash committed | 0.82 | 1.00 | 0.82 | by design |
 | `open_dist` | 2.0 | 0.0 | - | accepted, see the cost table |
@@ -289,11 +291,17 @@ Both arms through the **same extractor and aggregation**. Ours live, `--pa 1-12 
 | owned tiles / quadrants / hands | 25 / 1 / 6 | 25 / 1 / 6 | **1.00** | ok |
 | shops unlocked | 1 | 1 | 1.00 | ok (latent) |
 
-**The crop block is intact**, and the herd/cash/labour half is now at
-parity: `animals 5/5`, `structures 5/5`, `STRAWBERRY 10/10`, `FEED 26/27`, cash committed
-**0.97**, idle **20.0 vs 26.5** (we idle *less*). The open items are all on the crop side
-(`MELON 6/10`, `PLANT 25/30`, `WATER 64/74`), and they are the *price* of the herd fix below., and the eleven structural
-things the #1 fixes at d0 — herd, housing, land, crew, the 20-tile crop block — are **exact**.
+**The crop block is intact and the land/crew half is exact**: `MELON 9/10`,
+`PLANT 29/30`, `WATER 73/74`, `STRAWBERRY 10/10`, `owned 25/25`, `quadrants 1/1`,
+`hands 6/6`, `shops 1/1`. The open items are the **5th animal** (4/5) and `CARE`, which is
+the animal count restated — care is capped at 1 per animal per day, so 4 animals x 6 days =
+24 is our ceiling and his 34 already exceeds his own 30 because the engine silently ignores
+redundant CARE.
+
+**Revenue says the same thing: the opening is close.** `$2,208 against $2,772` (0.80x) and a
+d5 bank of `$665 against $848` (0.78x). A 20 % opening revenue gap is consistent with a
+matched structural opening, and it is the *midgame* that opens the real gap (0.36x) — see the
+whole-agent section below. The opening is not where the money is being lost.
 
 **The opening is near-deterministic.** With the new `--spread` column, every metric has
 `min == max` except `idle share %` (26.7-28.9). Our d5 state is identical in 48/48 games; his
@@ -318,208 +326,260 @@ phase-1 gaps were the explicit target; one `SCRATCH_PARAMS` line reverses the co
 
 ---
 
-## 3. Midgame (d6–d17) — the calendar hole and the empty modality
+## 3. Midgame (d6–d17) — state, and what to improve
 
-### 3.1 The d12–17 cliff
+All margins are **phase-2**, from
 
-| day | our revenue | DSM revenue |
-|---|---|---|
-| 10 | 2,919 | 7,283 |
-| 12 | 1,950 | 3,971 |
-| **14** | **0** | **7,388** |
-| **16** | **529** | **7,752** |
-| **18** | **178** | **6,767** |
-| 20 | 238 | 5,933 |
-| 22 | 2,804 | 5,307 |
+```bash
+PYTHONPATH=. python -m tools.phases.phase_map --phase phase2 --pa 1-12 --batch 2 \
+    --ref-from replays/DSM/v1 --ref-max 6      # d17 truncation; exact, agent is stateless
+```
 
-From d12 to d21 we are **revenue-dead** — six consecutive days averaging $305 against DSM's $6,700 —
-and then we catch up violently at d22–27. This is not a market problem; it is a *supply* problem. The
-`day_gap` cumulative curve breaks away at exactly d12 and never recovers.
+Every action below was traced with `--dag` for its downstream blast radius.
 
-### 3.2 Cause 1 — the wheat hole (and the fully decoupled herd)
+---
 
-`crop_demand`, WHEAT tiles per day:
+### 3.1 State — ours vs the #1
 
-| day | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **ours** | 15 | **5** | **5** | **4** | 23 | 26 | 20 | 19 | 14 | 24 | 31 | 29 | **5** |
-| **DSM** | 0 | 0 | 10 | 20 | 31 | 25 | 22 | 22 | 25 | 25 | 31 | 27 | 25 |
+**Phase 2, live** (24 games vs 6 of his replays; `was` = before A1 shipped):
 
-We plant 15 wheat on day 0 (good), harvest it around d4–5, and then **do not replant** — five tiles
-through d6–10, which is precisely the band where DSM is growing his herd and we have $0 of animal
-revenue. Then we over-correct to 23–31 for the rest of the season.
-
-The flow table makes the modality decoupling explicit (`dsm_profile`, per game):
-
-| | bought | fed | sold | buy/feed |
+| metric | ours | #1 | ratio | |
 |---|---|---|---|---|
-| **ours** | **0** | **0** | 259 | 0.00 |
-| **DSM** | 186 | **380** | 591 | 0.49 |
+| **animals on board** | 10.0 | 20.5 | 0.49× | **ROOT** (was 4.00 / 0.20×) |
+| animal structures | 10.0 | 20.5 | 0.49× | BAD |
+| COLLECT_FERTILIZER ops | 87 | 204 | 0.43× | BAD (was 42) |
+| FEED ops | 101 | 186 | 0.54× | BAD (was 48) |
+| FERTILIZE ops | 0 | 71 | 0.00× | BAD |
+| shed peak | 16.0 | 25.5 | 0.63× | BAD |
+| **WATER ops** | 324 | 590 | 0.55× | **ROOT** (was 413) |
+| WATER ops per planted tile | 0.59 | 0.82 | 0.72× | WARN |
+| HARVEST ops | 64 | 182 | 0.35× | BAD (was 89) |
+| weeds | 13.0 | 1.00 | 13.0× | BAD (was 3.00) |
+| plants died | 16.5 | 2.00 | 8.25× | WARN (was 13.5) |
+| idle share % | 0.00 | 0.00 | — | ok (was 6.46) |
+| hands / owned tiles / quadrants | 12 / 100 / 4 | same | 1.00× | ok |
+| planted tiles | 70 | 74 | 0.95× | ok |
+| STRAWBERRY / TOMATO tiles | 30 / 13.5 | 32.5 / 10 | | ok |
 
-We grow wheat purely to sell it. DSM grows 1.5× more and feeds 380 units of it to animals. Our crop
-modality and our herd modality do not interact at all — which is why turning the herd on later
-(§7) immediately created a **negative feed balance**: see coupling **C2**.
+Two roots: **`animals on board`** (explains 7 deficient metrics) and **`WATER ops`** (explains 3,
+plus `plants died`).
 
-### 3.3 Cause 2 — strawberry arrives in waves, not a ramp
+**Season.**
 
-`dsm_profile` CROPS, mean tiles by day:
+Daily revenue (d8→24): ours 2,288 / 1,908 / 3,882 / 1,974 / 1,728 / 5,357 / 1,795 vs DSM **~9,700
+flat from d10**. Zero-revenue cliff CLOSED (d14 0→1,974, d16 529→1,728); residual is a flat 2–5× gap.
 
-| day | WHEAT | CARROT | TOMATO | STRAWBERRY | MELON | max single-crop share |
+Wheat mass balance: produced 366 vs **776**; bought 36 vs 143; fed 110 vs 349; sold 273 vs **568**;
+wheat tile-days 596 vs 576; **yield/tile-day 0.60 vs 1.40**.
+
+Harvest decomposition (events / units per event / units per tile-day):
+
+| crop | ours | DSM |
+|---|---|---|
+| WHEAT | 138 / 2.65 / 0.61 | 160 / **4.38** / **1.39** |
+| STRAWBERRY | **20** / 4.00 / **0.16** | **139** / 1.99 / **0.48** |
+| CARROT | 35 / 2.00 / 0.63 | 87 / 3.08 / 1.06 |
+| MELON | 9 / 5.78 / 0.48 | 10 / 6.00 / 0.62 |
+| TOMATO | 55 / 1.02 / 0.28 | 47 / 1.96 / **0.69** |
+
+The yield gap **is the fertilizer doubling, arithmetic exact**: unfertilised strawberry 4/17 = 0.235
+(ours 0.22), fertilised 8/17 = 0.47 (his 0.48); same ×2 on wheat (y 3→6), carrot, melon, tomato.
+Unfertilised one-shot wheat caps at **y = 3**.
+
+Labour: acts 2,203 vs 4,026; moves 4,721 vs 3,182; `PASS-on-READY` 199 vs 44.
+Tile visits (phase 2): ops per stop **1.31 vs 1.90**; stops ≥2 ops 25% vs 54%; ≥4 ops **0% vs 10%**;
+split `PLANT→WATER` **54% vs 4%**; split `FEED→CARE` **100% vs 5%**.
+
+Herd: animal-days 119 vs 432 (COW 60/184, SHEEP 59/87, GOOSE **0/161**); fed-on-production-day 91%
+vs 91%; care bonus earned **95% vs 88%**; escapes **0 vs 7**; crop-tile-days 36,036 vs 35,660
+(**identical**); moves at animal tiles 698 vs 1,290.
+
+Shed ring (animals at d17, Chebyshev bands about the shed centre):
+
+| band | tiles | DSM | US | DSM animal% | US animal% |
+|---|---|---|---|---|---|
+| 0 (shed access) | 4 | **3.0** | 1.0 | **75%** | 25% |
+| 1 | 12 | **7.0** | 2.0 | **58%** | 17% |
+| 2 | 20 | **8.0** | 1.0 | **40%** | 5% |
+
+88% of his herd is inside radius 2 and 3 of the 4 shed-access tiles are stocked **from day 0** (first
+plant there: d10). Our band 2 held **16.4 crop tiles vs 1 animal**, and we planted **2.9 of the 4
+shed-access tiles**. Engine rule: `fertilizer_available` is set **every day regardless of feeding**;
+`pending_care_bonus` is **wiped on every production day** and paid only if that day was fed.
+
+---
+
+### 3.2 What to improve — data-backed, independent
+
+Three groups sharing no state; runnable in parallel.
+
+#### GROUP A — the herd
+
+| # | action | data that justifies it | metric to move | owner |
+|---|---|---|---|---|
+| **A2** | Apply the fertilizer the herd now produces | herd supply 115 → 263 animal-days; we apply **0 vs his 227**; crop yield gap is exactly ×2 | `FERTILIZE ops` 0 → 71 | `crop_plan.jobs` |
+| **A3** | Rotate the shed so herd produce does not jam it | `shed peak` 16.0 vs 25.5 | `shed peak` → 25.5 | `sell_policy` |
+| **A4** | Push the herd 10 → 20 | A1 moved the root 4 → 10 (0.20× → 0.49×) at **+$3,013, 23/24**; 12 animals pay, 20 did not at holdback 20 | `animals on board` → 20.5 | `herd_plan.py` |
+
+#### GROUP B — field labour (the cost A1 incurred)
+
+| # | action | data that justifies it | metric to move | owner |
+|---|---|---|---|---|
+| **B1** | Recover water coverage lost to the ring reservation | `WATER ops` fell 413 → **324**; `weeds` 3.0 → **13.0**; `plants died` 13.5 → **16.5** | `WATER ops` 324 → 590; `weeds` → 1 | `crop_plan.jobs` + `_pick` |
+| **B2** | Recover harvest throughput | `HARVEST ops` fell 89 → **64** vs 182; `PASS-on-READY` 199 vs 44 | `HARVEST ops` → 182 | `_pick` |
+
+#### GROUP C — planting ramp
+
+| # | action | data that justifies it | metric to move | owner |
+|---|---|---|---|---|
+| **C1** | Smooth the planting waves | strawberry 0→10→10→10→**27** in two days (his largest 2-day move +9); `first_yield_day` = 10, so d12 tiles cannot fruit before d22 | `STRAWBERRY` events 20 → 139 | `crop_plan.py::plant_queue` |
+| **C2** | Raise per-crop peak tiles to his | 0.58–0.80× his peak on every crop except melon; `planted tiles` 70 vs 74 | per-crop peaks → 1.0× | `params.CROP_PLAN` |
+
+---
+
+### 3.3 Closed — measured, do not re-run
+
+| what | result | verdict |
+|---|---|---|
+| herd alone (`HERD_BUY_UNTIL=12`, no ring) | −$17,193, 0/24 | superseded by A1 |
+| herd + chaining (`ON_TILE_BONUS`/`SAME_TILE_*`) | −$8,014, 0/24 | closed |
+| herd + expanded wheat (`WHEAT_TARGET=48;WHEAT_PEAK=16`) | −$14,024, 0/24 | closed |
+| ring `STRUCTURE_HOLDBACK=12` alone | −$913, 12/24 | not the gain |
+| ring `STRUCTURE_HOLDBACK=20` + herd | −$18,324, 0/12 | too much ring |
+| **ring `STRUCTURE_HOLDBACK=12` + `HERD_BUY_UNTIL=12`** | **+$3,013, 23/24, p=0.000** | **SHIPPED (A1)** |
+| buy fertilizer, blanket (`FERTILIZER_BUY_QTY=4`) | 1,583 units, output down everywhere | closed |
+| buy fertilizer, tight (producing tiles, 1/turn) | 351 units; strawberry u/tile-day 0.21 → 0.19 | closed |
+| visit completion: `SAME_TILE_FIRST` @50 | dterm +$341, 14/24 (moves/work 2.61→2.13) | noise |
+| visit completion: `SAME_TILE_ORDER=1` | dterm −$2,088, 12/24 | negative |
+| visit completion: `ON_TILE_BONUS=55;SAME_TILE_ORDER=1` | dterm −$863, **1/24** (moves/work → **2.12**) | closed |
+| `OWNER_FIRST` / `HANDS_MIDGAME=20` | −$11,748 (2/24) / −$32,670 (0/24) | closed |
+| `MOVE_WEIGHT` 15 / 60 | −$2,709 / −$1,063 | closed |
+| `WHEAT_TARGET=24;WHEAT_PEAK=8` | −$5,873, 0/24 | closed |
+| crop-value fertilize gate | −$6,114, 0/36 | closed |
+| `MELON_CEILING` 60 / 400 | −$2,844 / $0 | closed |
+| `HARVEST_CRITICAL`, `USE_SLICES=False`, `WATER_READY_FALLBACK`, `ONGOING_HARVEST_ANY`, `P_CARE/P_FEED/P_WATER_SURVIVAL/P_BUILD`, full-greedy rewrite, loop reorder, same-tile pre-pass | no effect / worse | closed |
+
+Two facts that close whole directions:
+
+- **Visit completion is closed, not merely failed.** It substitutes low-value on-tile ops
+  (`COLLECT_FERTILIZER`, `WATER_BONUS`, `CARE`) for high-value distant work (`HARVEST`, `PLANT`);
+  the kernel already prices that trade correctly. Movement efficiency is a cost the policy is right
+  to pay — it is not the objective.
+- **Herd expansion was never intrinsically unprofitable, only unpayable.** `herd_econ` on the
+  expanded arm: animal-days 119 → 274.5, herd revenue $25,867 → **$48,567** (above his $36,302),
+  fertilizer supply 115 → 263 animal-days — against a −$8,014 margin, so the cost is ≈$30,700:
+  retail feed (`wheat bought` 35 → 267), ~374 crop moves **displaced**, and care quality degrading
+  with scale (cared-on-production-day 82/75% → 78/68/67%). A1 varies the one term that was never
+  varied — the shape — and flips the same expansion to +$3,013.
+
+---
+
+## fin: Where we stand now — whole agent vs the #1's entry, measured
+
+Fresh measurement of the **current** agent against the #1's own replays, through the same
+extractor and the same aggregation. Ours: live, `--phase all --pa 1-6 --batch 2`
+(6 opponents x 2 seeds = **12 games**). His: **12 replays** from `replays/DSM/v1`,
+seat auto-detected. Every ratio is ours / his.
+
+### Opening (d0-d5)
+
+| metric | ours | #1 | ratio | |
+|---|---|---|---|---|
+| CARE ops | 22.0 | 34.0 | 0.65 | BAD |
+| opening cash committed | 0.82 | 1.00 | 0.82 | BAD |
+| `open_dist` (d5 vs his script) | 2.0 | 0.0 | - | BAD |
+| animals on board | 4.0 | 5.0 | 0.80 | WARN |
+| FEED ops | 22.0 | 27.0 | 0.81 | WARN |
+| animal structures | 4.0 | 5.0 | 0.80 | ok |
+| empty owned tiles | 3.5 | 0.0 | - | ok |
+| MELON tiles | 9.0 | 10.0 | 0.90 | ok |
+| PLANT ops | 29.0 | 30.0 | 0.97 | ok |
+| WATER ops | 74.0 | 74.0 | **1.00** | ok |
+| STRAWBERRY tiles | 10.0 | 10.0 | **1.00** | ok |
+| owned tiles / quadrants / hands | 25 / 1 / 6 | 25 / 1 / 6 | **1.00** | ok |
+| idle share % | 31.2 | 26.5 | 1.17 | ok |
+| shops / YARN unlocked | 1 / 0 | 1 / 0 | 1.00 | ok |
+
+**The opening is essentially matched**: WATER, STRAWBERRY, land, crew, quadrant and the
+latent shop all at 1.00; MELON and PLANT within 3-10 %. The open items are the 5th animal
+(4 vs 5, by design -- see the melon trade) and CARE, which is the animal count in disguise
+(a per-day ceiling of 1 care per animal: 4 animals x 6 days = 24, and his 34 exceeds his own
+30 animal-day ceiling because the engine silently ignores redundant CARE).
+
+### Midgame (d6-d17)
+
+| metric | ours | #1 | ratio | |
+|---|---|---|---|---|
+| **sell revenue (d6-d17)** | **$28,140** | **$77,174** | **0.36** | **BAD - the money gap is here** |
+| bank at d17 | $12,622 | $47,844 | 0.26 | BAD |
+| animals on board | 4.0 | 21.0 | 0.19 | BAD |
+| animal structures | 4.0 | 21.0 | 0.19 | BAD |
+| COLLECT_FERTILIZER ops | 45.5 | 204 | 0.22 | BAD |
+| FEED ops | 48.0 | 186 | 0.26 | BAD |
+| FERTILIZE ops | 0.0 | 74.5 | 0.00 | BAD (disabled by choice) |
+| **plants died** | **31.5** | **2.0** | **15.75** | **BAD** |
+| **weeds** | **10.5** | **1.0** | **10.50** | **BAD** |
+| **WATER ops per planted tile** | **0.65** | **0.83** | **0.78** | **WARN** |
+| WATER ops | 437 | 593 | 0.74 | BAD |
+| HARVEST ops | 52.0 | 182 | 0.28 | BAD |
+| shed peak | 15.5 | 25.5 | 0.61 | BAD |
+| planted tiles | 77.5 | 72.5 | 1.07 | ok |
+| STRAWBERRY tiles | 31.0 | 32.5 | 0.95 | ok |
+| WHEAT tiles | 33.5 | 31.5 | 1.06 | ok |
+| TOMATO tiles | 14.0 | 9.5 | 1.47 | ok |
+| owned tiles / quadrants / hands | 100 / 4 / 12 | 100 / 4 / 12 | **1.00** | ok |
+| idle share % | 2.29 | 0.00 | - | ok |
+
+**Capacity is at parity and throughput is not.** Land, quadrants, crew, planted area and all
+three crop blocks match or exceed his. The deficits are all one of two things: the **herd**
+(4 vs 21, which drives FEED/COLLECT/structures) and the **water-and-weed chain**
+(`plants died` 31.5 vs 2, `weeds` 10.5 vs 1, WATER/tile 0.65 vs 0.83). `FERTILIZE 0 vs 74.5`
+is deliberate -- see below.
+
+### Why: the midgame is a walking problem
+
+`tools/labour/move_trace.py` charges every MOVE turn to the act that preceded it
+(d6-d17, ours vs his):
+
+| after act | ours ops | ours mv/op | ours % of moves | #1 ops | #1 mv/op |
+|---|---|---|---|---|---|
+| **WATER** | 448 | **2.92** | **63.9 %** | 623 | **1.22** |
+| COLLECT_FERTILIZER | 45 | 2.20 | 4.8 % | 198 | **0.98** |
+| DIG | 27 | 3.19 | 4.2 % | 1 | ~0 |
+| DROP | 57 | 2.67 | 7.4 % | 21 | 0.43 |
+| HARVEST | 54 | 1.91 | 5.0 % | 206 | **0.55** |
+| FEED | 48 | 1.79 | 4.2 % | 182 | **0.07** |
+| CARE | 44 | 1.14 | 2.4 % | 184 | **0.55** |
+| PLANT | 127 | 0.64 | 4.0 % | 148 | **0.00** |
+| PICKUP | 48 | 0.96 | 2.2 % | 99 | 1.00 |
+| **TOTAL moves** | | **2,047** | | | **1,374** |
+| **empty / carrying** | | **75 % / 25 %** | | | **30 % / 70 %** |
+
+**Two numbers carry the whole midgame.** He does **1.6x our ops on 0.67x our moves**, and
+his units are **carrying something on 70 % of moves against our 25 %** -- his walking is
+transport, ours is repositioning. WATER alone is 64 % of all our movement at 2.92 moves per
+op. Slice routing is not the cause (85 % of waters already land in the worker's own band at
+mean distance 1.8); the cause is that `_pick` is a greedy per-unit kernel that cannot see
+that the pair (water here, then water next door) beats (water here, then walk six tiles).
+
+### The money, window by window
+
+Committed sell revenue (every SELL order x the step price -- works on leaderboard replays,
+where the days-CSV has no market audit) and the bank at the window's end, medians over
+4 games each:
+
+| window | ours revenue | #1 revenue | ratio | ours bank | #1 bank | ratio |
 |---|---|---|---|---|---|---|
-| 6 | 5.0 | 0.0 | 0.0 | 10.0 | 10.0 | 40.0 % |
-| 9 | 5.0 | 0.0 | 0.0 | 10.0 | 10.0 | 40.0 % |
-| 12 | 24.1 | 0.0 | 13.2 | **27.5** | 0.0 | 42.4 % |
-| 15 | 28.0 | 0.0 | 15.9 | 29.9 | 0.0 | 40.5 % |
+| **d0-d5** | $2,208 | $2,772 | **0.80** | $665 | $848 | 0.78 |
+| **d6-d17** | $28,140 | $77,174 | **0.36** | $12,622 | $47,844 | 0.26 |
+| **d18-29** | $46,056 | $95,846 | **0.48** | $53,242 | $131,566 | **0.40** |
+| season | $76,404 | $175,792 | 0.43 | $53,242 | $131,566 | 0.40 |
 
-`crop_demand` shows why, on the same 96-game arm — tiles per day for STRAWBERRY and WHEAT:
-
-| day | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 | 26 | 28 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **ours** STRAWB | **0** | 10 | 10 | 10 | **27** | 29 | 30 | 30 | 30 | 21 | 20 | 20 | 11 |
-| **DSM** STRAWB | 10 | 10 | 19 | 21 | 25 | 30 | **35** | 34 | 24 | 24 | 15 | 12 | 9 |
-| **ours** WHEAT | 15 | **5** | **5** | **4** | **23** | 26 | 20 | 19 | 14 | 24 | 31 | 29 | **5** |
-| **DSM** WHEAT | 0 | 0 | 10 | 20 | 31 | 25 | 22 | 22 | 25 | 25 | 31 | 27 | 25 |
-
-Ours moves in **steps** — strawberry 0 → 10 → 10 → 10 → **27** (a **+17 tile jump in two days**),
-wheat 15 → 5 → 5 → 4 → **23** (a −10 collapse then a +19 spike). DSM's largest two-day move on either
-crop is **+9**. Strawberry's `first_yield_day` is **10**, so the tiles that appear on d12 cannot fruit
-before d22 — long after our melon (planted d0–2) has finished at d11, and squarely inside the hole.
-
-This is the mechanical link the whole midgame hangs on:
-
-> **a planting wave is a future revenue gap, and the gap is exactly `first_yield_day` wide.**
-
-DSM's curve is smooth for the same reason his seed purchases are spread: 191 WHEAT / 49 STRAWBERRY /
-48 CARROT / 23 MELON / 18 TOMATO seeds sown steadily across each crop's whole viable window
-(`dsm_v1.md` §5). We instead fill each crop's tile target as fast as we have hands.
-
-`crop_demand`'s rotation summary also sizes the *scale* gap crop by crop (peak standing tiles,
-same tool, same arm):
-
-| crop | our peak tiles | DSM peak tiles | ratio |
-|---|---|---|---|
-| WHEAT | 36 | 45 | 0.80× |
-| STRAWBERRY | 33 | 56 | 0.59× |
-| CARROT | 27 | 41 | 0.66× |
-| TOMATO | 19 | 33 | 0.58× |
-| MELON | 10 | 10 | **1.00×** |
-
-So it is not only *when* we plant; it is *how much* — **58–80 % of DSM's peak on every crop except
-melon**, the one crop he deliberately abandons by day 11. (`dsm_v1.md` §5 quotes a strawberry peak of
-~30 against this tool's 56; the two use different tile definitions, so read the **ratio** here, which
-is tool-internal, and not the absolute DSM level.)
-
-### 3.4 Cause 3 — the labour is there, the acts are not
-
-This is the sharpest single measurement in the document, because the inputs are identical:
-
-| | **ours** | **DSM** |
-|---|---|---|
-| worker-turns / season | 7,306 | 7,527 (**−2.9 %**) |
-| productive acts / game | 1,550 | **4,061** (−62 %) |
-| moves / game | **4,217** | 3,128 (+35 %) |
-| idle units / season | **1,112** | **260** (+328 %) |
-
-\* `op_patterns` (ours n=96, DSM n=12) and `day_gap`.
-
-We are not under-hiring. We are **wasting an identical crew**. `missed_work` (work that was pending
-for a full day and never addressed) is remarkably stable across the whole arm — per game it runs
-**WATER 1,453–1,598 · FERT 526–579 · HARVEST 355–499 · DIG 187–264** — i.e. the farm leaves a
-season's worth of watering undone *every single game*. `idle_pool` classifies where the idle turns
-go: **780/game movement-needed, 215/game sitting on a tile that needed WATER, 25/game sitting on a
-tile that needed HARVEST, 80/game truly idle.**
-
-`leverage` closes the obvious escape hatch — "maybe the idling hand was about to do something
-valuable, so rerouting it would forfeit more than it gains":
-
-> over the full arm, **107,338 idle-hand events (1,118/game); 100 % of them are LOW-leverage
-> (forfeit value 0)**. Nothing valuable is being protected. Rerouting an idle hand onto pending work
-> is free.
-
-`ready_idle` prices what is being left on the ground: **632 PASS-on-READY events per game, leaving
-1,510 units worth $166,199 standing on the tile**, against DSM's **34.8 events / 42.6 units /
-$8,427** — an **18× frequency and 20× value** gap, all of it on crops (`...crop` 632 vs 30; the animal
-and fertilizer columns are 0 for us because we have neither). The harness's own tile-conditioned
-counter independently agrees (`idle_units_ready_total`): ours **26** (p10–p90 21–29) vs DSM **0**.
-It also counts **243 LOCKED turns per game against DSM's 106** — the same 2.4× `locked_steps` gap
-that §1.1 reports, measured a second way.
-
-### 3.5 The mechanism: our turns are not arranged like his
-
-Aggregates say "we walk more". They do not say *how*. `op_patterns` measures the arrangement, and
-the answer is that DSM's hand does the **whole stack of ops a tile offers before stepping next
-door**, and ours does not:
-
-| metric | **ours** (n=96) | **DSM** (n=12) |
-|---|---|---|
-| mean act-run length (consecutive acts, no MOVE between) | **1.32** | **1.92** |
-| acts that are a run of exactly 1 (isolated) | **59.4 %** | 23.6 % |
-| acts inside a run of ≥2 | 40.6 % | **76.4 %** |
-| acts inside a run of ≥4 | 10.6 % | **27.9 %** |
-| what follows a productive act → another **ACT** | **24.2 %** | **48.4 %** |
-| what follows a productive act → a **MOVE** | **70.6 %** | 47.2 % |
-| productive acts / game | **1,550** | **4,061** |
-| moves / game | **4,217** | 3,128 |
-
-Per-act-type chaining (share of occurrences immediately followed by another act):
-
-| op | ours (n) | DSM (n) | |
-|---|---|---|---|
-| PLANT | 75.3 % (23,945) | **99.3 %** (3,491) | |
-| HARVEST | 41.9 % (14,520) | 53.1 % (7,103) | |
-| DIG | 30.7 % (12,601) | **81.7 %** (531) | |
-| **WATER** | **8.2 %** (93,445) | 20.8 % (15,445) | our single biggest op is our least chained |
-| DROP | 7.6 % (4,253) | 49.8 % (818) | |
-| FEED | — (0) | **89.6 %** (4,637) | |
-| FERTILIZE | — (0) | 86.1 % (2,683) | |
-| CARE | — (0) | 63.2 % (4,671) | |
-| COLLECT_FERTILIZER | — (0) | 20.4 % (5,662) | |
-
-And here is the same fact as a raw trace — the artifact behind every claim above. **Day 12, the
-farmer (unit 0) in each arm, same seed and opponent** (`op_patterns --day 12 --unit 0`):
-
-```
----- ours, day 12, farmer (24 turns, 7 acts, 17 moves) ----
-h00@4,4:WATER:STRAWBERRY  h01@4,4:WEST  h02@3,4:NORTH  h03@3,3:NORTH
-h04@3,2:NORTH  h05@3,1:NORTH  h06@3,0:WATER:STRAWBERRY  h07@3,0:WEST
-h08@2,0:WATER:STRAWBERRY  h09@2,0:WEST  h10@1,0:WATER:STRAWBERRY  h11@1,0:WEST
-h12@0,0:WATER:STRAWBERRY  h13@0,0:EAST  h14@1,0:EAST  h15@2,0:EAST
-h16@3,0:EAST  h17@4,0:EAST  h18@5,0:WATER:WHEAT  h19@5,0:WEST
-h20@4,0:WEST  h21@3,0:WEST  h22@2,0:SOUTH  h23@2,1:HARVEST:WHEAT
-
----- dsm, day 12, farmer (24 turns, 16 acts, 8 moves) ----
-h00@4,4:NORTH   h01@4,3:HARVEST  h02@4,3:SOUTH  h03@4,4:DROP
-h04@4,4:PICKUP:WHEAT  h05@4,4:WEST  h06@3,4:FEED  h07@3,4:CARE
-h08@3,4:COLLECT_FERTILIZER  h09@3,4:WEST  h10@2,4:FEED  h11@2,4:CARE
-h12@2,4:WEST    h13@1,4:SOUTH  h14@1,5:WATER  h15@1,5:HARVEST
-h16@1,5:PLANT:WHEAT  h17@1,5:WATER  h18@1,5:WEST  h19@0,5:FERTILIZE
-h20@0,5:WATER  h21@0,5:NORTH  h22@0,4:HARVEST  h23@0,4:WATER
-```
-
-Read those side by side and the gap is not "movement efficiency". It is **a different unit of work**:
-
-- Our farmer makes **7 acts in 24 turns (17 moves)** — six isolated WATERS and one HARVEST, each at
-  a different tile, each reached by 3–5 moves. She never performs two ops at the same tile. Every act
-  is a round trip, and she ends the day parked at `(2,1)` with a stray harvest.
-- DSM's farmer makes **16 acts in 24 turns (8 moves)**. Watch what he does with a single animal tile:
-  `NORTH → HARVEST (4,3) → SOUTH → DROP → PICKUP:WHEAT` at the shed-adjacent `(4,4)` — harvest,
-  walk back, empty the hands **and** reload feed in the same visit — then `WEST` and
-  `FEED → CARE → COLLECT_FERTILIZER` at `(3,4)`, `WEST` and `FEED → CARE` at `(2,4)`. Only then does he
-  turn to crops, and there he stacks those too: `WATER → HARVEST → PLANT:WHEAT → WATER` at `(1,5)`
-  (water, harvest, immediately replant, water the new seed — four acts, no move), then
-  `FERTILIZE → WATER` at `(0,5)`, then `NORTH` and `HARVEST → WATER` at `(0,4)`.
-
-That is the entire labour gap in one day of two workers doing the same job: **same 24 turns, 7 acts
-versus 16**, and the difference is not speed — it is that his turnaround unit is *a tile* and ours is
-*an act*.
-
-The mechanism in our code is `scheduler._pick`, which ranks candidate jobs by
-`(-priority, distance)`: **priority dominates completely and distance is only a tie-break.** So a
-unit standing on a tile with three unfinished ops under its feet will walk across the farm for a
-higher-priority job elsewhere, and it will never "finish the tile". Secondarily, `layout.slice_partition`
-gives each worker a contiguous band and `_pick`'s first pass refuses `_FIELD_OPS` outside that band,
-so a worker whose band has any field work will never leave it for a ripening HARVEST in another
-band — which is where the 487 missed harvests come from.
+**The opening is close and the midgame is where the money goes.** A 20 % opening revenue gap
+matches a matched structural opening. From d6 on we earn **36 cents on his dollar**, and the
+endgame inherits it (0.48x), finishing the season at 40 % of his bank. Every structural
+deficit in the two tables above is upstream of that 0.36x, and the movement cost sheet is
+upstream of the structural deficits.
 
 ---
 
@@ -539,6 +599,8 @@ his weeds climb 0 → 10. That is a **retirement**: he stops investing in ground
 before the bell and converts the freed turns into harvesting and selling. Ours is the opposite
 signature — `dsm_v1.md` puts it well about an earlier agent: *"lower weeds because it keeps working
 retired ground… the same 'busy but not productive' signature as `locked_steps`."*
+
+---
 
 ### 4.2 The shed: full-and-rotating versus spike-and-hold
 
@@ -829,7 +891,7 @@ re-tried blindly. Defaults are noted; `SCRATCH_PARAMS` can select any configurat
 | **`CASH_RESERVE=0`** (land as soon as affordable) | off (1,500) | 48 matched games: median **−$6,537**, 19/48, p=0.19 — buying land early spends the seed money and the crop ramp loses more than the extra tiles gain | **measured negative** |
 | `MOVE_WEIGHT` / `DIST_CAP` — price walking, cap it at 2 tiles | on (30 / 2) | reduces movement 61.3 → ~55 % but *raises* PASS; uncapped (no `DIST_CAP`) caused the seed-702 weed spiral (58 weeds) | **unverified** at n≥12 |
 | `Job.critical` — irreversible-loss jobs pay no walk cost | on | a large `CRITICAL_BONUS` variant was **catastrophic** (revenue $61.5 k → $28.1 k): every freshly planted tile is "at risk" for one turn, so the plant wave became globally top-priority and starved HARVEST. The "no walk cost" form is the corrected version | **unverified** |
-| `PLANT_RAMP` / ramp-based `CROP_PLAN` — sow across the window | on | spreads day 0's planting wave into d1–d3 work and targets the §3.3 wave defect by construction; the `PLANT_RAMP=0` arm is the `v0-us` reference | **unverified in isolation** |
+| `PLANT_RAMP` / ramp-based `CROP_PLAN` — sow across the window | on | spreads day 0's planting wave into d1–d3 work and targets the GROUP C1 wave defect by construction; the `PLANT_RAMP=0` arm is the `v0-us` reference | **unverified in isolation** |
 | daily feed + `FEED_EVERY_DAY` | on (herd off) | the engine pays the banked CARE bonus **only on a fed production day** and resets it otherwise, so an every-other-day feed silently halves herd output | **correct by inspection**, unverified in play |
 | `WHEAT_TILES_PER_ANIMAL` (1.7) — crop gates herd size | on | implements C2 directly; at 3.0 the opening herd stayed at ~3 animals | **unverified** |
 | **blanket endgame water-off at d26** | **reverted** (`RETIRE_DAY = 99`) | 16 paired games, **every seed down**; d26–29 go 0 → **56 / 67 / 96 / 96 % idle** and watering 37 → 0. DSM's water falls 63 → **24**, not → 0 | **do not re-try** as a labour switch |
@@ -838,6 +900,32 @@ re-tried blindly. Defaults are noted; `SCRATCH_PARAMS` can select any configurat
 
 ```bash
 export PYTHONPATH=.
+
+# --- §3 the crew allocation, the herd, and the tile visit ------------------
+# 1. cache the work stream (his 123 episodes, then ours)
+python -m tools.labour.crew_extract --dir replays/DSM/v1 --out diag-replays/crew-dsm
+python -m tools.labour.crew_extract --agent --pa 1-12 --batch 3 --out diag-replays/crew-us
+# 2. the phase breakdown, and the op-pipeline fingerprint
+python -m tools.report.crew_patterns --dsm diag-replays/crew-dsm --us diag-replays/crew-us
+python -m tools.report.crew_patterns --chains --phase 2
+# 3. per-animal economics, the SAME scanner on both sides
+python -m tools.report.herd_econ --dir replays/DSM/v1 --max 30
+python -m tools.report.herd_econ --agent --pa 1-12 --batch 2 --label "US (live)"
+# 3b. §3.1 the tile visit -- ops per stop, and the split that costs extra trips
+python -m tools.labour.visit_trace --dsm diag-replays/crew-dsm --us diag-replays/crew-us --phase 2
+# 3c. §3.1 the shed ring -- who claims it, the herd or the crops
+python -m tools.report.ring_occupancy --dir replays/DSM/v1 --max 20
+python -m tools.report.ring_occupancy --agent --pa 1-12 --batch 2 --label US
+# 3d. §3.2 GROUP A -- the ring reservation, alone and with the herd expansion
+python -m tools.phases.shadow_prices --pa 1-12 --batch 2 \
+    --perturb 'hb12_only|STRUCTURE_HOLDBACK=12||' \
+    --perturb 'hb12_herd12|STRUCTURE_HOLDBACK=12;HERD_BUY_UNTIL=12||'
+# 4. price the chaining fix alone, then in combination with the herd
+python -m tools.phases.shadow_prices --pa 1-12 --batch 2 \
+    --perturb 'same_tile50|SAME_TILE_FIRST=1;SAME_TILE_MIN_PRIORITY=50||'
+python -m tools.phases.shadow_prices --pa 1-12 --batch 2 \
+    --perturb 'chain+herd|SAME_TILE_FIRST=1;SAME_TILE_MIN_PRIORITY=50;HERD_BUY_UNTIL=12||'
+
 DIR=diag-replays/v0-us          # 96-game arm; v0-pa2 is the single-opponent ladder
 
 # the multi-opponent arm (12 opponents x 8 seeds)

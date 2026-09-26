@@ -9,6 +9,8 @@ a carrying worker prefers its delivery job and otherwise deposits at the shed.
 """
 from __future__ import annotations
 
+import collections
+
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 
 from . import budget, crop_plan, emit, endgame, herd_plan, layout, routing, sell_policy
@@ -85,16 +87,46 @@ def _nearest_empty_in_slice(state, used, band):
     return best
 
 
-def _plant_jobs(state, used, slices, n):
+def _band_crop(state, band, crops, i):
+    """Which crop worker `i` should sow in its band, keeping the band MONOCROPPED.
+
+    Why: `crops` is the *daily deficit queue*, so `crops[i % len(crops)]` gives band i a
+    different crop each day. Every crop type then ends up scattered across every band,
+    and tiles that share a water window are never adjacent. MEASURED with
+    `tools/labour/move_trace.py`: WATER costs **2.55 moves per op** against the #1's
+    **1.22**, and it is 50 % of all midgame moves -- and the slice assignment is NOT at
+    fault (85 % of waters already land in the unit's own band, at mean distance 1.8).
+    The distance is the scattered demand, not the routing.
+
+    So: if the band already grows a crop the queue still wants, keep that crop and let
+    the band fill up as one block. Only start a new crop when the queue stops asking for
+    the old one. The band's first crop is `crops[i % len(crops)]` so the overall mix
+    stays balanced across workers.
+    """
+    counts = collections.Counter()
+    for pos in band:
+        t = state.plant_at(pos)
+        if t:
+            counts[t["crop"]] += 1
+    if counts:
+        cur = counts.most_common(1)[0][0]
+        if cur in crops:
+            return cur
+    return crops[i % len(crops)] if crops else None
+
+
+def _plant_jobs(state, used, slices, n, limit=None):
     """One PLANT job per worker, on its OWN band (aligned: crops live where the
-    worker works). Worker i plants crop ``plant_queue[i % len]`` so the mix is
-    balanced across workers."""
+    worker works), kept monocropped per `_band_crop` so water windows cluster."""
     crops = crop_plan.plant_queue(state)
     if not crops:
         return []
     jobs = []
-    for i in range(n):
-        crop = crops[i % len(crops)]
+    for i in range(n if limit is None else min(n, limit)):
+        crop = (_band_crop(state, slices[i], crops, i) if params.BAND_MONOCROP
+                else crops[i % len(crops)])
+        if crop is None:
+            continue
         tile = _nearest_empty_in_slice(state, used, slices[i])
         if tile is None:
             continue
@@ -106,7 +138,8 @@ def _plant_jobs(state, used, slices, n):
 _FIELD_OPS = ("PLANT", "WATER", "HARVEST", "DIG", "FERTILIZE")
 
 
-def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None):
+def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
+          owner=None, me=None):
     """Choose the best job for a unit: minimise ``walk_cost - priority``.
 
     Distance is priced (``MOVE_WEIGHT`` per tile) rather than used as a tie-break,
@@ -130,14 +163,22 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None):
             d = routing.manhattan(pos, j.tile)
             if claimed is not None and d > 0 and j.tile in claimed:
                 continue
+            if (params.OWNER_FIRST and owner is not None and d > 0
+                    and owner.get(j.tile) not in (None, me)):
+                continue      # the unit standing there gets first refusal
             # Distance prices the tile cluster but is capped so local busywork can
             # never starve a far high-value job; a job that stops an irreversible
             # loss (tonight's weed/escape) pays no walk cost at all.
+            dcost = params.MOVE_WEIGHT * min(d, params.DIST_CAP)
             if j.critical:
-                dcost = 0.0
-            else:
-                dcost = params.MOVE_WEIGHT * min(d, params.DIST_CAP)
-            key = (dcost - j.priority, d, -j.priority)
+                dcost *= params.CRITICAL_FREE_WALK_FRAC
+            # Finishing the visit: a job on the tile the unit already occupies costs no
+            # movement, so it is strictly better than walking away and returning -- yet on
+            # the score below it still loses to any distant job more than MOVE_WEIGHT*DIST_CAP
+            # priority points higher (a distant PICKUP_WHEAT 101 beats the CARE 70 underfoot).
+            # See params.ON_TILE_BONUS for the measured visit trace. 0 = off.
+            on_tile = params.ON_TILE_BONUS if d == 0 else 0
+            key = (dcost - j.priority - on_tile, d, -j.priority)
             if best_key is None or key < best_key:
                 best_key, best = key, (jidx, j, d)
         if best is not None:
@@ -151,8 +192,17 @@ def plan(state):
     used = set()
     slices = layout.slice_partition(state, n)
     slice_sets = [set(s) for s in slices]
+    # USE_SLICES=False drops the band preference so assignment is purely
+    # distance-priority (see the param).
+    pref = slice_sets if params.USE_SLICES else [None] * n
 
-    jobs = crop_plan.jobs(state) + _plant_jobs(state, used, slices, n)
+    field_jobs = crop_plan.jobs(state)
+    plant_limit = n
+    if params.PLANT_WATER_CAP_DIVISOR:
+        # don't create new tiles while the survival backlog is already too big to serve
+        n_surv = sum(1 for j in field_jobs if j.op == "WATER" and j.critical)
+        plant_limit = max(0, n - n_surv // params.PLANT_WATER_CAP_DIVISOR)
+    jobs = field_jobs + _plant_jobs(state, used, slices, n, limit=plant_limit)
     if params.HERD_ENABLED:
         jobs += herd_plan.jobs(state)
     jobs += endgame.jobs(state)
@@ -161,10 +211,97 @@ def plan(state):
     claimed = set()  # tiles another unit is already walking to this turn
     ops = []
 
+    # Pre-pass: a unit standing on a tile with pending work takes it, before the
+    # per-unit loop lets a unit further away claim it. `_pick` runs in index order, so
+    # without this the same-tile rate is only ~31 % (22 % for CARE) and the work does
+    # not chain -- MEASURED with a `_pick` wrapper. Pure ordering; no priority changes.
+    preop = {}
+    if params.SAME_TILE_FIRST:
+        for i in range(n):
+            pos = state.positions[i]
+            inv = state.unit_inv(i)
+            best, best_key = None, None
+            for jidx, j in enumerate(jobs):
+                if assigned[jidx] or j.tile != pos:
+                    continue
+                if not _eligible(inv, j):
+                    continue
+                if j.priority < params.SAME_TILE_MIN_PRIORITY and not j.critical:
+                    continue      # not worth chaining; leave it to the global assignment
+                keys = (-j.priority,)
+                if best_key is None or keys < best_key:
+                    best_key, best = keys, (jidx, j)
+            if best is not None:
+                jidx, j = best
+                assigned[jidx] = True
+                preop[i] = j
+
+    def _has_local(i):
+        pos = state.positions[i]
+        inv = state.unit_inv(i)
+        for j in jobs:
+            if j.tile == pos and _eligible(inv, j):
+                return True
+        return False
+
+    order = list(range(n))
+    if params.SAME_TILE_ORDER:
+        # local-first: a unit standing on work chooses before a distant unit can claim it
+        order.sort(key=lambda i: (0 if _has_local(i) else 1, i))
+    # exact per-turn assignment: cheapest (unit, job) edge first, globally
+    exact = {}
+    if params.EXACT_ASSIGN:
+        edges = []
+        for i in range(n):
+            pos, inv = state.positions[i], state.unit_inv(i)
+            deliv = bool(inv) and _carrying_deliverable(inv)
+            for jidx, j in enumerate(jobs):
+                if j.tile is None:
+                    continue
+                if deliv and j.op not in _DELIVER_OPS:
+                    continue
+                if not _eligible(inv, j):
+                    continue
+                d = routing.manhattan(pos, j.tile)
+                dcost = 0.0 if j.critical else params.MOVE_WEIGHT * min(d, params.DIST_CAP)
+                pen = 0.0
+                if (params.USE_SLICES and pref[i] is not None and j.op in _FIELD_OPS
+                        and j.tile not in pref[i]):
+                    pen = params.SLICE_PENALTY
+                edges.append(((dcost - j.priority + pen, d, -j.priority), i, jidx))
+        edges.sort()
+        used_u, used_j = set(), set()
+        for _key, i, jidx in edges:
+            if i in used_u or jidx in used_j:
+                continue
+            used_u.add(i)
+            used_j.add(jidx)
+            exact[i] = (jidx, jobs[jidx])
+
+    occupied = {}
     for i in range(n):
+        occupied.setdefault(tuple(state.positions[i]), i)
+
+    for i in order:
         pos = state.positions[i]
         inv = state.unit_inv(i)
         op = None
+        if i in exact:
+            jidx, j = exact[i]
+            assigned[jidx] = True
+            op = _move_or_act(state, pos, j, cost)
+        if params.EXACT_ASSIGN and op is None:
+            # not assigned a job this turn: use the same fallbacks as before
+            if inv and (pos in params.SHED_ACCESS_SET
+                        or state.day >= params.LIQUIDATE_DAY):
+                op = _deposit_op(state, pos, cost)
+            elif inv:
+                op = _deposit_op(state, pos, cost)
+            else:
+                op = ["PASS"]
+        if i in preop:
+            ops.append(_move_or_act(state, pos, preop[i], cost))
+            continue
 
         def _take(best):
             jidx, j, d = best
@@ -176,7 +313,8 @@ def plan(state):
         if inv:
             # 1. deliver a deliverable (feed/place/fertilize) if carrying one.
             if _carrying_deliverable(inv):
-                best = _pick(jobs, assigned, pos, inv, only_delivery=True, claimed=claimed)
+                best = _pick(jobs, assigned, pos, inv, only_delivery=True,
+                             claimed=claimed, owner=occupied, me=i)
                 if best is not None:
                     op = _take(best)
             # 2. deposit when shed-adjacent (free), or during the endgame so
@@ -189,7 +327,7 @@ def plan(state):
             # 3. otherwise keep working while carrying.
             if op is None:
                 best = _pick(jobs, assigned, pos, inv, only_delivery=False,
-                             prefer=slice_sets[i], claimed=claimed)
+                             prefer=pref[i], claimed=claimed, owner=occupied, me=i)
                 if best is not None:
                     op = _take(best)
             # 4. nothing to do -> deposit.
@@ -197,13 +335,15 @@ def plan(state):
                 op = _deposit_op(state, pos, cost)
         else:
             best = _pick(jobs, assigned, pos, inv, only_delivery=False,
-                         prefer=slice_sets[i], claimed=claimed)
+                         prefer=pref[i], claimed=claimed, owner=occupied, me=i)
             if best is not None:
                 op = _take(best)
             else:
                 op = ["PASS"]
 
-        ops.append(op)
+        while len(ops) <= i:
+            ops.append(None)
+        ops[i] = op
 
     # Market order = funding priority. The engine resolves the list position by
     # position and settles HIRE/BUY_LAND atomically, so an earlier entry is paid for
@@ -222,5 +362,7 @@ def plan(state):
     if params.HERD_ENABLED:
         market += herd_plan.market_intents(state)
     market += crop_plan.market_intents(state)
+    market += crop_plan.fertilizer_buy_intent(state)
     market += endgame.market_intents(state)
+    ops = [o if o is not None else ['PASS'] for o in ops]
     return emit.assemble(state, ops, market)

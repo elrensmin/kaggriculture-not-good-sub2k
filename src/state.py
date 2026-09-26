@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS, CROPS
 
+from . import params
+
 # Unfertilized peak yield of one-shot crops (watering alone): harvest as soon as
 # this is reached so decay never eats the yield.
 _ONE_SHOT_PEAK = {"WHEAT": 4, "CARROT": 3, "MELON": 6}
@@ -129,7 +131,14 @@ class State:
         if y <= 0:
             return False
         if cd["ongoing"]:
+            if params.ONGOING_HARVEST_ANY:
+                return True
+            if params.ONGOING_HARVEST_MIN > 0:
+                return y >= params.ONGOING_HARVEST_MIN
             return y >= cd["max_yield"]
+        if params.ONESHOT_HARVEST_AT_PEAK:
+            # peak day is the day before `_decay_plants` starts eating the yield
+            return y > 0 and self.crop_age(plant_tile) >= cd["max_yield_day"]
         return y >= _ONE_SHOT_PEAK[plant_tile["crop"]] or \
             self.crop_age(plant_tile) > cd["max_yield_day"]
 

@@ -165,7 +165,7 @@ def main(argv=None):
 
     print(f"\n############ shadow prices — per-unit marginal value ############")
     print(f"   {'perturbation':<18}{'n':>4}{'dNAV d5':>12}{'dterm':>12}"
-          f"{'sign':>10}   {'$/unit (dNAV)':>16}   unit")
+          f"{'dterm sign':>11}   {'$/unit (dNAV)':>16}   unit")
     print("   " + "-" * 96)
     for lab, par, unit, uname in specs:
         rs = [r for r in rows if r["label"] == lab]
@@ -174,8 +174,12 @@ def main(argv=None):
         n = len(rs)
         dnav = st.median(r["dnav"] for r in rs)
         dterm = st.median(r["dterm"] for r in rs)
-        pos = sum(1 for r in rs if r["dnav"] > 0)
-        neg = sum(1 for r in rs if r["dnav"] < 0)
+        # Report the sign test for `dterm`, the DECISION variable, not just `dnav`.
+        # A midgame-only change leaves d5 untouched, so dnav is exactly 0 for every pair
+        # and the old column read "0/0" -- no evidence at all about the thing being
+        # decided. `sign` is now dterm-positive/dterm-decided.
+        pos = sum(1 for r in rs if r["dterm"] > 0)
+        neg = sum(1 for r in rs if r["dterm"] < 0)
         k = min(pos, neg)
         p = _sign_p(k, pos + neg)
         sign = f"{pos}/{pos + neg}"

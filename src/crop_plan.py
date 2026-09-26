@@ -115,7 +115,14 @@ def jobs(state):
             t = state.at(pos)
             if isinstance(t, dict) and t.get("kind") == "PLANT":
                 if state.plant_ready(t):
-                    out.append(Job(P_HARVEST, pos, "HARVEST", t["crop"]))
+                    out.append(Job(P_HARVEST, pos, "HARVEST", t["crop"], None,
+                               params.HARVEST_CRITICAL))
+                    if (params.WATER_READY_FALLBACK
+                            and t.get("consecutive_unwatered", 0) >= 1):
+                        # Fallback so a missed harvest does not become a WEED. HARVEST
+                        # outranks this, so it only fires when the harvest did not.
+                        out.append(Job(P_WATER_SURVIVAL, pos, "WATER", t["crop"],
+                                       None, True))
                 elif state.needs_water(t):
                     if t.get("consecutive_unwatered", 0) >= 1:
                         # becomes a WEED tonight -> total loss, walk any distance
@@ -127,7 +134,13 @@ def jobs(state):
                 # fruit on a watered day. Eligibility (carrying FERTILIZER) is the
                 # scheduler's job.
                 if (not retire and state.day >= params.FERTILIZE_FROM_DAY
+                        and (params.FERTILIZE_MIN_PRICE <= 0
+                             or params.MARKET_PARAMS[t["crop"]]["base"] >= params.FERTILIZE_MIN_PRICE)
                         and t.get("fertilized_until_day", -1) < state.day
+                        and (not params.FERTILIZE_ONGOING_ONLY
+                             or CROPS[t["crop"]]["ongoing"])
+                        and (not params.FERTILIZE_ONESHOT_ONLY
+                             or not CROPS[t["crop"]]["ongoing"])
                         and (state.in_water_window(t) or CROPS[t["crop"]]["ongoing"])):
                     out.append(Job(P_FERTILIZE, pos, "FERTILIZE", None))
             elif state.is_weed(pos) and not retire:
@@ -139,12 +152,49 @@ def jobs(state):
     return out
 
 
+def fertilizer_buy_intent(state):
+    """Buy fertilizer for the ongoing crops when the shed has run dry.
+
+    Kept in `crop_plan` (the layer that owns fertilizing) and called from the scheduler's
+    market list, so the gate and the pickup use the SAME `_worth_fertilizing`.
+    """
+    if not params.BUY_FERTILIZER:
+        return []
+    # STRICT: buy only for a tile that is ON A PRODUCTION DAY TODAY and unfertilised.
+    # `_worth_fertilizing` is far too loose for this -- it is true whenever any ongoing
+    # crop exists, which made the first version buy 1,583 units in 2 games and reduce
+    # output everywhere by draining seed cash and turns.
+    need = 0
+    for row in state.tiles:
+        for x in row:
+            if not (isinstance(x, dict) and x.get("kind") == "PLANT"):
+                continue
+            if not CROPS[x["crop"]]["ongoing"]:
+                continue
+            if x.get("fertilized_until_day", -1) >= state.day:
+                continue
+            if state.ongoing_produces_today(x):
+                need += 1
+    if need <= 0:
+        return []
+    have = int(state.shed.get("FERTILIZER", 0))
+    want = min(need, params.FERTILIZER_BUY_QTY) - have
+    price = params.MARKET_PARAMS["FERTILIZER"]["base"]
+    spendable = state.money - herd_plan.feed_reserve(state) - params.CASH_RESERVE
+    n = min(want, int(spendable // max(1, price)))
+    return [["BUY_PRODUCT", "FERTILIZER", n]] if n > 0 else []
+
+
 def _worth_fertilizing(state):
     if state.day < params.FERTILIZE_FROM_DAY:
         return False
     for row in state.tiles:
         for t in row:
             if isinstance(t, dict) and t.get("kind") == "PLANT":
+                if params.FERTILIZE_ONGOING_ONLY and not CROPS[t["crop"]]["ongoing"]:
+                    continue
+                if params.FERTILIZE_ONESHOT_ONLY and CROPS[t["crop"]]["ongoing"]:
+                    continue
                 if t.get("fertilized_until_day", -1) < state.day and \
                         (state.in_water_window(t) or CROPS[t["crop"]]["ongoing"]):
                     return True
