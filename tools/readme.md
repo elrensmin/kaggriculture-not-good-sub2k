@@ -94,6 +94,9 @@ full one — so a phase run costs a fraction of a full sweep.
 | `--replay-dir D` / `--replay F` | analyse SAVED games instead of running them |
 | `--seat auto\|0\|1` | which seat to analyse (`auto` finds the team named DSM) |
 | `--ref-from D` `--ref-max N` | derive the targets from another arm's replays |
+| `--days 0-5` | **custom day window, overrides `--phase`** (e.g. `0-5`, `0-5,12-17`); the same flag is on every labour/market/report analysis tool |
+| `--spread` | also print **p10 / p25 / median / p75 / p90 / min / max** per metric for ours and the reference arm. Use it: a median over a bimodal population hides the defect you are hunting. The opening is near-deterministic (every metric `min == max`), but d6+ is not — **run d6+ at `--batch 4 --spread`, never `--batch 1`** |
+| `--dag phase1` | print only that phase's subgraph plus the edges **leaving** it |
 
 ```bash
 # the opening, quick check (2 opponents, 1 seed) or the field
@@ -268,6 +271,7 @@ PYTHONPATH=. python -m tools.report.dsm_profile --compare \
 | `ready_idle.py` | **PASSes while standing on a ready tile** (crop/animal yield, fertilizer) and LOCKED-tile turns, ours vs DSM, with the value left on the tile. | `python -m tools.labour.ready_idle --dir D --dsm-max 12` |
 | `missed_work.py` | Enumerates, per turn, the farm work that exists but is not being done (WATER / HARVEST / FEED / CARE / FERT / DIG), incl. the exact steps. | `python -m tools.labour.missed_work --dir D --glob 'scratch_vs_*.json' --summary-only` |
 | `idle_pool.py` | Classifies every idle (PASS) turn by how it could be recovered — no-movement vs needs-movement vs not recoverable. | `python -m tools.labour.idle_pool --dir D --glob 'scratch_vs_*.json' --summary-only` |
+| `unit_trace.py` | **The one that found the d0 livelock.** Per-unit, per-turn op + inventory timeline (farmer + hands), with a per-unit `(op, item)` tally, `PICKUP -> DROP` round trips (carried for nothing) and turns spent holding an item while only moving. Live or replay, so it runs on the #1's games too. Aggregate tools cannot see this: a PICKUP and a DROP both look like work. | `python -m tools.labour.unit_trace --days 0-0 --max-turns 26` · `... --dir replays/DSM/v1 --glob '*.json'` · `... --no-turns` for the summary |
 | `leverage.py` | Counterfactual: what is an idle hand about to do next (read from the replay's own committed trajectory), and what would re-routing it forfeit? | `python -m tools.labour.leverage --dir D --glob 'scratch_vs_*.json'` |
 
 ## 5. `fetch/` — data acquisition
@@ -298,3 +302,28 @@ PYTHONPATH=. python -m tools.report.dsm_profile --compare \
   chasing.
 - Judge on structural targets achieved **without** watchlist regression; revenue is
   reported alongside and is never the pass condition.
+
+### Pitfall: a stale `SCRATCH_PARAMS` screen silently reports "no effect"
+
+`tools/diagnose/agents.py::load_agent(fresh=True)` calls `importlib.reload(src)`, which
+re-executes only `src/__init__.py` — **not** `src.params` / `src.job` / `src.crop_plan`.
+So an ad-hoc probe that sets `os.environ["SCRATCH_PARAMS"]` and then calls
+`load_agent(fresh=True)` **keeps the old constants** and reports byte-identical results
+for every value you try. This cost a full round here: `P_BUILD` at 95/102/105/110,
+`BUILD_PER_TURN=8`, `OPENING_FEED_DAYS=0` and `OPENING_SEED_FLOOR=0` all "did nothing",
+and two conclusions were drawn from it that were simply false.
+
+Use a **full reload** — this is what `tools/phases/shadow_prices.py::_fresh_agent` and
+`tools/phases/state_value.py::_load_with` do:
+
+```python
+for m in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
+    del sys.modules[m]
+import src                      # params/job/crop_plan re-execute with the new env
+```
+
+Two related traps worth remembering:
+- `src/job.py` binds priorities at **import** time (`P_BUILD = params.P_BUILD`), so a
+  priority change needs the full reload even though `params` itself is re-read.
+- `tools/phases/shadow_prices.py` and `state_value --cross` already do this correctly —
+  **their numbers are trustworthy; hand-rolled probes are the risk.**
