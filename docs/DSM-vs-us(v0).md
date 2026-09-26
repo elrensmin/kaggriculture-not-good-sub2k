@@ -341,24 +341,24 @@ Every action below was traced with `--dag` for its downstream blast radius.
 
 ### 3.1 State — ours vs the #1
 
-**Phase 2, live** (24 games vs 6 of his replays; `was` = before A1 shipped):
+**Phase 2, live** (24 games; current tree = A1 ring + `MOVE_WEIGHT=20`):
 
 | metric | ours | #1 | ratio | |
 |---|---|---|---|---|
-| **animals on board** | 10.0 | 20.5 | 0.49× | **ROOT** (was 4.00 / 0.20×) |
-| animal structures | 10.0 | 20.5 | 0.49× | BAD |
-| COLLECT_FERTILIZER ops | 87 | 204 | 0.43× | BAD (was 42) |
-| FEED ops | 101 | 186 | 0.54× | BAD (was 48) |
+| **animals on board** | **11.0** | 20.5 | 0.54× | **ROOT** |
+| animal structures | 11.0 | 20.5 | 0.54× | BAD |
+| COLLECT_FERTILIZER ops | 84 | 204 | 0.41× | BAD |
+| FEED ops | 101 | 186 | 0.54× | BAD |
 | FERTILIZE ops | 0 | 71 | 0.00× | BAD |
-| shed peak | 16.0 | 25.5 | 0.63× | BAD |
-| **WATER ops** | 324 | 590 | 0.55× | **ROOT** (was 413) |
-| WATER ops per planted tile | 0.59 | 0.82 | 0.72× | WARN |
-| HARVEST ops | 64 | 182 | 0.35× | BAD (was 89) |
-| weeds | 13.0 | 1.00 | 13.0× | BAD (was 3.00) |
-| plants died | 16.5 | 2.00 | 8.25× | WARN (was 13.5) |
-| idle share % | 0.00 | 0.00 | — | ok (was 6.46) |
+| shed peak | 18.0 | 25.5 | 0.71× | BAD |
+| **WATER ops** | 318.5 | 590 | 0.54× | **ROOT** |
+| WATER ops per planted tile | 0.58 | 0.82 | 0.71× | WARN |
+| HARVEST ops | 70.5 | 182 | 0.39× | BAD |
+| weeds | **17.0** | 1.00 | 17.0× | BAD ⚠ |
+| plants died | **21.0** | 2.00 | 10.5× | BAD ⚠ |
+| idle share % | 0.00 | 0.00 | — | ok |
 | hands / owned tiles / quadrants | 12 / 100 / 4 | same | 1.00× | ok |
-| planted tiles | 70 | 74 | 0.95× | ok |
+| planted tiles | 73 | 74 | 0.99× | ok |
 | STRAWBERRY / TOMATO tiles | 30 / 13.5 | 32.5 / 10 | | ok |
 
 Two roots: **`animals on board`** (explains 7 deficient metrics) and **`WATER ops`** (explains 3,
@@ -411,22 +411,122 @@ shed-access tiles**. Engine rule: `fertilizer_available` is set **every day rega
 
 ### 3.2 What to improve — data-backed, independent
 
-Three groups sharing no state; runnable in parallel.
+Groups share no state and can be run in parallel. **GROUP A is now closed**; B and C are live.
 
-#### GROUP A — the herd
+#### GROUP A — the herd — **CLOSED at +$3,013** (all three actions resolved)
 
-| # | action | data that justifies it | metric to move | owner |
+**A2 — the fertilizer is MONEY, and the code says otherwise.** `src/sell_policy.py`'s header claims
+"FERTILIZER (nobody buys it): dump past a reserve" and `src/market.py` excludes FERTILIZER from
+`TOWN_CENTER_BUYS`. **Both are false.** Measured on his 30 replays
+(`tools/market/fertilizer_flow.py`): he **collects 443.5**, **fertilizes 236**, and **sells 257 units at
+an average $55.6 = $14,296 of revenue per game**, draining the shed to 0. Fertilizer is a first-class
+revenue line, not a byproduct.
+
+**We already sell 100% of what we collect — the sell policy is correct.** Measured with the same tool
+on 12 of our games:
+
+| | DSM | US |
+|---|---|---|
+| collected (COLLECT ops) | 443.5 | **205.5** |
+| fertilized | 236 | 0 |
+| **sold (units)** | 257 | **205.5** |
+| **sold / collected** | 58% | **100%** |
+| **revenue** | **$14,296** | **$10,688** |
+| avg price | $55.6 | $52.0 |
+| shed at end / discarded | 0 / ~0 | 0 / 0 |
+
+Per animal the collection is **identical** — us 205.5/10 = 20.6, him 443.5/20.5 = 21.6 — so **the whole
+fertilizer gap is herd size**, i.e. it collapses into herd size. The revenue gap on fertilizer alone is
+**$3,608/game**, and it needs animals, not a policy change.
+
+Two corrections to the record. (1) The claim that "fertilizer is worth more sold" was an inference
+from a code comment, not a measurement — the A/B only compared **fertilizing** against **not
+fertilizing**, which is a separate question. (2) Applying it is still negative on our farm
+(`FERTILIZE_FROM_DAY=6` **−$14,181, 0/24**; `+ONGOING_ONLY` **−$23,164, 0/24**), but he both fertilizes
+236 units *and* out-sells us, because he collects 2.16× as much. Fertilizer is a **revenue line we
+are already banking** ($10,688/game); the fix is the herd, not `crop_plan` and not `sell_policy`.
+
+**A3 dropped — `shed peak` is a symptom, not an action.** The phase-2 DAG traces it entirely to upstream
+production: `animals on board` (milk/wool/egg/fertilizer land in the shed), `HARVEST ops`, `FERTILIZE ops`,
+`weeds`, `plants died` — 73 ancestor nodes, no independent cause. Our shed peak is **lower** than his
+(16.0 vs 25.5) because we produce less; it rises on its own as production rises.
+
+**A4 closed — the herd is capped by the ring, and the whole frontier is mapped.** Holding the ring at 12
+tiles and varying only the buy window:
+
+| ring (`STRUCTURE_HOLDBACK`) | herd (`HERD_BUY_UNTIL`) | animals at d17 | dterm | sign |
 |---|---|---|---|---|
-| **A2** | Apply the fertilizer the herd now produces | herd supply 115 → 263 animal-days; we apply **0 vs his 227**; crop yield gap is exactly ×2 | `FERTILIZE ops` 0 → 71 | `crop_plan.jobs` |
-| **A3** | Rotate the shed so herd produce does not jam it | `shed peak` 16.0 vs 25.5 | `shed peak` → 25.5 | `sell_policy` |
-| **A4** | Push the herd 10 → 20 | A1 moved the root 4 → 10 (0.20× → 0.49×) at **+$3,013, 23/24**; 12 animals pay, 20 did not at holdback 20 | `animals on board` → 20.5 | `herd_plan.py` |
+| 12 | 12 | 10 | **+$3,013** | **23/24** ← shipped |
+| 12 | 18 / 24 / 30 | saturated | **−$12,918** | 0/12 |
+| 12 | 30, +wheat `48/16` | — | −$9,249 | 0/12 |
+| 16 | 30 | — | −$22,115 | 0/12 |
+| 20 | 30 | — | −$33,910 | 0/12 |
+| 20 | 12 | — | −$18,324 | 0/12 |
+
+`HERD_BUY_UNTIL` **18, 24 and 30 give byte-identical results (−$12,918)**: the binding constraint is the
+**ring size, not the buy window** — once the 12 reserved tiles are full nothing more can be serviced. Every
+point off the shipped cell is negative, so 12 ring / 10 animals is the optimum and giving the herd more land
+is strictly worse. The ring is land taken from the crop field, and at our movement cost the crop field wins
+that trade.
+
+**Re-measured on the improved field — GROUP A is still closed, and now worse.** With `MOVE_WEIGHT=20`
+shipped: `FERTILIZE_FROM_DAY=6` **−$14,230, 0/12** (was −$14,181) and `HERD_BUY_UNTIL=30`
+**−$24,031, 0/12** (was −$12,918). The cheaper-walking lever buys harvest throughput but *worsens*
+attrition (weeds 13 → 17, died 16.5 → 21), so the field is not healthier and the `FERTILIZE` op — still
+4.35 moves/op — remains unaffordable.
+
+**GROUP A therefore closes at +$3,013.** The herd root moved 4 → 10 (0.20× → 0.49×) and that is the ceiling
+at this farm shape. He runs 20.5 not because he manages animals better — our per-animal collection, care
+capture and escapes are all at or better than his — but because **his crop field is worth more per tile**, so
+he can afford to give land to animals. We cannot: our unfertilised field needs every tile and every turn at
+2.75 moves/op. The entry point into that cycle was the ring (A1); the cycle closes only if we can also afford
+the `FERTILIZE` op, which costs 4.35 moves/op we do not have. **The blocker is now GROUP B, not GROUP A.**
 
 #### GROUP B — field labour (the cost A1 incurred)
 
 | # | action | data that justifies it | metric to move | owner |
 |---|---|---|---|---|
-| **B1** | Recover water coverage lost to the ring reservation | `WATER ops` fell 413 → **324**; `weeds` 3.0 → **13.0**; `plants died` 13.5 → **16.5** | `WATER ops` 324 → 590; `weeds` → 1 | `crop_plan.jobs` + `_pick` |
-| **B2** | Recover harvest throughput | `HARVEST ops` fell 89 → **64** vs 182; `PASS-on-READY` 199 vs 44 | `HARVEST ops` → 182 | `_pick` |
+| **B1** | **SHIPPED — price walking cheaper** (`MOVE_WEIGHT` 30 → **20**) | 15/60 were negative at the **old** shape; at the new shape 20 is **+$4,375, 21/24, p=0.000** | `HARVEST ops` 64 → **70.5**; `animals` → **11**; `planted tiles` → **73**; `shed peak` → **18** | `params.py` |
+| **B2** | **OPEN — attrition is a capacity limit, not a pricing one** | see below | `weeds` 17 → 1; `plants died` 21 → 2 | ? |
+
+`MOVE_WEIGHT=20` phase-2 DAG: it **raises** harvests, animals, planted tiles and shed peak, but
+**`plants died` 16.5 → 21.0 and `weeds` 13 → 17** — it reallocates the crew toward harvesting, not toward
+water coverage, so **it does not fix the GROUP B metric**. Three other field levers were screened and are
+inert or negative: `CRITICAL_FREE_WALK_FRAC=0.35` and `SLICE_PENALTY=0` are **byte-identical** (0/0 pairs —
+the 0.5 plateau and the slice fallback are both non-binding), and `PLANT_WATER_CAP_DIVISOR=2` is
+**−$10,107, 0/12**.
+
+**The attrition is a capacity constraint.** `missed_work` over 4 games: **WATER=1366** tile-days a season
+against FERT=571, HARVEST=483, DIG=320 — while `idle-on-work` is only **79** unit-turns, i.e. the crew is not
+passing on work it can see, it simply never reaches the tiles. We water ~**58%** of the standing crop each day
+against the 50% needed merely to survive, so any slip kills a tile. Buying capacity is closed
+(`HANDS_MIDGAME=20` **−$32,670, 0/24**) and cutting demand is closed (`PLANT_WATER_CAP_DIVISOR=2` −$10,107).
+**No pricing lever tested recovers coverage.**
+
+**The demand lever DOES recover coverage — but the frontier is flat.** `CROP_SCALE=0.6` scales every
+`CROP_PLAN` target and peak (new knob, default 1.0), i.e. it holds 40% fewer tiles and waters them properly:
+
+| metric | baseline | **`CROP_SCALE=0.6`** | #1 |
+|---|---|---|---|
+| **`plants died`** | 21.0 | **12.0** ✅ | 2.00 |
+| **`weeds`** | 17.0 | **8.0** ✅ | 1.00 |
+| `idle share %` | 0.00 | 0.93 | 0.00 |
+| `HARVEST ops` | 70.5 | 62.5 ❌ | 182 |
+| `WATER ops` | 318.5 | 277 ❌ | 590 |
+| `planted tiles` | 73 | 61.5 ❌ | 74 |
+| `WHEAT` / `STRAWBERRY` tiles | 33 / 30 | 20 / 18 ❌ | 31 / 32.5 |
+
+So the capacity diagnosis is **confirmed**: shrink demand and attrition halves. But the crop revenue given
+up cancels the gain — **+$788, 16/24, p=0.102** at 24 paired games (it looked like +$1,336, 12/12 at 12),
+and the response is **non-monotonic**: `CROP_SCALE` 0.5 / 0.7 / 0.8 are −$7,070 / −$4,624 / −$2,696, all
+0/12. The frontier is therefore **flat, not cliff-edged**: we can trade attrition for output at roughly 1:1,
+which is why B2 stays open and `CROP_SCALE` stays at 1.0.
+
+**The fertilize half of the hypothesis is refuted.** "Fewer tiles, fertilised by the herd so each counts
+double" fails at every dose: `CROP_SCALE=0.6;FERTILIZE_FROM_DAY=6` **−$15,984, 0/12** and
+`+FERTILIZE_ONESHOT_ONLY=1` **−$16,644, 0/12** — *worse* than fertilizing at full area. The 40% smaller
+field did not free enough turns to pay for the `FERTILIZE` op, so the op remains unaffordable at any crop
+area we tested.
 
 #### GROUP C — planting ramp
 
@@ -456,6 +556,18 @@ Three groups sharing no state; runnable in parallel.
 | `MOVE_WEIGHT` 15 / 60 | −$2,709 / −$1,063 | closed |
 | `WHEAT_TARGET=24;WHEAT_PEAK=8` | −$5,873, 0/24 | closed |
 | crop-value fertilize gate | −$6,114, 0/36 | closed |
+| **fertilize on, all crops** (`FERTILIZE_FROM_DAY=6`, ring shipped) | −$14,181, 0/24 | closed |
+| herd 10 → 20 (`HERD_BUY_UNTIL=18/24/30`, ring 12) | −$12,918, 0/12 (identical — ring-saturated) | **closed (A4)** |
+| herd + ring 16 / ring 20 | −$22,115 / −$33,910, 0/12 | **closed (A4)** |
+| `MOVE_WEIGHT=20` **SHIPPED** | **+$4,375, 21/24, p=0.000** | GROUP B B1 |
+| `CRITICAL_FREE_WALK_FRAC=0.35` / `SLICE_PENALTY=0` | byte-identical (0/0 pairs) | inert |
+| `PLANT_WATER_CAP_DIVISOR=2` | −$10,107, 0/12 | closed |
+| GROUP A re-measured on the shipped field: fertilize / herd 20 | −$14,230 / −$24,031, 0/12 | **still closed** |
+| fewer tiles (`CROP_SCALE=0.6`) | +$788, 16/24, p=0.102 (halves `weeds`/`died`) | below the bar — frontier is flat |
+| fewer tiles **+ fertilize** (`CROP_SCALE=0.6;FERTILIZE_FROM_DAY=6`) | −$15,984, 0/12 | closed |
+| fewer tiles + fertilize **one-shot only** | −$16,644, 0/12 | closed |
+| `CROP_SCALE` 0.5 / 0.7 / 0.8 | −$7,070 / −$4,624 / −$2,696, all 0/12 | closed |
+| **fertilize, ongoing crops only** (`FERTILIZE_ONGOING_ONLY=1`) | −$23,164, 0/24 | closed |
 | `MELON_CEILING` 60 / 400 | −$2,844 / $0 | closed |
 | `HARVEST_CRITICAL`, `USE_SLICES=False`, `WATER_READY_FALLBACK`, `ONGOING_HARVEST_ANY`, `P_CARE/P_FEED/P_WATER_SURVIVAL/P_BUILD`, full-greedy rewrite, loop reorder, same-tile pre-pass | no effect / worse | closed |
 
