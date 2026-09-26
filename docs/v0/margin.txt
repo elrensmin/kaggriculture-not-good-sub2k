@@ -1,0 +1,8 @@
+
+=== v0-us   (96 games) ===
+  W/L/T          0/96/0   win rate 0%
+  median margin  $    -127,987   mean $    -129,953
+  median WIN     $           0   (best $0)
+  median LOSS    $    -127,987   (worst $-173,160)
+  p10/p25/p75/p90 $ -152,698 $ -136,170 $ -117,366 $ -111,022
+  guards         floor u 71  discard u 425  ovf days 18  escapes 0  idle% 15.2  stranded $47,108

@@ -17,10 +17,10 @@ specific seed. Floor units come from the replay's market audit when present
 SELL order and the observation price at that step.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.market.floor_sell --dir diag-replays/woolbase-543
-  PYTHONPATH=src:. python -m tools.market.floor_sell --dir replays/DSM/v1 --glob '*.json' --seat 0
-  PYTHONPATH=src:. python -m tools.market.floor_sell --path some_replay.json
-  PYTHONPATH=src:. python -m tools.market.floor_sell --dir diag-replays/woolbase-543 --product WOOL
+  PYTHONPATH=. python -m tools.market.floor_sell --dir diag-replays/woolbase-543
+  PYTHONPATH=. python -m tools.market.floor_sell --dir replays/DSM/v1 --glob '*.json' --seat 0
+  PYTHONPATH=. python -m tools.market.floor_sell --path some_replay.json
+  PYTHONPATH=. python -m tools.market.floor_sell --dir diag-replays/woolbase-543 --product WOOL
 """
 from __future__ import annotations
 
@@ -32,8 +32,16 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
+from tools.diagnose.window import parse_days, in_window, describe
 from kaggle_environments.envs.kaggriculture.kaggriculture import SHOPS, MARKET_PARAMS, PRICE_FLOOR
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 PRODUCTS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON",
             "EGG", "MILK", "WOOL", "FERTILIZER")
@@ -91,6 +99,8 @@ def analyse(path, seat=None):
         if not obs:
             continue
         d = t // 24
+        if not _in(d):  # window-guard
+            continue
         if d in herd:
             continue
         c = Counter()
@@ -165,9 +175,11 @@ def _one(arg):
 def _herd_str(g, days=(10, 16, 29)):
     out = []
     for d in days:
+        if _WINDOW and not _in(d):
+            continue          # outside the --days window: not measured, don't imply 0
         c, s, go = g["herd"].get(d, (0, 0, 0))
-        out.append(f"{c}/{s}/{go}")
-    return " ".join(f"d{d}:{v}" for d, v in zip(days, out))
+        out.append(f"d{d}:{c}/{s}/{go}")
+    return " ".join(out) or "(window has no probe day)"
 
 
 def print_game(g, product=None):
@@ -202,6 +214,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default=None, help="run dir containing replay JSONs")
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--path", default=None, help="a single replay JSON")
     ap.add_argument("--glob", default=None, help="glob inside --dir (default *_vs_*.json, else *.json)")
     ap.add_argument("--seat", type=int, default=None, help="seat of the agent (default: LB auto, else 1)")
@@ -209,6 +222,11 @@ def main():
     ap.add_argument("--workers", type=int, default=0, help="0 = all cores")
     ap.add_argument("--summary", action="store_true", help="one compact line per game instead of a block")
     args = ap.parse_args()
+
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
 
     pattern = args.glob
     if args.path:

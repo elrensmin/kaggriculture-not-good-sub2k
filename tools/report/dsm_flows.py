@@ -21,7 +21,7 @@ hour-23 step; that step is reported separately as ``eod_drop_units``.
 Judgement is PER GAME — never averaged. Use ``--summary`` for one line per game
 and the cross-game tallies, ``--daily`` for a per-day series of one episode.
 
-Run with ``PYTHONPATH=src:.``.
+Run with ``PYTHONPATH=.``.
 """
 from __future__ import annotations
 

@@ -28,9 +28,17 @@ import glob as globmod
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
+from tools.diagnose.window import parse_days, in_window, describe
 
-TEST_SEAT = 1  # our seat in --old/--compare games (public opponent is seat 0)
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
+
+TEST_SEAT = 1  # our seat in a harness run (the public opponent sits at seat 0)
 MOVES = {"NORTH": (0, -1), "SOUTH": (0, 1), "EAST": (1, 0), "WEST": (-1, 0)}
 ACT_OPS = {"WATER", "HARVEST", "FEED", "CARE", "FERTILIZE", "DIG", "COLLECT_FERTILIZER"}
 # crop water-relevant window (age in days): ongoing crops (tomato/strawberry) need
@@ -96,12 +104,16 @@ def analyze_game(path):
         obs = steplist[me]["observation"]
         act = steplist[me]["action"]
         day = i // 24
-        farm = obs["farms"][me]
-        positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
-        units = [list(act.get("farmer") or ["PASS"])] + [list(c) for c in act.get("hands") or []]
+        # the game's final banks are recorded before the --days guard: they belong to
+        # the game, not to the window, and skipping them left them None under --days.
         if i == len(steps) - 1:
             final_money = steplist[me].get("reward")
             opp_final = steplist[0].get("reward") if 0 < len(steplist) else None
+        if not _in(day):  # window-guard
+            continue
+        farm = obs["farms"][me]
+        positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
+        units = [list(act.get("farmer") or ["PASS"])] + [list(c) for c in act.get("hands") or []]
 
         # Which (x,y,kind) does this turn's action address? (a unit acts on its current tile)
         addressed = set()
@@ -201,11 +213,17 @@ def fmt_report(r, verbose=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--path")
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--dir")
     ap.add_argument("--glob", default=None, help="restrict files, e.g. 'old_vs_*.json'")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--summary-only", action="store_true", dest="summary_only")
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     if args.path:
         paths = [args.path]
     else:

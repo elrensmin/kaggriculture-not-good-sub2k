@@ -7,7 +7,7 @@ but is never the pass condition. Exit code is non-zero if any watchlist item
 regressed against the baseline.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.gates.targets --run-dir diag-replays/<arm> \
+  PYTHONPATH=. python -m tools.gates.targets --run-dir diag-replays/<arm> \
       --baseline diag-replays/run-1
 """
 from __future__ import annotations

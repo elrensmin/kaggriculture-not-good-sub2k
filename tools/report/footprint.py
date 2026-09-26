@@ -22,8 +22,8 @@ Profiles:
   --compare                                      (print both side by side)
 
 Usage:
-  PYTHONPATH=src:. python -m tools.report.footprint --compare
-  PYTHONPATH=src:. python -m tools.report.footprint --profile ours --run-dir diag-replays/run-5
+  PYTHONPATH=. python -m tools.report.footprint --compare
+  PYTHONPATH=. python -m tools.report.footprint --profile ours --run-dir diag-replays/run-5
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ import glob as globmod
 from collections import defaultdict
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
 
 PRODUCTS = ("MILK", "STRAWBERRY", "MELON", "WOOL", "EGG")
 ANIMAL_PRODUCTS = ("EGG", "MILK", "WOOL")

@@ -3,9 +3,17 @@
 
 While `tools/missed_work.py` enumerates undone work, this answers the counter-
 question: for every step where a hand PASSes (idle), what is that hand ABOUT to do
-next, and how much money is that work worth? We look ahead W steps along the
-agent's own route tape (the base plan the layers build on) for the SAME hand index,
-walking its position, and value each upcoming action at CURRENT market prices.
+next, and how much money is that work worth? We look ahead W steps for the SAME
+hand index, walking its position, and value each upcoming action at CURRENT market
+prices.
+
+Provenance of the look-ahead: this used to read the production agent's route tape
+(`main._IMPL.chassis.routes`), which does not exist for the from-scratch arm. It now
+reads the **committed trajectory recorded in the replay itself**
+(`steps[s][seat]["action"]`), which is strictly better for this purpose: it is what
+the agent actually did, for every arm (old / new / scratch / DSM), and it needs no
+chassis. The only thing it loses is the pre-commit *intent*; the only staleness is
+the tile forecast, which still reads the current board.
 
 This produces the decision: if the hand's near-term plan is HIGH-leverage (it's
 about to harvest/collect/sell something worth a lot), rerouting it to water is
@@ -15,17 +23,25 @@ FREE. We group idle-hand events by forfeit value so you can see which bucket is
 large enough to matter.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.labour.leverage --dir diag-replays/run-5 --glob 'old_vs_*.json' [--horizon 8]
+  PYTHONPATH=. python -m tools.labour.leverage --dir diag-replays/v0-us \
+      --glob 'scratch_vs_*.json' [--horizon 8] [--seat 1]
 """
 from __future__ import annotations
 
 import argparse
 import glob as globmod
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
-import diagnose
-import main as _main
+from tools import diagnose
+from tools.diagnose.window import parse_days, in_window, describe
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 TEST_SEAT = 1
 MOVES = {"NORTH": (0, -1), "SOUTH": (0, 1), "EAST": (1, 0), "WEST": (-1, 0)}
@@ -35,12 +51,14 @@ ANIMAL_PRODUCT = {"GOOSE": "EGG", "COW": "MILK", "SHEEP": "WOOL"}
 WATER_VALUE = 0.0
 
 
-def _routes_for(seat):
-    """Return (route_index, routes) for our seat, reading the live chassis."""
-    impl = _main._IMPL
-    native = impl.chassis.players.get(seat, {})
-    route = native.get("route", 0)
-    return route, impl.chassis.routes
+def _replay_route(steps, seat):
+    """The seat's committed per-step action list, used as the look-ahead track.
+
+    Shape matches the old tape: a list of action dicts indexed by step, each with
+    ``farmer`` / ``hands`` keys.
+    """
+    return [st[seat].get("action") or {} if len(st) > seat else {} for st in steps]
+
 
 
 def _action_value(op, tile, prices):
@@ -63,16 +81,15 @@ def _action_value(op, tile, prices):
     return 0.0
 
 
-def _lookahead(route, routes, step, hi, px, py, obs, horizon):
-    """Walk hand-index hi along the tape for the next `horizon` steps from (px,py).
+def _lookahead(route, routes, step, hi, px, py, obs, horizon, seat=TEST_SEAT):
+    """Walk hand-index hi along the recorded track for `horizon` steps from (px,py).
 
     Returns list of (rel_step, op, value) for that hand, and the max value (forfeit).
     """
-    day = step // 24
     out = []
     pos = [px, py]
     prices = (obs.get("market") or {}).get("prices") or {}
-    farm = obs["farms"][TEST_SEAT]
+    farm = obs["farms"][seat]
     tiles = farm["tiles"]
     maxv = 0.0
     for k in range(1, horizon + 1):
@@ -102,20 +119,25 @@ def _lookahead(route, routes, step, hi, px, py, obs, horizon):
     return out, maxv
 
 
-def analyze_game(path, horizon=8):
+def analyze_game(path, horizon=8, seat=TEST_SEAT):
     rep = diagnose.load_replay(Path(path))
     steps = rep["steps"]
-    route, routes = _routes_for(TEST_SEAT)
+    route, routes = 0, [_replay_route(steps, seat)]
     events = []
-    for i in range(len(steps)):
-        si = steps[i]
-        if len(si) <= TEST_SEAT:
+    # PAIRING: steps[t]["action"] is the action that PRODUCED steps[t]["observation"],
+    # so the action taken FROM steps[t]'s observation is at t+1 (verified: 97.1 % of
+    # moves satisfy pos[t+1] == pos[t] + action[t+1], vs 53.3 % same-index).
+    for i in range(max(0, len(steps) - 1)):
+        if not _in(i // 24):  # window-guard
             continue
-        obs = si[TEST_SEAT].get("observation")
-        act = si[TEST_SEAT].get("action")
+        si = steps[i]
+        if len(si) <= seat or len(steps[i + 1]) <= seat:
+            continue
+        obs = si[seat].get("observation")
+        act = steps[i + 1][seat].get("action")
         if not obs or not act:
             continue
-        farm = obs["farms"][TEST_SEAT]
+        farm = obs["farms"][seat]
         positions = [tuple(farm["farmer"])] + [tuple(p) for p in farm["hands"]]
         units = [list(act.get("farmer") or ["PASS"])] + [list(c) for c in act.get("hands") or []]
         for hi, u in enumerate(units):
@@ -125,7 +147,7 @@ def analyze_game(path, horizon=8):
             if op != "PASS":
                 continue
             px, py = positions[hi]
-            forecast, forfeit = _lookahead(route, routes, i, hi, px, py, obs, horizon)
+            forecast, forfeit = _lookahead(route, routes, i, hi, px, py, obs, horizon, seat)
             events.append({
                 "step": i, "day": i // 24, "hand": hi, "pos": (px, py),
                 "forfeit": forfeit, "forecast": [o for (_, o, _) in forecast],
@@ -148,16 +170,24 @@ def analyze_game(path, horizon=8):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default=".")
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--glob", default="*_vs_*.json")
     ap.add_argument("--horizon", type=int, default=8)
     ap.add_argument("--top-idle", type=int, default=15,
                     help="print this many highest-forfeit idle events as examples")
+    ap.add_argument("--seat", type=int, default=TEST_SEAT,
+                    help="seat of the agent under test (default 1, our arm)")
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     paths = sorted(globmod.glob(str(Path(args.dir) / args.glob)))
     agg_buckets = Counter(); agg_events = 0; agg_forfeit = Counter()
     for p in paths:
         try:
-            r = analyze_game(p, args.horizon)
+            r = analyze_game(p, args.horizon, args.seat)
         except Exception as e:  # noqa: BLE001
             print("ERR", Path(p).name, e)
             continue

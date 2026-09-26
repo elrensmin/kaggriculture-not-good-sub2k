@@ -1,0 +1,61 @@
+ready_idle — W3 trace: PASS-on-ready tiles and LOCKED-tile turns
+ours: diag-replays/v0-us  (96 games)
+dsm : replays/DSM/v1  (12 games, capped at 12)
+
+############ ours  (games=96) ############
+  unit-turns 669,342   PASS 100,267 (15.0%)
+  PASS-on-READY events 60,705  (632.3/game)   locked turns 23,329 (243.0/game)   parked on locked at bell 0
+  -- by kind --
+     crop      60,705  (632.3/game)
+     animal         0  (0.0/game)
+     fert           0  (0.0/game)
+  -- units left on the tile, and their value at the step price --
+     WHEAT        92,558u  ($ 2,710,927)
+     MELON        48,096u  ($12,962,112)
+     CARROT        3,336u  ($   157,361)
+     TOMATO          545u  ($    50,826)
+     STRAWBERRY      422u  ($    73,890)
+  -- PASS-on-READY by day --
+     day:      0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+     crop:  2784 4512 8064 9120  288 2208 1152 8448 2976 7296   69  763 2245 2097  636  763  436   23 1259 2838  573   13  381 1265   10   15  120   26   39  286
+     anim:     0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+     fert:     0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  -- LOCKED turns by day (d6-29) --
+     day:      6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+     n:      576  480  480  480  768  676  280  212  210  280  280  211  210  280  279  142    4    4    3    2    0    0    0    0
+
+############ dsm  (games=12) ############
+  unit-turns 89,671   PASS 3,364 (3.8%)
+  PASS-on-READY events 418  (34.8/game)   locked turns 1,275 (106.2/game)   parked on locked at bell 0
+  -- by kind --
+     crop         356  (29.7/game)
+     animal         3  (0.2/game)
+     fert          59  (4.9/game)
+  -- units left on the tile, and their value at the step price --
+     MELON           362u  ($    95,545)
+     WHEAT            67u  ($     2,077)
+     FERTILIZER       59u  ($     2,739)
+     CARROT           11u  ($       555)
+     MILK             10u  ($       114)
+     EGG               2u  ($        90)
+  -- PASS-on-READY by day --
+     day:      0    1    2    3    4    5    6    7   12   19   20   23   24   25   26   27   28   29
+     crop:    60   45   30   91   24   62    2   31    1    0    1    1    2    1    1    2    2    0
+     anim:     0    0    0    0    0    0    0    0    0    1    0    0    1    0    1    0    0    0
+     fert:     0    0    0    0    3   25    0    0    0    0    0    0    0    0    0    0    0   31
+  -- LOCKED turns by day (d6-29) --
+     day:      6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+     n:      144   64   81  109   56    2    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+
+############ SIDE BY SIDE (per game) ############
+   metric                            ours         dsm         gap
+   unit-turns                     6,972.3     7,472.6      -500.3
+   PASS share %                      15.0         3.8       +11.2
+   PASS-on-READY                    632.3        34.8      +597.5
+     ...crop                        632.3        29.7      +602.7
+     ...animal                        0.0         0.2        -0.2
+     ...fert                          0.0         4.9        -4.9
+   units left on tile             1,510.0        42.6    +1,467.4
+   value left ($)               166,199.1     8,426.7  +157,772.5
+   LOCKED turns                     243.0       106.2      +136.8
+   parked on locked at bell           0.0         0.0        +0.0

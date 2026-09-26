@@ -21,18 +21,26 @@ Everything is read from `days_seed*.csv` (per day, audit-backed), so this is fas
 and needs no replay parsing.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.market.shop_response --dir diag-replays/w1-final
-  PYTHONPATH=src:. python -m tools.market.shop_response --dir A --vs B
-  PYTHONPATH=src:. python -m tools.market.shop_response --dir A --games "SHEEP"
+  PYTHONPATH=. python -m tools.market.shop_response --dir diag-replays/w1-final
+  PYTHONPATH=. python -m tools.market.shop_response --dir A --vs B
+  PYTHONPATH=. python -m tools.market.shop_response --dir A --games "SHEEP"
 """
 from __future__ import annotations
 
 import argparse
+from tools.diagnose.window import parse_days, in_window, describe
 import csv
 import glob
 import json
 import os
 from collections import defaultdict
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 ANIMAL_PAIRS = (
     # label,             animal,  product, buyer shops
@@ -75,6 +83,8 @@ def load(run_dir):
                 }
             g["days"] += 1
             day = int(_f(r.get("day")))
+            if not _in(day):  # window-guard
+                continue
             try:
                 unlocked = json.loads(r.get("shop_unlocks") or "[]")
             except ValueError:
@@ -190,12 +200,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True)
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--vs", default=None, help="second run dir to compare against")
     ap.add_argument("--buckets", default="6,9",
                     help="unlock-day cut points (default '6,9' -> d0-5 / d6-8 / d9+)")
     ap.add_argument("--games", default=None,
                     help="per-game dump for this animal/product (e.g. SHEEP)")
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     cuts = tuple(int(x) for x in args.buckets.split(",") if x.strip())
 
     a = report(args.dir, os.path.basename(args.dir.rstrip("/")), cuts)

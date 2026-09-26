@@ -24,10 +24,10 @@ matters; `sell_qty_*` is the *executed* amount, not the tape's requested order s
 (the terminal route asks for 1000s that the engine clamps).
 
 Usage:
-  PYTHONPATH=src:. python -m tools.report.herd_hold --compare
-  PYTHONPATH=src:. python -m tools.report.herd_hold --profile dsm
-  PYTHONPATH=src:. python -m tools.report.herd_hold --profile ours --run-dir diag-replays/release-543
-  PYTHONPATH=src:. python -m tools.report.herd_hold --compare --max-games 40
+  PYTHONPATH=. python -m tools.report.herd_hold --compare
+  PYTHONPATH=. python -m tools.report.herd_hold --profile dsm
+  PYTHONPATH=. python -m tools.report.herd_hold --profile ours --run-dir diag-replays/release-543
+  PYTHONPATH=. python -m tools.report.herd_hold --compare --max-games 40
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
 
 ANIMALS = ("COW", "SHEEP", "GOOSE")
 PRODUCTS = ("WOOL", "MILK", "STRAWBERRY", "EGG")

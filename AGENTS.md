@@ -1,179 +1,131 @@
 # Agent Development Guide (handover)
 
-## Golden rule
+## Layout — read this first
 
-**Never edit `src/route_tape.py` while experimenting.**
+| path | role | editable? |
+|---|---|---|
+| `src/` | **the agent.** An onion of small layers; `src/__init__.py` exposes `agent(observation, configuration)`. | **YES — this is the product** |
+| `tools/diagnose/` | the harness: run the agent, write replays + CSVs, re-diagnose saves, render graphs | yes |
+| `tools/` (rest) | read-only analysis: labour, market, report, gates | yes (add tools freely) |
+| `public_agents/` | the 12 public "cloning" opponents | yes |
+| `package.py` | builds the single-file Kaggle bundle from `src/` | yes |
+| `GAME_DYNAMICS.md` | authoritative mechanics (crops, animals, market, turn order) | yes |
+| `docs/DSM-vs-us(v0).md` | the data-backed diagnosis of this agent vs the #1 | yes |
+| `docs/dsm_v1.md` | the #1 team's full anatomy | yes |
+| `replays/DSM/v1/` | the #1's 123 leaderboard episodes (read-only reference) | **NO** |
+| `diag-replays/` | output of our runs (gitignored) | n/a |
 
-- `src/route_tape.py` — read-only opening route tape data.
-- `src/main.py` — **editable.** It's the production agent (~6,400 lines, a ~45-layer
-  patch stack over a `make_agent` chassis). Improvements to its own layers are
-  valid experiments, not just `agent.py` patches. Just don't break it, and keep
-  `route_tape.py` untouched.
+There is **no route tape, no `main.py` chassis and no patch layer.** Those were
+deleted when this agent was committed to. If you find a doc or a tool that still
+mentions `route_tape`, `agent.patch`, `--old`/`--new`/`--compare`, `--grid` or
+`--xray`, it is stale — fix it, do not resurrect the machinery.
 
-Most experiments still go in `src/agent.py` (the safest late-hook surface), but
-editing `main.py`'s layers directly is allowed when the lever lives there.
+## Golden rule: the agent is stateless
 
-## Changing the tape's trajectory (herd / crops / structures) — READ FIRST
+`src/agent(observation)` computes `action(t) = f(state(t))` with **no cross-turn
+memory**. Every layer reads an immutable per-turn `State` snapshot
+(`src/state.py`), and `src/__init__.py` wraps the whole plan in a try/except that
+degrades a bug to a legal `PASS` rather than to a crash.
 
-> Read this before trying to change *what the farm is* (animal mix, where
-> coops/pastures/crops go, how many). It is the single most common way to burn a
-> day "patching" and see the tape do its own thing anyway.
+Two consequences you must design around:
 
-**The tape is not a policy you can nudge — it is a 719-step positional
-recording.** `Chassis.act` re-reads it fresh every turn (`_route_action`
-deep-copies `tape[step]`). A one-turn override is therefore erased on the next
-step: the tape's step `t+1` still assumes the world step `t` would have produced.
-That is why a `patch()` that changes the *farm* (species, structure placement,
-counts) shows a bounded local effect and then "snaps back" — you are editing a
-turn, not the trajectory.
+- **A bug is a local fix, never a corrupted trajectory.** There is no replaying
+  positional recording to keep valid, so you can change any layer and re-run.
+- **Anything that needs memory must be *derived* from the observation.** The
+  engine hands you the whole board and shed every turn; use that instead of
+  carrying state forward. (E.g. crop calendars are re-derived from
+  `planted_day`/`age`, not remembered.)
 
-**A trajectory edit is legal only if it preserves the tape's worker positions,
-tiles and timing.** Exactly two rewrite forms survive:
+## The layer stack (inside → out)
 
-1. **In-place token substitution at the tape's own step, worker and tile.**
-   Rewrite the *opcode/item*, never the schedule: `BUY_ANIMAL SHEEP→COW`,
-   `PICKUP`/`PLACE SHEEP→COW`, `BUILD_COOP→BUILD_PASTURE`. The worker still moves
-   the same way, so the rest of the tape stays valid. See `_v231_controller`
-   (sheep→cow at the day-8/9 buy, with reservation tracking) and `_v9_herd`.
-2. **Quantity/market edit at the tape's own anchor.** Trim/extend the quantity on
-   an order the tape already emits, and add a `SELL` for any product the swap
-   creates that the tape has no sale slot for (`_v9_herd`'s `herd_extra_sold`,
-   `_v231`'s extra MILK). Watch `MAX_ORDERS` (10), feed (1 wheat/animal/day), the
-   100-item shed cap, and `stranded_at_bell`.
+    core         params / market / state / routing
+    structural   budget / crop_plan / herd_plan / layout
+    execution    sell_policy / endgame / scheduler / emit
 
-**Know which direction is cheap and which is structurally blocked.** The engine
-only lets you `BUILD_COOP`/`BUILD_PASTURE` on an **empty** tile, `DIG` cannot
-remove a structure that has an animal on it, and `PLACE <animal>` needs a
-*matching* structure. So:
-
-- **goose tape → sheep/cow is cheap:** both target species use `PASTURE`, and a
-  goose tape already builds 12–17 pastures, so a substitute always finds a home.
-  This is why `_v9_herd` and `_hd2` only ever swap *away* from geese.
-- **sheep tape → geese is hard:** geese need `COOP`, a sheep route builds 0–2 of
-  them, and the ring is already full of pastures + animals. You can repurpose a
-  *planned* pasture build into a coop, but you cannot create new empty tiles or
-  extra worker turns — so the goose gain is capped by the coops the tape already
-  plans (often 0–1), and you must rewrite `BUY_ANIMAL`, `PICKUP`, `PLACE`,
-  `BUILD_PASTURE` and the sale path **together**, or bought geese strand in the
-  shed.
-
-**The bigger lever is the route, not the tokens.** Each route is a fixed
-herd/crop/structure budget (measured: 0–7 `BUILD_COOP`, 12–18 `BUILD_PASTURE`,
-0–4 goose buys per route). The route is chosen from the **first two unlocked
-shops** in `_router` (`SHOP_ROUTES`, then `_V92_TABLE`); step ≥648 flips to the
-terminal route. If the world calls for a different farm, change the *route
-selection* — that re-plans the whole season coherently. Token rewrites are for
-fine-tuning a route you intend to keep.
-
-**Put the change where the anchor lives — and check who runs *after* you.**
-Herd/structure decisions belong in the `main.py` layers that own the tape anchor
-(`_v231_controller`, `layer_24_v9_herd`, the `_hd2_*` layers, or a new layer
-inserted at the right stack position). `agent.py`'s `patch()` runs **after all
-~45 layers**, holds no chassis state (no route id, no reserved/pending counters),
-and is overwritten by the next tape step — it cannot carry a multi-turn
-trajectory change.
-
-Layer order bites hard here, because several herd layers anchor on the *same*
-token. Live example: `layer_38_hd2` decides on any `BUY_ANIMAL GOOSE` it sees and,
-when **no coop exists yet on the farm**, rewrites `BUY_ANIMAL GOOSE→COW/SHEEP`,
-`BUILD_COOP→BUILD_PASTURE` and `PICKUP/PLACE GOOSE→species` (`_hd2_decide` /
-`_hd2_rewrite`; its `_HD2_OPTIONS` excludes geese). So a goose-adding layer placed
-*upstream* of it (e.g. `layer_hg_goose` at stack position ~24) has its new geese
-silently reverted on exactly the routes that need them — while on a goose-native
-route HD2 short-circuits at `skip:coop_exists` (a coop is already up from day 6)
-and leaves the geese alone. Net effect measured over 12 seeds: geese appeared in
-only 5/12 games and the "goose" layer was a no-op on the other 7. **Before adding
-a herd/form layer, grep the downstream layers for the token you introduce.** If a
-later layer owns that decision, either fold your option into it (add `GOOSE` to
-`_HD2_OPTIONS` and give it a coop-building path) or insert after it — not before.
-
-**Measure it correctly.** A `main.py` change makes `--compare` useless
-(`old == new` by definition). Validate with `--old` against a **frozen baseline
-run** on the same seeds and diff `games.csv` (as `docs/todo.md` does). Judge on
-`result` (WIN/LOSS) plus the defect columns; never on a cross-game mean.
+`src/scheduler.py::plan(state)` is the only thing `__init__` calls. It gathers
+jobs from the policy layers (`crop_plan.jobs`, `herd_plan.jobs`, `endgame.jobs`),
+assigns each unit a job via `_pick`, routes it one cell, and compiles the market
+orders. **When two layers disagree, the priority constants in `src/job.py` and the
+assignment kernel in `scheduler._pick` decide the winner** — that kernel is where
+the agent's "personality" lives.
 
 ## HOW TO EXPERIMENT AND FIND THINGS TO WORK ON (IMPORTANT)
 
 > Read this before writing any experiment. It exists because dozens of
-> experiments silently found "nothing valid" while re-deriving machinery the
-> production agent already has. Don't repeat that.
+> experiments silently "found nothing" while re-deriving machinery that already
+> existed, or while chasing a proxy metric that does not score.
 
-**Understand the real architecture first.** `src/main.py` is not a naive agent;
-it is a **`Chassis`** (built by `make_agent`) that (1) picks a **route tape** from
-`src/route_tape.py` (`ROUTES` / `SHOP_ROUTES` — read-only data, one action-plan
-per shop-draw / opening), and (2) runs a **~45-layer onion of `layer_XX_*`
-functions** that each transform the action, tapping shared machinery
-(`_View`, `projected_shed`, `_r37_market_price`, `_r37_similarity`, `FarmView`,
-plus a `router` that switches routes mid-game — e.g. shop-aware yarn vs
-non-yarn policies, and an endgame route flip). The base is already shop-aware
-and market-timed at the route level. Our `agent.py` patch runs *after* all of
-this and sees only `(action, observation, configuration)`.
-
-**The patch surface is not "the whole agent" — it is one late hook.** A
-post-hoc tweak that re-implements something the layers already do (a price
-threshold for a product, culling an animal the router already specializes on,
-a market-timing rule that `_r37` already computes from a forecast) will either
-(no-op) duplicate the tuned behavior or (worse) fight it and regress. That is
-why so many patches "find nothing": they are crude re-builds of existing
-machinery, fighting a data-tuned system.
-
-**How to actually find a valid experiment:**
-1. **Point at a measured defect first.** Hunt in `games.csv`/
-   `days_seed<S>.csv` for a concrete, seed-independent leak (stranded stock at
-   the bell, endgame conversion, overflow discards, missed harvests, unwatered,
-   a bad `avg_price_<p>` on a specific day). If you can't name a defect you
-   watched, you don't have an experiment yet.
-2. **Read the layer / route that owns it before overriding.** Use `main.py`'s
-   own helpers (`import main as _main` → `_main._IMPL.chassis`, `projected_shed`,
-   `_r37_market_price`, the route the chassis selected) so your override speaks
-   the same model the base uses — make an *informed surgical* change, never a
-   from-scratch guess.
-3. **Make the smallest override that attacks that one defect and nothing else.**
-   Prefer reusing the base's own state/forecast over re-deriving from
-   `observation`.
+0. **Find the ROOT with the phase tool before writing anything.** Margins say *that*
+   we are behind; they never say *what to change*.
+   `PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 --pa 1,2 --batch 1`
+   (or `--phase all --ref-from replays/DSM/v1 --ref-max 4`) labels each deficient
+   structure. A metric is a **ROOT** when it is deficient and every upstream cause is
+   healthy, and the tool prints how many other deficient metrics that root explains.
+   An experiment aimed at a *symptom* is the single most common way to spend a day
+   and "find nothing" — the graph tells you which chain to cut, and which metrics are
+   merely downstream of a root you have not touched.
+1. **Point at a measured defect first.** Hunt in `games.csv` /
+   `days_seed<S>.csv` for a concrete, seed-independent leak: stranded stock at the
+   bell, endgame conversion, overflow discards, missed harvests, unwatered plants,
+   a bad `avg_price_<p>` on a specific day, idle units on a ready tile. If you
+   can't name the defect you watched, you don't have an experiment yet. The
+   current open list is §6 of `docs/DSM-vs-us(v0).md`.
+2. **Read the layer that owns it before changing it.** Every defect has a home:
+   market timing lives in `sell_policy`, the crop calendar in `crop_plan` and
+   `params.CROP_PLAN`, herd sizing in `herd_plan`, "who walks where" in
+   `scheduler._pick` and `layout`, endgame in `endgame`. Make an *informed
+   surgical* change to the owner, not a from-scratch guess in a new file.
+3. **Make the smallest change that attacks that one defect and nothing else.**
+   Prefer a `params.py` knob (env-overridable via `SCRATCH_PARAMS`, see below) so
+   the same seeds can be A/B'd without editing code.
 4. **Judge on `result` (WIN/LOSS), never on a proxy mean.** A target column
-   (floor_sales, revenue, a guard) moving the "right" way with the guards green
-   is NOT a win signal — the grid ACCEPTs those. Read `wins_new`, and check the
-   per-game margin still helps before promoting anything. A patch that reduces a
-   metric while making us lose by more is a regression, not a success.
-5. **Respect the shared market.** Any change to how much we produce/sell of a
-   product reprices what *both* players see; holding or cutting our own supply
-   can hand the opponent the premium. Prove a real benefit before touching it.
-6. **Reuse, don't rebuild.** If the layers already handle something (shop-aware
-   routes, market timing, endgame), fighting it is not an experiment.
+   moving the "right" way with the guards green is NOT a win signal. Read
+   win/loss and the per-game margin; check the defect you were attacking actually
+   moved, and that nothing else regressed.
+5. **Respect the shared market.** Any change to how much we produce or sell
+   reprices what *both* players see, so holding or cutting our own supply can hand
+   the opponent the premium. Prove a real benefit before touching it.
+6. **Reuse, don't rebuild.** `src/market.py` already encodes the price curves and
+   which products are knife-edge; `src/state.py` already derives plant readiness,
+   water windows and ongoing-crop production days. Fighting those with a private
+   copy of the logic is how a "fix" becomes two bugs.
 
-**Non-goals:** no-ops that mirror the base; overrides that only move a proxy
-mean; touching `route_tape.py`; optimizing cross-game averages; a
-patch whose only effect is "reduces a metric we don't score on."
+**Non-goals:** changes that only move a proxy mean; optimising a cross-game
+average; a patch whose only effect is to alter a metric we do not score on;
+recreating the deleted tape/chassis/patch machinery.
+
+## A/B testing without editing code
+
+`src/params.py` reads an env override at import, so you can measure two
+configurations on identical seeds from one tree:
+
+```bash
+# baseline arm
+SCRATCH_PARAMS='PLANT_RAMP=0;MOVE_WEIGHT=0' python -m tools.diagnose --scratch \
+    --pa 1-12 --batch 8 --seed 4362837462 --run-dir diag-replays/arm-a
+# candidate arm (same seeds, same opponents)
+python -m tools.diagnose --scratch \
+    --pa 1-12 --batch 8 --seed 4362837462 --run-dir diag-replays/arm-b
+# matched-pair diff with a sign test + defect watchlist
+PYTHONPATH=. python -m tools.report.arm_diff --a diag-replays/arm-a --b diag-replays/arm-b
+```
+
+`BOOLEANS` accept `1/0/true/false`; ints and floats are parsed by type.
 
 ## Submissions
 
 **The agent has NO permission to submit/push to Kaggle.** `package.py` is for
-*local packaging only*: building the single-file bundle and (optionally) verifying it
-with `--check`. Never run `--push` yourself. Submitting the actual entry is the human's
-call, run by them from a terminal. Do not auto-run a mock game before/around packaging —
-the operator does not want a bundle verification run; build the file and stop.
-
-## How the patch system works
-
-`src/agent.py` is a **patch layer over `src/main.py`**, not a standalone replacement:
-
-- `--old`  → runs the full agent built into `main.py` alone.
-- `--new`  → runs the full `main.py` agent, then `agent.patch(action,
-  observation, configuration)` receives the action `main.py` produced and may
-  alter it. Editing `patch()` is how you try ideas.
-- `--compare` → runs `--old` and `--new` on the same seeds.
-
-So every `--new` / `--compare` run does *everything `main.py` does, then applies
-your patch* — measured against real production behavior, not an isolated stub.
-Returning `action` unchanged from `patch()` is a no-op.
+*local packaging only*: it builds the single-file bundle from `src/` and can verify
+it with `--check` (one seeded game, asserting the bundle's bank equals the local
+`src.agent`'s). Never run `--push` yourself. Submitting the actual entry is the
+human's call, run by them from a terminal. Do not auto-run a mock game around
+packaging either — build the file and stop.
 
 ## Anti-goal: never trust cross-game averages
 
 **Do not optimize the average score.** The environment is dynamic — random-seeded
-games across the whole public leaderboard, with live moving prices. Which public
-agent we face and any one seed's price action can swing any run. Trusting an
-average of scores is misdirection: it regresses our score.
+games, live moving prices, and a different public opponent every match. An average
+of scores is misdirection: it regresses our rating.
 
 Always hunt for **inefficiencies in the system** and tackle **system-level
 issues**:
@@ -195,274 +147,399 @@ day's shop unlock is drawn from that **same RNG** immediately afterwards
 (`_end_of_day`). So the number of empty tiles we leave moves the shop RNG stream.
 
 Measured: the shop draw differs between arms in **18/18 games** (same seeds, same
-opponents). Concretely, `YARN_STORE` appeared in **9/18** games in `w0-235` and
-**15/18** in `w1-final`, and seed 5243533 has no YARN in one arm and YARN in the
-other.
+opponents). Concretely, `YARN_STORE` appeared in **9/18** games in one arm and
+**15/18** in another.
 
-Consequences, for every table in this document:
+Consequences, for every table you read:
 - A metric conditioned on a shop (e.g. "SHEEP in YARN worlds") is **not a
   controlled comparison across arms** — the worlds themselves changed.
 - Seed+opponent pairing still holds (the episode seed is fixed); what diverges is
   everything downstream of the RNG.
-- Always print the shop mix beside a shop-conditioned metric, and prefer
-  unconditional metrics when judging a patch.
+- Always print the shop mix beside a shop-conditioned metric
+  (`tools/market/shop_response.py` prints it first, and `dsm_profile.py` reports
+  the arm's YARN mix), and prefer unconditional metrics when judging a change.
 
-
-
-## Why "never trust averages" runs deeper: the win‑vs‑money objective
+## Why "never trust averages" runs deeper: the win-vs-money objective
 
 Distilled from the community notebook `wins-not-money.ipynb` (destbreso) — the
-single most instructive result in this folder, and the *reason* the anti‑goal
+single most instructive result in this folder, and the *reason* the anti-goal
 above is not just a workflow preference.
 
 - **The ladder pays for wins, not dollars.** A win by $1 and a win by $50k move
   the rating the same way (measured: after a submission's first ~15 games the
-  margin/rating link vanishes; below ~40 games a win rate is pure binomial
-  ~11pt noise). The quantity to maximise is **Pr[win] ≈ Φ(μ/σ)** — the
+  margin/rating link vanishes; below ~40 games a win rate is pure binomial ~11pt
+  noise). The quantity to maximise is **Pr[win] ≈ Φ(μ/σ)** — the
   *mean-over-spread* of the margin — not the mean margin. **Money is a
-  lower‑noise estimator of the same thing, not the objective.** So: *judge a
-  change on margin (low‑noise measurement), but choose the change that raises
-  Pr[win]*. A patch can raise the median bank and still lose 28/28 games it
-  changed — that exact failure is documented in the notebook.
+  lower-noise estimator of the same thing, not the objective.** So: *judge a
+  change on margin (low-noise measurement), but choose the change that raises
+  Pr[win]*. A change can raise the median bank and still lose more games than it
+  wins; that exact failure is documented in the notebook.
 - **Optimise consistency, not magnitude.** A µ/σ maximiser beats the opponent
-  narrowly instead of crushing half the field. The strongest agent cited wins
-  by leaving the rival less (median bank within 0.5% of its predecessor).
-- **Signed risk preference (Corollary 3).** Additional variance *increases*
-  Pr[win] only when you expect to finish **behind** (ℓ+μ<0) and *decreases* it
-  when **ahead**. Both banks are public, so ℓ is observable every turn. A
-  variance term with a fixed sign is wrong half the time; the sign flips at
-  ℓ+μ=0.
-- **Non‑composition — why greedy hill‑climbing lies.** E[M] is linear and
-  composable (accepting any improving step converges), but Pr[win] is a *ratio*:
-  dispersions of independent effects add while means do not (revenue is
-  concave — selling into a market you already moved fetches less). Two changes
-  that each raise μ/σ can jointly lower it. **Evaluate combinations, never
-  components** (accept an idea only from a run of its actual patch, not from
-  "each layer looked good alone").
+  narrowly instead of crushing half the field. The strongest agents cited win by
+  leaving the rival less (median bank within 0.5% of their predecessor).
+- **Signed risk preference.** Additional variance *increases* Pr[win] only when
+  you expect to finish **behind** (ℓ+μ<0) and *decreases* it when **ahead**. Both
+  banks are public, so ℓ is observable every turn. A variance term with a fixed
+  sign is wrong half the time; the sign flips at ℓ+μ=0.
+- **Non-composition — why greedy hill-climbing lies.** E[M] is linear and
+  composable, but Pr[win] is a *ratio*: dispersions of independent effects add
+  while means do not (revenue is concave — selling into a market you already moved
+  fetches less). **Evaluate combinations, never components.**
 - **Aggregate per opponent, then average — never the other way round.** A single
-  pooled Φ folds between‑opponent spread into σ and flatters you (~4pt here).
-- **Practical translation for our harness:** this is *why* `--compare` diffs
-  the **same seed** (matched opponents cancel) and why `--old`/`--new` are
-  judged per‑game on concrete defects rather than on a mean: a mean is the
-  *wrong objective's* summary of the *wrong sample*. Trust `result` (WIN/LOSS);
+  pooled Φ folds between-opponent spread into σ and flatters you (~4pt here).
+- **Practical translation:** `tools/report/arm_diff.py` diffs the **same seed**
+  (matched opponents cancel) with a sign test; `tools/gates/margin.py` prints the
+  five-number ladder; `tools/report/day_gap.py` and `dsm_profile.py` normalise
+  **per-opponent median → median across opponents**. Trust `result` (WIN/LOSS);
   treat `final_money` as the noisy-but-high-resolution readout, never the score.
 
 ## How the leaderboard is ranked (what we actually maximize)
 
-Confirmed from the live ladder + our own analysis of the #1's replays (`replays/DSM/`):
+- **The leaderboard score is a win/loss rating, not money.** Live top-50 scores
+  sit in a tight band (~2801–3163, mean ≈2894) — the signature of an
+  Elo/Glicko-style rating computed from head-to-head matches, **not** a sum of
+  bank balances (those are ~10⁴–10⁵ per game).
+- **Each *episode* is exactly one match between two teams.** A leaderboard
+  `games.csv` shows a submission *both* as seat 0 and seat 1 with mirrored
+  WIN/LOSS — two rows for the SAME game. **Never count an episode twice.**
+- **Money is only the tie-break that decides who wins a match.** The dollar
+  magnitude of your bank never enters your score — a win by $1 and a win by $50k
+  move your rating the same. Your bank merely *decides* each match's winner, so
+  it's a lower-noise signal of your win probability — not the objective.
+- **#1 ground truth:** DSM tops the ladder with **117W–5L (95.9%)**, mean margin
+  **+$17,721**, median **+$14,144**, normalised (median-of-per-opponent-medians)
+  **+$20,351**, worst game **−$3,570**, and **0.0%** of games lost by more than
+  $4k. **The thing to copy is not the margin, it is the floor.**
 
-- **The leaderboard score is a win/loss rating, not money.** Pulling the live
-  leaderboard gives scores in a tight rating band (observed top-50 span ~2801–3163,
-  mean ≈2894) — the signature of an Elo/Glicko-style rating computed from
-  head‑to‑head matches, **not** a sum/average of bank balances (those are ~10⁴–10⁵
-  per game) and not a raw win count.
-- **Each *episode* is exactly one match between two teams.** Why `games.csv --lb`
-  shows a submission *both* as seat 0 and seat 1 with mirrored WIN/LOSS and swapped
-  final/opponent amounts: two rows for the SAME game, one per seat. Seat 0/1 is just
-  random orientation — irrelevant to scoring. **Never count an episode twice or read
-  the mirror as evidence of two outcomes** (one `replays/DSM` episode is even DSM vs
-  DSM, a self-play/mirror game: both rows flip identically).
-- **Money is only the tie-break that decides who wins a match.** The env's reward is
-  `final_money` per seat; the higher-reward seat takes the match. **The dollar
-  magnitude of your bank never enters your score** — a win by $1 and a win by $50k
-  move your rating the same (the `wins-not-money` point). Your bank merely *decides*
-  each match's winner, so it's a lower-noise signal of your win probability — not the
-  objective.
-- **#1 ground-truth:** DSM tops the ladder (3163.2) with a **118W–6L record (95.2%
-  win rate) across its 124 ladder games, mean margin +$17,435** (tallied from
-  `replays/DSM/games.csv`). The ranking follows who wins more across the field.
-
-**So "maximize for this" means: maximize `Pr[win] = Φ(μ/σ)` over the match‑making
+**So "maximize for this" means: maximize `Pr[win] = Φ(μ/σ)` over the match-making
 pool — beat the field reliably, not post a bigger bank.** Rules:
 1. Judge every change on **`result` (WIN/LOSS)**; a higher median bank that loses
-   more games is a regression (the documented 28/28-loss failure mode).
-2. Treat **margin as the diagnostic readout, never the score**: use it to *measure* a
-   candidate's win probability; accept it only when it raises win rate.
-3. **Optimise consistency, not magnitude** — a µ/σ maximiser wins narrowly but
-   reliably; the leaders sit within ±80 rating points, so wins (not blowout margins)
-   decide who is #1.
+   more games is a regression.
+2. Treat margin as the diagnostic readout, never the score.
+3. **Optimise consistency, not magnitude** — the leaders sit within ±80 rating
+   points, so wins (not blowouts) decide who is #1.
 4. When diagnosing an opponent from `--lb` replays, both seats are the same match;
-   tally one win/loss per episode for the team under study. (Our harness
-   `--old`/`--new`/`--compare` already judge same-seed `result`, matching this.)
-
+   tally one win/loss per episode for the team under study.
 
 ## Game dynamics — read `GAME_DYNAMICS.md`
 
-All engine mechanics — crops & watering windows, animals/feed/care, the full market
-and price tables, town & shop demand, hiring, turn-processing order, config knobs,
-and the measured crop-payoff guide — moved out of this file into `GAME_DYNAMICS.md`.
-**Read `GAME_DYNAMICS.md` before designing any experiment, and include it in context.**
+All engine mechanics — crops & watering windows, animals/feed/care, the full
+market and price tables, town & shop demand, hiring, turn-processing order, config
+knobs, and the measured crop-payoff guide — live in `GAME_DYNAMICS.md`.
+**Read it before designing any experiment, and include it in context.**
+
+Two mechanics that bite often in `src/`:
+
+- **A newly planted crop has `consecutive_unwatered = 1`**, so it must be watered
+  the same day or it becomes a WEED that night. `state.plant_ready` is checked
+  before `state.needs_water`, so a ripe tile is harvested, not watered.
+- **The CARE bonus is only paid on a *fed* production day** (`_daily_refresh_animals`
+  pops `pending_care_bonus` only when `fed_today`, and resets it otherwise), so
+  feeding every other day silently halves herd output.
 
 ## Workflow
 
 > **Running the harness / long jobs (operator preference):** do NOT launch long
-> game runs (a `--grid`, a multi-seed `--sweep`/`--compare`, a `--graph` batch) in
-> the background and leave them running. Hand the operator the exact foreground
-> command (`make grid ...`, `./sweep.sh new`, ...) and let them run it. Use all
-> cores by default (omit `--workers` / leave `WORKERS` empty — the grid defaults to
-> all cores); only cap concurrency when asked. The 60 s shell-timeout applies to
-> foreground commands, so anything longer is a command the operator runs themselves.
+> game runs (a multi-seed sweep) in the background and leave them running. Hand the
+> operator the exact foreground command (`make scratch PA=1-12 BATCH=8`,
+> `./scripts/sweep.sh 4362837462 15`, ...) and let them run it. Use all cores by
+> default (omit `--workers`); only cap concurrency when asked. The 60 s shell
+> timeout applies to foreground commands, so anything longer is a command the
+> operator runs themselves.
 
-1. Write a patch in `src/agent.py` (a `patch(action, observation, configuration=None)`
-   function; there is no standalone agent to implement).
-2. Run the harness to test it. The full CLI reference, seating convention,
-   outputs and reproducibility live in `diagnose/cli.py`, and
-   `python -m diagnose --help` prints the flags. The project overview lives in
-   `README.md`. For a quick overall performance read, sweep against all 13
-   public agents over several seeds:
-   `./sweep.sh new` (or `./sweep.sh old`).
-3. Inspect the JSON replays / CSVs for **concrete** per-game / per-day / per-step
-   inefficiencies. **Never average anything across games** — see the anti-goal
-   above. Judge on system-level defects you can point at, not on a mean.
-4. When the patch is clearly better and stable, promote it into `src/main.py` as the
-   new baseline, then clear `src/agent.py` for the next experiment.
+1. **Find the root.** `python -m tools.phases.phase_map --phase <p>` (add
+   `--ref-from replays/DSM/v1` for measured targets). Work the phases in order; fix
+   phase 1's roots, then move on. Do not patch a symptom the graph already explains.
+2. Write the change in the layer the tool names as the owner (`src/<layer>.py`), or
+   add a knob to `src/params.py`.
+3. Run it. Quick loop: `make scratch PA=2 BATCH=12`. Structural claim:
+   `./scripts/sweep.sh <seed> <batch>` (all 12 public agents × batch seeds).
+4. **Re-run the phase tool** and confirm the root is gone. If it is, its downstream
+   symptoms should have moved with it — that is the causal link, verified, and it is
+   the check a CSV diff cannot give you. If the root is unchanged, the patch missed.
+5. Inspect the JSON replays / CSVs for **concrete** per-game / per-day / per-step
+   inefficiencies. **Never average anything across games** — see the anti-goal.
+6. Compare arms with `tools/report/arm_diff.py` (matched pairs) and read the
+   defect surface with `tools/gates/balance.py`.
+7. When the change is clearly better and stable, it is already in the product —
+   `src/` is the agent. Record what you learned as a new edge in
+   `tools/phases/dag.py`, and keep `docs/DSM-vs-us(v0).md`'s open list current.
 
-## Using the diagnose package — columns & how to read the signals
+### Harness commands
 
-The harness writes three things per run directory (`diag-replays/run-N/` by default,
-or your `--run-dir`):
-
-- **replay JSONs** — one per game, the full per-step observations+actions for both seats.
-- **`days_seed<S>.csv`** — one file per seed, one row **per day** for the agent under
-  test (seat 1 with the public agents). Per-day timeline, **not** aggregated.
-- **`games.csv`** — one row **per game** for the agent under test (its seat), plus a
-  compact per-game readout printed to the terminal.
-
-Re-diagnose saved replays with `python -m diagnose --replay-dir <dir> --render`
-(regenerates the CSVs; `--render` prints the day report, with a board-symbol legend up
-front). The per-replay analysis is split across all cores by default (`--workers` to cap).
-For **leaderboard replays** (downloaded from Kaggle, no seed — `info/configuration.seed`
-are null) pass `--lb`: the per-day CSVs are then keyed on the episode id from each
-filename (`days_seed<episodeid>.csv`), both seats are analysed, seats are labeled with the
-real team names from `info.TeamNames`, and a `seat` column prefixes both CSVs. `--graph` renders a 1×2 dashboard PNG per game **plus an animated farm-board
-GIF** (`_board.gif`) — one frame per in-game day showing BOTH farms' 10×10 maps with
-farmer/hand dots, **per-species animal triangles** (GOOSE/COW/SHEEP, colour-coded), a
-legend, and a money-race panel, so you can watch *when* a defect appears. GIF speed
-defaults to **1.5 fps (≈0.67 s/day)**; pass `--gif-fps 4-5` for a quicker skim.
-`--graph` also emits a season-constant `animal_care_payback.png` (cumulative cash per
-animal, fed-only dotted vs fed+cared solid, with break-even days); render it standalone
-with `--animals`. `games.csv` also carries `locked_steps`/`locked_units_at_bell`
-(farmer/hand turns standing on unbought `LOCKED` tiles — wasted labour since 1.32.3).
-
-> **Near-shed land is the ANIMAL zone, not wasted crop land.** The NW/NE inner ring
-> (within ~2 of the shed) is ~100% livestock + pastures/coops in every replay (it's the
-> cheapest feed/care round-trip). Don't read a bare-looking GIF there as "crops should
-> grow from the shed outward" — the animals are drawn as triangles but were previously
-> invisible because the tile cell is tiny. The `near_shed_planted_max`/`near_shed_bare`
-> games.csv columns (top-half ring crops) correctly stay ≈1/0 for that reason.
-
-> **Context for these metrics:** to see *how* the agent got here — the base
-> route tape it runs on and the 45-layer patch stack built on top of it — the
-> `games.csv` columns below are the layer-by-layer numbers each patch iteration
-> moved. Read them as the per-metric defect ledger, and use `--grid` / `--compare`
-> to measure any change against the same seed rather than trusting a mean.
-
-### `--grid` — sweep an experiment's param space (paired, hedged)
-Grid-search a parametrised patch instead of one hand-tuned `--compare`. Pick which
-experiment to sweep with `--exp` (registry in `diagnose/config.py::EXPERIMENTS`):
-- `--exp floor` (default): MILK/WOOL sell at `price_frac × base` vs hoarding —
-  sweeps the sell-price fraction and the per-product hold cap. Example:
+```bash
+make scratch PA=2 BATCH=12                 # run the agent vs PA 2 over 12 seeds
+make scratch PA=1-12 BATCH=8               # the whole public field
+make diag ARGS="--pa 1-12 --batch 4 --seed 4362837462"
+make replay DIR=diag-replays/v0-us         # re-diagnose saved replays (no games)
+make replay-lb DIR=replays/DSM/v1          # leaderboard replays (no seed)
+make graph  DIR=diag-replays/v0-us         # dashboards + farm-board GIFs
+make sweep SEED=4362837462 BATCH=15        # all opponents + per-opponent summary
+make verify                                # compile + import the agent and harness
 ```
-python -m diagnose --grid --exp floor --pa 1,2,8 --seed 700 --batch 8 \
-  --grid-params 'price_frac=[0.0,0.4,0.7,1.0];hold_cap=[0,5,10,20]'
+
+The agent under test is always the `src` package; its replays are named
+`scratch_vs_<opponent>_seed<N>.json` and its `games.csv` rows carry
+`agent=scratch` (the historical name of the from-scratch agent, kept so existing
+tools and globs keep working).
+
+## Phased structural development — `tools/phases/phase_map.py`
+
+Margins tell you *that* you are behind; they do not tell you *what to change*. The
+phase tool is the one to reach for when deciding what to work on:
+
+```bash
+PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 --pa 1,2 --batch 1   # quick
+PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 --pa 1-12 --batch 4  # the field
+PYTHONPATH=. python -m tools.phases.phase_map --phase all --pa 1-12 --batch 2
+PYTHONPATH=. python -m tools.phases.phase_map --dag        # the causal graph itself
+
+# replay modes: analyse saved games, and/or take the #1's own games as the target
+PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 \
+    --replay-dir replays/DSM/v1 --max-games 6 --seat auto          # audit the targets
+PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 \
+    --pa 1,2 --batch 1 --ref-from replays/DSM/v1 --ref-max 4       # live us vs his replays
 ```
-- `--exp e1`: the older E1 below-base premium/fertilizer sell gate (`min_sell_frac`
-  × `shed_cap_frac` etc., target `premium_waste_units`).
-- `--grid` runs the **`old` batch once** (combo-independent) and reuses it as the paired
-  baseline for every combo; each combo injects `agent.py`'s module `E1_PARAMS` (the live
-  param namespace the patch reads every call) and runs only `new`. Writes `grid/grid.csv`
-  + a ranked accept/reject table. The game batches (old baseline + each combo) execute
-  **in parallel across cores** (default all cores) via `run_parallel_tasks`; cap with `--workers N`.
-- For each combo it computes **per-opponent** `_paired_verdict` (same seed) on the
-  experiment's target column (`floor_sales` for `--exp floor`, `premium_waste_units` for
-  `--exp e1`) and **guard** metrics. A combo is `ACCEPT` only if it moves the target in the
-  experiment's `target_dir` **for every opponent** AND no guard regresses past tolerance:
-  `discarded_units_total`/`shed_overflow_days`, `animal_escapes`, `stranded_at_bell`,
-  `premium_below_base_frac`, and `sell_revenue_total` (≥ -10% vs that opponent's baseline).
-  Anything else prints `REJECT: <which guard regressed>` — never pooled.
-- The `floor` gate itself is hedged in `agent.py`: WOOL/MILK below `price_frac` of base are
-  HELD (don't dump into the glut / don't floor), but holding is bounded so it can't hoard or
-  overflow — only up to `hold_cap` units per product, only while the shared shed still has room
-  (`shed_cap_frac` of the 100-cap), and never from `endgame_day` on (base liquidates). Only
-  market `SELL` orders of WOOL/MILK are ever rewritten — never `PLANT`/`BUY`/`HIRE`/seeds —
-  so the collective-PLANT and invalid-action traps can't fire from this patch.
+
+`--ref-from` is the strongest setting: the targets become the #1's *measured* reduction
+instead of the transcribed per-day table, so every metric gets a target (including
+`cash committed` and `PLANT ops`) and there is no transcription risk. The table is the
+fast fallback. Running the #1's own replays through the same DAG is a self-check that
+should read all-OK — it is how the `structs=10` error in `docs/dsm_v1.md` was caught
+(his replays show 5 pastures at d5, all five occupied, 20 plants, 25 tiles full, and
+`dag.py` now models his housing as build-to-order).
+
+It runs the agent **in-memory** with the episode truncated at the phase boundary
+(d5 / d17 / the bell) — the agent is stateless and never reads the horizon, so a
+truncated game has the same d0..N behaviour at a fraction of the cost — measures only
+**structural** metrics against the #1's measured per-day state, and then walks the
+causal DAG in `tools/phases/dag.py` to label each deficient metric as a **ROOT** (no
+deficient ancestor) or a **symptom**, with the root's **blast radius**.
+
+Work the game in order: fix phase 1's roots, re-run `--phase phase1`, then move to
+phase 2 and check that its roots shrank. A phase-1 root that shows up as a phase-2 or
+phase-3 symptom is the "everything downstream has roots in the beginning" case, and
+the trace prints the chain that connects them. Edit `dag.py` (metrics, targets, edges
+and their mechanism text) whenever you learn a new dependency — the graph is the
+durable artefact, the tool just evaluates it.
+
+Worked example (2 opponents, `--phase all --ref-from replays/DSM/v1 --ref-max 3`):
+phase 1's root is **opening cash committed** (0.33 vs 1.00); phase 2's roots are
+**animals on board** (0 vs 20) and **WATER ops** (426 vs 588); phase 3's are **WATER
+ops** (571 vs 677), **animals at the bell** (0 vs 11) and **FERTILIZE ops** (0 vs
+153). The trace prints the chain that ties them together, ending in phase 1:
+
+    animals at the bell [p3] <- animals on board [p2] <- owned tiles [p2]
+      <- opening cash committed [p1]
+
+Two things it also settles cheaply: **`owned tiles` is 100/100 = OK by phase 2**, so
+the land gap is purely an opening-*timing* artefact rather than a midgame problem;
+and we water 0.72 ops per planted tile against his 0.83, which comes out as **26 plant
+deaths against his 1** — the C5 chain (`water -> plants died -> weeds -> harvest`),
+which is the midgame's own root and owes nothing to cash.
+
+**A root is a hypothesis, not a verdict.** When a phase experiment contradicts the
+graph (measured: enabling the opening herd is the phase-1 root the graph finds, yet it
+costs $15,020 at 25 tiles), that contradiction is the finding — encode it as an edge
+mechanism and re-order the roadmap.
+
+### `--days 0-5` — every tool can be scoped to the opening
+
+`phase_map --days 0-5` replaces `--phase` with a custom window; `--dag phase1` prints
+only the opening subgraph plus the edges *leaving* it. Every analysis tool in
+`tools/labour/`, `tools/market/` and `tools/report/day_gap.py` takes the same `--days`
+flag, so "the opening only, nothing else" is one argument everywhere. Use it: a
+whole-season aggregate buries a d0–d5 defect under 24 days of noise.
+
+**`open_dist` is descriptive, not an objective.** It is the L1 distance from the #1's
+invariant d5 signature (10 MELON + 10 STRAWBERRY, 2 COW + 3 SHEEP, 25 tiles, 1 quadrant)
+and it went 13 → 5 when the opening script shipped. The residual 5 is **4 MELON +
+1 STRAWBERRY** tiles, and closing it is a **loss**: `WHEAT_LANDS_DAY=2` takes it 5 → 1
+while `dterm` falls **−$15,452 (0/8, p=0.005)**, because the herd's feed reserve is what
+stops the farm spending itself to zero and then buying feed at retail (C2). Never report
+this metric without that number beside it.
+
+**The latent nodes are live now.** `_stock` records `town.unlocked_shops`, so
+`shops unlocked` / `YARN_STORE unlocked` are real. Measured by d5: **exactly one shop**
+in 36/36 of our games and 30/30 of the #1's; YARN in **0/36** ours and **4/30 (13%)**
+his. So "react to the shop reveal" is **vacuous in the opening** — one draw, and the wool
+buyer one time in eight. Reactivity is a d6+ question. (This also explains why an early
+`HERD_EXPAND_ON_YARN` probe read exactly inert: with P(no YARN) ≈ 0.87, eight YARN-free
+games happen ~33 % of the time.)
+
+### `state_value.py` — price the d5 state, and test which d5 feature predicts the finish
+
+`phase_map` counts structures; this **prices** them. Rationale: the opening is only
+~6.5% of the season's revenue gap, and a whole-game margin has sigma ≈ $10k on 12
+games, so both opening A/Bs so far were underpowered by construction. Three readouts:
+
+1. **The d5 state price.** `liquid = cash + shed at the d5 price` is exact and
+   policy-free; `nav` adds standing crops and herd production minus feed.
+2. **Frozen continuations.** The prefix roll-out is deterministic, so the first 144
+   steps can be re-run exactly and the rest handed to another policy
+   (`--cont live,nobuy,liquidate`). `max(term) - min(term)` is the option value still
+   embedded in the d5 position.
+3. **A regression of the terminal bank on the d5 state.** Standardised coefficients say
+   which d5 quantity the market actually pays for; `R^2` says how much of the finish was
+   already set by day 5.
+
+```bash
+PYTHONPATH=. python -m tools.phases.state_value --pa 1-2 --batch 2
+PYTHONPATH=. python -m tools.phases.state_value --ref-from replays/DSM/v1 --ref-max 40
+# THE decisive one: separate a better d5 STATE from a better post-d5 POLICY
+PYTHONPATH=. python -m tools.phases.state_value --cross 'HERD_ENABLED=1;OPENING_SCRIPT=1' \
+    --pa 1-8 --batch 1
+```
+
+`--cross` runs the 2×2 (neutral/neutral, arm/arm, **arm prefix + a fixed continuation**).
+`C − A` is the value of the arm's d5 **state** with the policy held fixed; `B − C` is the
+value of its post-d5 **policy** from a fixed state. Measured on the opening script + herd,
+with a fixed continuation that can *service* the herd it was handed
+(`--cross-post 'HERD_ENABLED=1;HERD_BUY_FROM_DAY=99'`): **d_state +$7,410 (7/8), d_policy
+−$16,775 (0/8)** — the state is good and the post-d5 expansion policy is what destroys it.
+
+**The fixed continuation must be able to service whatever the arm's state contains.** Run
+the same cross against the tree default and cell C lets the herd starve: **d_state flips
+to −$8,671 (0/8)**. That inversion, not the arm, is what a naive cross measures. Always
+pass `--cross-post` when the prefix leaves behind resources the default policy cannot
+maintain. **A d5-state objective must be validated by a continuation, never by the mark
+alone** — and the continuation has to be a *valid policy for that state*.
+
+### `shadow_prices.py` — one more unit of each resource, in dollars
+
+A root with a large blast radius is **not** automatically worth fixing (that is how the
+opening herd, the graph's #1 phase-1 root, lost $15,020). Counting descendants cannot
+rank jointly-scarce resources; a price can. `shadow_prices` is a paired finite
+difference: baseline vs baseline + one `SCRATCH_PARAMS` override, same seeds, reporting
+`dNAV_d5` beside `dterm`. Rows where the two disagree in sign are flagged — a
+perturbation that buys d5 NAV and sells the terminal is a *paper* improvement.
+(Measured on the first pair: `HERD_ENABLED=1` gives **dNAV_d5 +$2,264** and
+**dterm −$18,133** — the graph's root, priced negative.)
+
+```bash
+PYTHONPATH=. python -m tools.phases.shadow_prices --pa 1-3 --batch 4
+PYTHONPATH=. python -m tools.phases.shadow_prices --pa 1,2 --batch 6 \
+    --perturb 'herd|HERD_ENABLED=1||'
+```
+
+## Reading the harness output — columns & signals
+
+The harness writes three things per run directory (`diag-replays/run-N/` by
+default, or your `--run-dir`):
+
+- **replay JSONs** — one per game, the full per-step observations+actions for both
+  seats.
+- **`days_seed<S>.csv`** — one file per seed, one row **per day** for the agent
+  under test (seat 1; the public agent sits at seat 0). Per-day timeline, **not**
+  aggregated.
+- **`games.csv`** — one row **per game** for the agent under test, plus a compact
+  per-game readout printed to the terminal.
+
+Re-diagnose saved replays with `python -m tools.diagnose --replay-dir <dir>`;
+add `--render` to print the day report (with a board-symbol legend up front).
+`--replay-dir <dir> --graph` renders a 1×2 dashboard PNG per game **plus an
+animated farm-board GIF** (`_board.gif`) — one frame per in-game day showing BOTH
+farms' 10×10 maps with farmer/hand dots, **per-species animal triangles**
+(GOOSE/COW/SHEEP, colour-coded), a legend, and a money-race panel, so you can
+watch *when* a defect appears. GIF speed defaults to **1.5 fps (≈0.67 s/day)**;
+pass `--gif-fps 4-5` for a quicker skim. `--animals` renders the season-constant
+`animal_care_payback.png` separately.
+
+> **Near-shed land is the ANIMAL zone, not wasted crop land.** The inner ring
+> (within ~2 of the shed) is ~100% livestock + pastures/coops in every DSM replay
+> (it's the cheapest feed/care round-trip). Don't read a bare-looking GIF there as
+> "crops should grow from the shed outward" — animals are drawn as triangles.
+> `near_shed_planted_max`/`near_shed_bare` (top-half ring crops) correctly stay ≈1/0.
 
 ### `games.csv` columns (one row per game)
 
 | column | meaning | read it as |
 |---|---|---|
 | `final_money` / `opponent_final` / `result` | end bank balances; `WIN`/`LOSS`/`TIE` | W/L/T only — margins don't score |
-| `idle_share_pct` | % of work-unit turns that were `PASS` (**the** labor-efficiency signal) | high ⇒ idle hands/wasted labour |
+| `idle_share_pct` | % of work-unit turns that were `PASS` (**the** labour-efficiency signal) | high ⇒ idle hands/wasted labour |
 | `idle_units_total` | unit-PASS turns, any tile | how many work-slots did nothing |
 | `idle_units_ready_total` | unit-PASS while standing on ready produce/animal | **missed-harvest idling** |
 | `idle_steps` | whole-turn idle (all units PASS, no market) | ~always 0 — low-signal, ignore |
 | `shed_pressure_days` / `shed_overflow_days` | days shed ≥95 / ==100 | near/at cap ⇒ overflow risk |
-| `discarded_units_total` / `discarded_items` | shed-overflow units discarded; which item (`{}`/`{WHEAT:…}`) | what actually got thrown away (often all FERTILIZER) |
+| `discarded_units_total` / `discarded_items` | shed-overflow units discarded; which item | what actually got thrown away |
 | `floor_sales` | units sold at the $1 floor | gluts dumped into the floor |
-| `stranded_at_bell` | $ value of sellable shed + unit-inventory stock at FINAL prices (animals excluded) | endgame hygiene — unsold stock doesn't score, so a non-zero here is money that died in the shed; leader tolerates ~$442 |
-| `locked_steps` / `locked_units_at_bell` | farmer/hand worker-turns standing on unbought `LOCKED` tiles; workers still on locked land at day 30 | hands routed across or parked on land you don't own (legal since 1.32.3) = wasted labour; both should be 0 or tiny |
-| `premium_below_base_frac` | share of premium-good (strawberry/melon/milk/wool) units sold below base | bad timing on crash-prone goods |
-| `animal_escapes` / `escaped_by_type` | animal losses (`COW:1`); `at_risk_of_escape` = ≥2 consec. unfed | near-miss precursor to chase |
+| `stranded_at_bell` | $ value of sellable stock at FINAL prices (animals excluded) | endgame hygiene — leader tolerates ~$450 |
+| `locked_steps` / `locked_units_at_bell` | worker-turns standing on unbought `LOCKED` tiles | wasted labour; should be small |
+| `premium_below_base_frac` | share of premium-good units sold below base | bad timing on crash-prone goods |
+| `animal_escapes` / `escaped_by_type` | animal losses; `at_risk_of_escape` = ≥2 consec. unfed | near-miss precursor |
 | `plants_died` / `missed_harvest_eod` / `unwatered_eod` | decayed crops / unharvested at day-end / unwatered at EOD | lifecycle defects |
-| `seed/animal/product/hire/land_cost_total` | itemized spend per game | the economics of the gap ledger |
+| `seed/animal/product/hire/land_cost_total` | itemized spend per game | `land_cost_total` is **unreliable** — see below |
 | `sell_revenue_total` | committed revenue from sold produce | **the** revenue number (audit-backed) |
-| `wheat_fed` / `feed_surplus` | wheat fed to animals; `produced - fed` | feed self-sufficiency (see caveats) |
+| `wheat_fed` / `feed_surplus` | wheat fed; `produced - fed` | feed self-sufficiency |
+| `harvests` | harvest ops | throughput |
 
 ### `days_seed<S>.csv` — the day-by-day columns to look at
 `revenue`/`expenses` (sign-split — approximate), `seed_cost`/`animal_cost`/
 `product_cost`/`hire_cost`/`land_cost` (exact), `shed_items_start_*/_end_*`, `max_shed_total`,
 `weeds_max`, `hires`, `idle_units`/`unit_turns`/`idle_share_pct`,
 `plants_watered`/`plants_fertilized`, `animals_fed`/`animals_cared`/`animals_escaped`, `shop_unlocks`,
-`sell_qty_<p>`/`avg_price_<p>`/`revenue_<p>` (realized price & revenue per product per day),
-`below_base_sales_<p>`, `discarded_items_<p>`, `feed_surplus`, `wheat_sold`/`wheat_fed`/`wheat_bought`.
+`sell_qty_<p>`/`avg_price_<p>`/`revenue_<p>`, `below_base_sales_<p>`,
+`discarded_items_<p>`, `feed_surplus`, `wheat_sold`/`wheat_fed`/`wheat_bought`.
 
 ### How to hunt structural issues (never average across games)
-1. **Same-seed paired diff.** `python -m diagnose --compare --pa N --seed S --batch K`, then
-   diff the SAME-seed rows of `old` vs `new` in `games.csv`. `--compare` now prints a
-   **paired verdict** per opponent (and overall): `KEEP` iff the mean Δ is more than **2
-   standard errors** from zero **AND** a majority of seeds agree in sign (the
-   `wins-not-money` rule) — plus a win/tie/loss tally. Use `--batch 12` (≈ a minute) so
-   the SE is estimable; with 1 seed per opponent it says so and refuses to decide. A patch
-   must *reduce* a concrete defect without raising another — not just move that mean.
-   `--compare` (and `--new`/`--old`) share the same `run_parallel_tasks` core as `--grid`, so
-   the batch of games is split across cores by default; cap it with `--workers N`.
-   `--workers` defaults to all cores and is accepted by every multi-game flag.
+1. **Same-seed paired diff.** Run two arms (see `SCRATCH_PARAMS` above) and use
+   `python -m tools.report.arm_diff --a A --b B`: it joins on `(opponent, seed)`,
+   reports the margin delta ladder, a **sign test**, the verdict flips, a
+   per-opponent table, and a defect-column watchlist. `tools/gates/balance.py`
+   gives the full paired balance sheet.
 2. **Chase a non-zero signal.** Any of `idle_share_pct`, `idle_units_ready`,
    `shed_overflow_days`, `discarded_items`, `floor_sales`, `premium_below_base_frac`,
-   `animal_escapes`, `at_risk_of_escape`, `plants_died`, `missed_harvest_eod`,
-   `unwatered_eod`, `feed_surplus < 0` in a **specific game** is a defect worth fixing.
-3. **Locate the day.** Open that seed's `days_seed<S>.csv`, find where the signal spikes,
-   and correlate with `shop_unlocks`, `avg_price_<p>`, and `shed_items_*` (e.g. overflow on
-   a strawberry glut, escapes after a weed-spawned pasture dig).
-4. **Price timing.** `avg_price_<p>` vs the product base shows when you sold. A premium-good
-   `avg_price` well under base (or `premium_below_base_frac` high) = sold into the glut instead
-   of the scarcity spike.
+   `animal_escapes`, `at_risk_of_escape`, `plants_died`, `weeds_peak`,
+   `missed_harvest_eod`, `feed_surplus < 0` in a **specific game** is a defect worth
+   fixing. **Not `unwatered_eod`** — it counts out-of-window plants; see the caveats.
+3. **Locate the day.** Open that seed's `days_seed<S>.csv`, find where the signal
+   spikes, and correlate with `shop_unlocks`, `avg_price_<p>`, and `shed_items_*`.
+4. **Price timing.** `avg_price_<p>` vs the product base shows when you sold. A
+   premium-good `avg_price` well under base (or a high `premium_below_base_frac`)
+   means selling into the glut instead of the scarcity spike.
 
 ### Caveats / which numbers to trust
-- **Trust audit-backed fields** (`sell_revenue_total`, `floor_sales`, `below_base_sales`,
-  `avg_price_<p>`, `discarded_*`, the cost totals) on any replay saved by our runs, which all
-  run with the market audit. Non-audit fallbacks silently report `avg_price`=0.
-- **Harvest attribution is unreliable**: `plants_harvested_<crop>` misses most harvests
-  (nearly all land in `harvests_unknown`, including all wheat). So **feed/wheat numbers are
-  estimated from audit flows** — `wheat_produced ≈ wheat_sold + wheat_fed − wheat_bought`
-  (`feed_surplus = produced − fed`). Do not trust per-crop `plants_harvested`; prefer
-  `sell_qty_<p>`/`avg_price_<p>`.
-- **`idle_steps` is near-useless** (whole-turn idle almost never fires). Use `idle_share_pct`
-  and `idle_units_total`/`idle_units_ready_total`.
-- **`revenue`/`expenses`** (sign-split of money delta) undercount both when a step buys and
-  sells — prefer `sell_revenue_total` + the itemized `*_cost_total` columns.
+- **Trust audit-backed fields** (`sell_revenue_total`, `floor_sales`,
+  `below_base_sales`, `avg_price_<p>`, `discarded_*`, the cost totals except land)
+  on any replay saved by our runs, which run with the market audit.
+- **`land_cost_total` is NOT trustworthy** (ours or DSM's). It reports $10,000
+  against a real $7,000 ceiling because the purchase order is re-issued every turn
+  and the derivation re-charges it. Cross-check with the money ledger before
+  quoting any land figure.
+- **Observation↔action pairing.** A kaggle_environments step records the action
+  that *produced* its observation, so the action decided from
+  `steps[t]["observation"]` lives at `steps[t+1]["action"]` (verified: 97.1% of
+  moves satisfy `pos[t+1] == pos[t] + action[t+1]`, vs 53.3% same-index). The
+  harness's `replay_to_record` still pairs them at the same index, so
+  **tile-conditioned** metrics (`idle_units_ready_total`, `locked_steps`,
+  `missed_harvest_eod`, `near_shed_*`) are measured against the wrong step.
+  `tools/labour/op_patterns.py` and `tools/labour/ready_idle.py` use the correct
+  shifted form. Op-count and revenue aggregates are unaffected.
+- **Harvest attribution is unreliable**: `plants_harvested_<crop>` misses most
+  harvests. Prefer `sell_qty_<p>`/`avg_price_<p>`.
+- **`idle_steps` is near-useless**; use `idle_share_pct` and
+  `idle_units_total`/`idle_units_ready_total`.
+- **`unwatered_eod` is NOT a defect metric** (median **622** on the shipped arm, and it
+  looks alarming). `analysis.py` counts *every* crop without `watered_today` at hour 23,
+  including plants **outside their water window** (a melon at age 13, a wheat at 6+) that
+  will never need water again — those dominate it. Chase `plants_died` and `weeds_peak`.
+- **Raising `P_WATER_SURVIVAL` does not cut plant deaths.** 90 (default), 105 and 120
+  give byte-identical results; 105/120 are marginally *worse*. The death chain is not
+  priority-limited — the crew lacks unit-turns (see the act-chaining note above). The
+  knob is in `params.P_WATER_SURVIVAL` (read by `job.py`) if you want to test again.
+- **`revenue`/`expenses`** (sign-split of money delta) undercount a step that buys
+  and sells — prefer `sell_revenue_total` + the itemized `*_cost_total` columns.
 
 ## What to change
 
 | file | role | editable? |
 |------|------|-----------|
-| `src/main.py` | current production agent (editable layers) | **YES** |
-| `src/route_tape.py` | opening route tape data | **NO** |
-| `src/agent.py` | your patch over `main.py` ('new') | **YES** |
-| `diagnose/` | diagnostic harness (package, `python -m diagnose`) | yes, when the harness itself needs a feature |
-| `Makefile` | run any harness command (new/old/compare/grid/xray/graph/animals/sweep/package) | yes |
-| `sweep.sh` | run `new`/`old` against all 13 public agents over many seeds | yes |
-| `package.py` | build + verify (+ human-only push) the single-file submission | yes |
-| `docs/ERRORS.md` | living list of concrete gameplay errors found in our replays (see it before writing any patch) | yes |
-| `GAME_DYNAMICS.md` | authoritative mechanics & measured payoff data (referenced from `AGENTS.md`; read before designing experiments) | yes |
-| `README.md`, `AGENTS.md` | docs | yes |
+| `src/*.py` | the agent (onion layers) | **YES — the product** |
+| `src/params.py` | every tunable knob (env-overridable) | YES |
+| `tools/diagnose/` | the harness | yes, when a feature is missing |
+| `tools/` (rest) | analysis tools | yes |
+| `Makefile`, `scripts/sweep.sh` | run entry points | yes |
+| `package.py` | local bundle build | yes |
+| `docs/DSM-vs-us(v0).md` | the diagnosis + open fix list | yes — keep it current |
+| `GAME_DYNAMICS.md`, `AGENTS.md`, `README.md`, `tools/readme.md` | docs | yes |
+| `replays/DSM/v1/` | the #1's replays (reference data) | **NO** |

@@ -21,9 +21,34 @@ runs); leaderboard replays have none and fall back to the action's REQUESTED
 quantities, which for our tape are `SELL <item> 1000` sentinels and must not be
 read as volume. The `src=` tag on each selling row says which was used.
 
+Comparability contract (read before quoting a number)
+----------------------------------------------------
+Every arm prints five things the old report could not:
+
+  * a POOL header -- replay JSONs, games.csv rows, EPISODES, opponents, the
+    W/L/T episode tally and the YARN_STORE mix. An arm measured against ONE
+    opponent has between-seed variance only and cannot be compared with an arm
+    that spans 61 opponents; the header says which one you are looking at.
+  * the five-number ladder `p10 p25 p50 p75 p90` on every per-game metric. p10
+    is the number that decides "losses < $4k": a healthy median can still hide a
+    deep loss tail. Per-day tables keep `median [p10-p90]` so rows stay legible.
+  * a MARGIN block in the target's own terms (max loss, share losing >$4k,
+    median win, share of wins >$30k).
+  * a PER-OPPONENT table plus the MEDIAN-OF-PER-OPPONENT-MEDIANS. Aggregate per
+    opponent, THEN average -- a pooled median folds between-opponent spread into
+    the same number you are trying to read.
+  * a games.csv filter by `agent`. A leaderboard games.csv holds BOTH seats of
+    every episode (replays/DSM/v1/games.csv is 246 rows = 123 episodes x 2), so
+    pooling every row would fold the opponent's bank and defects into ours.
+
+Episodes, not rows, are the unit of a win tally: a pool run reuses the same
+seed list for every opponent, so `(opponent, seed)` is the episode key.
+
 Usage:
-  PYTHONPATH=src:. python -m tools.report.dsm_profile --compare --run-dir=diag-replays/run-1
-  PYTHONPATH=src:. python -m tools.report.dsm_profile --profile dsm
+  PYTHONPATH=. python -m tools.report.dsm_profile --compare --run-dir=diag-replays/run-1
+  PYTHONPATH=. python -m tools.report.dsm_profile --profile dsm
+  # a 13-opponent pool arm (what a structural claim needs):
+  PYTHONPATH=. python -m tools.report.dsm_profile --compare --run-dir=diag-replays/sweep_old_s4362837462_b15
 """
 from __future__ import annotations
 
@@ -35,7 +60,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
 
 SELL_PRODUCTS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON", "EGG", "MILK", "WOOL", "FERTILIZER")
 CROPS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON")
@@ -43,9 +68,21 @@ STRUCT = ("max_shed_total", "end_shed_total", "weeds_max", "plants_fertilized",
           "plants_watered", "animals_fed", "animals_cared", "discarded_units",
           "hires", "idle_share_pct")
 # Columns read from games.csv (per game, not per day). Absent for LB replay dirs.
+# Split into two ladders so a defect cannot hide behind a cost:
+#   GUARDS  -- physical defects (what went wrong)
+#   LEDGER  -- the investment side (what we spent). Comparing spend is how you
+#              see under-investment: DSM spends 40% more on seed and 29% more on
+#              animals than we do, which is *why* its revenue is 30% higher.
 GAMES_COLS = ("idle_units_ready_total", "locked_steps", "idle_share_pct",
               "discarded_units_total", "shed_overflow_days", "stranded_at_bell",
-              "floor_sales", "animal_escapes", "feed_surplus")
+              "floor_sales", "animal_escapes", "at_risk_of_escape", "feed_surplus",
+              "harvests", "missed_harvest_eod", "plants_died", "unwatered_eod",
+              "unfed_signals", "weeds_peak",
+              "sell_revenue_total")
+LEDGER_COLS = ("seed_cost_total", "animal_cost_total", "product_cost_total",
+               "hire_cost_total", "land_cost_total")
+# land_cost_total is modelled for LB replays and reports up to 88,000 against a
+# real 7,000 ceiling -- it is printed for our arm only.
 I0 = 10000
 
 
@@ -239,6 +276,16 @@ def _one(arg):
     out["yarn_sheep_g"] = (max((v[1] for v in out["days"].values()), default=0)
                            if out["yarn_day"] is not None else None)
     out["quad_g"] = int("SE" in out["quad_day"])
+    # Opponent identity, so a games.csv written before the `opponent_idx` column
+    # existed can still be grouped per opponent. LB replays carry no meta seed.
+    meta = rep.get("_diagnose_meta") or {}
+    names = (rep.get("info") or {}).get("TeamNames") or ["", ""]
+    opp = meta.get("opponent")
+    if opp is None:
+        other = 1 - seat
+        opp = names[other] if len(names) > other else ""
+    idx = meta.get("opponent_idx")
+    out["opp_idx"] = {(opp, str(meta.get("seed"))): idx} if idx not in (None, "") else {}
     return out
 
 
@@ -284,26 +331,152 @@ def _mix(mix):
     return out
 
 
-def _games_csv(run_dir):
+def _games_rows(run_dir, agent):
+    """games.csv rows for ONE arm only.
+
+    A leaderboard games.csv carries BOTH seats of every episode (the DSM dir's is
+    246 rows = 123 episodes x 2 seats, with `agent` naming the row's OWN team),
+    so pooling every row folds the opponent's bank and defect counts into our
+    distribution. Keep only rows whose `agent` is this arm's agent -- and if that
+    finds nothing, say so loudly instead of silently pooling.
+    """
+    if not run_dir:
+        return []
     path = os.path.join(run_dir, "games.csv")
     if not os.path.isfile(path):
+        return []
+    with open(path) as fh:
+        rows = list(csv.DictReader(fh))
+    keep = [r for r in rows if (r.get("agent") or "") == agent]
+    if keep:
+        return keep
+    labels = sorted({(r.get("agent") or "") for r in rows})
+    alt = [a for a in labels if a and a != agent]
+    if len(alt) == 1:
+        keep = [r for r in rows if (r.get("agent") or "") == alt[0]]
+        if keep:
+            print(f"   ! games.csv has no agent={agent!r}; using agent={alt[0]!r} "
+                  f"({len(keep)}/{len(rows)} rows) -- pass --agent to pin it")
+            return keep
+    if rows:
+        print(f"   ! games.csv agents={labels} do not include {agent!r}; pooling all "
+              f"{len(rows)} rows UNFILTERED -- the seat/opponent mix is not controlled")
+    return rows
+
+
+def _episode_key(r):
+    """One key per episode. A pool run reuses the same seed list for every
+    opponent, so `seed` alone is NOT unique -- (opponent, seed) is."""
+    opp = (r.get("opponent") or "").strip()
+    seed = (r.get("seed") or "").strip()
+    return (opp, seed) if opp else (seed,)
+
+
+def _margin(r):
+    try:
+        return float(r.get("final_money") or 0) - float(r.get("opponent_final") or 0)
+    except (TypeError, ValueError):
         return None
-    acc = defaultdict(list)
-    for r in csv.DictReader(open(path)):
-        for col in GAMES_COLS:
-            try:
-                acc[col].append(float(r.get(col) or 0))
-            except ValueError:
-                pass
+
+
+def _rows_ladder(rows, cols):
+    """{column: [values]} for the columns this games.csv actually carries."""
+    header = set(rows[0].keys()) if rows else set()
     out = {}
-    for col, v in acc.items():
-        v = sorted(v)
-        if not v:
+    for col in cols:
+        if col not in header:
             continue
-        q = lambda f: v[min(len(v) - 1, int(f * len(v)))]
-        out[col] = {"median": q(.5), "p25": q(.25), "p75": q(.75), "p90": q(.90),
-                    "mean": sum(v) / len(v), "min": v[0], "max": v[-1]}
-    return out or None
+        v = []
+        for r in rows:
+            try:
+                v.append(float(r.get(col) or 0))
+            except (TypeError, ValueError):
+                pass
+        if v:
+            out[col] = v
+    return out
+
+
+def _normed(by_opp, agent, col):
+    """median-of-per-opponent-medians for one column: each OPPONENT counts once.
+
+    The frame is unbalanced by construction and they are not the same shape: our
+    arm is 13 public agents x 15 seeds (balanced), DSM's is 67 ladder teams with
+    1-14 games each. A pooled median over DSM's 124 rows is partly a description
+    of the *matchmaking pool* -- 14 games against Majkel1337 outvote 1 game
+    against Ebi. Taking each opponent's own median first removes that, so the
+    two arms can be read side by side.
+    """
+    meds = []
+    for opp, rs in by_opp.items():
+        if opp == agent:
+            continue
+        v = []
+        for r in rs:
+            try:
+                v.append(float(r.get(col) or 0))
+            except (TypeError, ValueError):
+                pass
+        if v:
+            meds.append(_q(v, .5))
+    return _q(meds, .5) if meds else None
+
+
+def _pool(rows, agent, games, yarn, yarngames):
+    """What this arm is a sample OF -- the comparability check."""
+    eps = {}
+    for r in rows:
+        eps.setdefault(_episode_key(r), r)
+    by_opp = defaultdict(list)
+    eps_by_opp = defaultdict(list)
+    for r in rows:
+        by_opp[r.get("opponent") or "unknown"].append(r)
+    wins = losses = ties = 0
+    eps_rows = []
+    for r in eps.values():
+        if (r.get("opponent") or "") == agent:
+            continue  # self-play mirror: one guaranteed W and one guaranteed L
+        eps_rows.append(r)
+        eps_by_opp[r.get("opponent") or "unknown"].append(r)
+        res = (r.get("result") or "").upper()
+        wins += res == "WIN"
+        losses += res == "LOSS"
+        ties += res == "TIE"
+    sizes = sorted((len(v) for v in eps_by_opp.values()), reverse=True)
+    return {"rows": len(rows), "episodes": len(eps), "by_opp": by_opp,
+            "eps_by_opp": eps_by_opp, "opp_sizes": sizes,
+            "wins": wins, "losses": losses, "ties": ties,
+            "mirrors": len(rows) - len(eps), "games": games,
+            "yarn": yarn, "yarn_games": yarngames, "eps_rows": eps_rows}
+
+
+def _opponent_table(rows, agent):
+    """Per-opponent medians, then the median OF those -- never a pooled median."""
+    by_opp = defaultdict(list)
+    for r in rows:
+        by_opp[r.get("opponent") or "unknown"].append(r)
+    print(f"   {'opponent':32s} {'idx':>4s} {'n':>3s} {'W':>3s} {'L':>3s} {'T':>3s} "
+          f"{'p10mgn':>9s} {'p50mgn':>9s} {'p90mgn':>9s} {'worst':>9s}")
+    meds = []
+    for opp, rs in sorted(by_opp.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        if opp == agent:
+            continue
+        idx = next((r.get("opponent_idx") for r in rs if r.get("opponent_idx")), "")
+        mgn = [m for m in (_margin(r) for r in rs) if m is not None]
+        if not mgn:
+            continue
+        w = l = t = 0
+        for r in rs:
+            res = (r.get("result") or "").upper()
+            w += res == "WIN"; l += res == "LOSS"; t += res == "TIE"
+        meds.append(_q(mgn, .5))
+        print(f"   {opp[:32]:32s} {str(idx):>4s} {len(rs):3d} {w:3d} {l:3d} {t:3d} "
+              f"{_q(mgn,.10):9.0f} {_q(mgn,.5):9.0f} {_q(mgn,.90):9.0f} {min(mgn):9.0f}")
+    if meds:
+        print(f"   MEDIAN-OF-PER-OPPONENT-MEDIANS {_q(meds,.5):.0f}   "
+              f"(best {max(meds):.0f} / worst {min(meds):.0f} over {len(meds)} opponents)")
+        print("   (aggregate per opponent, THEN average -- a pooled median would fold")
+        print("    between-opponent spread into the same number)")
 
 
 def profile(name, replay_glob, days_glob, agent, workers=0, run_dir=None):
@@ -315,7 +488,8 @@ def profile(name, replay_glob, days_glob, agent, workers=0, run_dir=None):
            "inv_hist": defaultdict(Counter), "inv_hist_end": defaultdict(Counter),
            "quad_day": defaultdict(list),
            "disc": Counter(), "wheat": [0, 0, 0], "yarn": 0, "src": "action",
-           "sell_g": [], "shed_g": [], "wheat_g": [], "yarn_sheep_g": [], "quad_g": []}
+           "sell_g": [], "shed_g": [], "wheat_g": [], "yarn_sheep_g": [], "quad_g": [],
+           "opp_idx": {}}
     tasks = [(p, name) for p in paths]
     if workers == 0:
         workers = os.cpu_count() or 1
@@ -359,9 +533,17 @@ def profile(name, replay_glob, days_glob, agent, workers=0, run_dir=None):
                 cell = agg["sell"].setdefault(k, [0, 0.0, 0])
                 cell[0] += v[0]; cell[1] += v[1]; cell[2] += v[2]
             agg["coop_day"] += r["coop_day"]; agg["land_day"] += r["land_day"]
+            agg["opp_idx"].update(r.get("opp_idx") or {})
     dc, mix = _days_csv(days_glob, agent)
-    return {"name": name, "agg": agg, "days_csv": dc, "mix": mix,
-            "games_csv": _games_csv(run_dir) if run_dir else None}
+    rows = _games_rows(run_dir, agent)
+    # Backfill opponent_idx for run dirs written before the column existed.
+    for r in rows:
+        if not r.get("opponent_idx"):
+            key = (r.get("opponent") or "", str(r.get("seed")))
+            if agg["opp_idx"].get(key) not in (None, ""):
+                r["opponent_idx"] = agg["opp_idx"][key]
+    return {"name": name, "agent": agent, "agg": agg, "days_csv": dc, "mix": mix,
+            "games_rows": rows}
 
 
 def _mean(xs):
@@ -387,25 +569,90 @@ def _band(xs, nd=1):
     return f"{_q(xs,.5):.{nd}f} [{_q(xs,.25):.{nd}f}-{_q(xs,.75):.{nd}f}]"
 
 
+def _band1090(xs, nd=1):
+    """median [p10-p90] -- the same shape, with the tail the median hides. Used
+    for the per-day tables, where a full five-number ladder per cell would not
+    fit on a line."""
+    if not xs:
+        return "-"
+    return f"{_q(xs,.5):.{nd}f} [{_q(xs,.10):.{nd}f}-{_q(xs,.90):.{nd}f}]"
+
+
 def _tail(xs, nd=0):
     """p90, for the tail that the median deliberately hides."""
     return f"{_q(xs,.90):.{nd}f}" if xs else "-"
 
 
+# The five-number ladder. p10 is the number the old report could not show, and
+# it is the one that decides "losses < $4k": a healthy median can still hide a
+# tail deep enough to lose the match.
+_PCTS = (.10, .25, .50, .75, .90)
+LADDER_HDR = " ".join(f"{f'p{int(p*100)}':>9s}" for p in _PCTS)
+
+
+def _ladder(xs, nd=1):
+    """`p10 p25 p50 p75 p90`, fixed width so rows align under LADDER_HDR."""
+    if not xs:
+        return " " * len(LADDER_HDR)
+    return " ".join(f"{_q(xs, p):>9.{nd}f}" for p in _PCTS)
+
+
+def _row(label, xs, nd=1, width=26, hdr=False):
+    """One labelled ladder row; `hdr=True` prints the column names instead."""
+    return f"   {label:{width}s} {LADDER_HDR if hdr else _ladder(xs, nd)}"
+
+
+def _srow(prod, lab, xs, nd=1, hdr=False):
+    """Selling-table row: product, then the metric name within that product."""
+    return f"   {prod:11s} {lab:8s} {LADDER_HDR if hdr else _ladder(xs, nd)}"
+
+
+def show_pool(p, pool):
+    """The comparability header -- print it BEFORE quoting any number."""
+    print("-- POOL (what this arm is a sample OF) --")
+    sizes = pool["opp_sizes"]
+    n_opp = len([k for k in pool["by_opp"] if k != p["agent"]])
+    self_play = len(pool["by_opp"]) - n_opp
+    print(f"   replay JSONs {pool['games']}   games.csv rows {pool['rows']}   "
+          f"episodes {pool['episodes']}   opponents {n_opp}"
+          + (f"  (+{self_play} self-play)" if self_play else ""))
+    if sizes:
+        balanced = len(set(sizes)) == 1
+        print(f"   frame: {len(sizes)} matchups, games each min {sizes[-1]} / max {sizes[0]}"
+              f"  -> {'BALANCED' if balanced else 'UNBALANCED -- read the `norm` column'}")
+    tally = pool["wins"] + pool["losses"] + pool["ties"]
+    print(f"   episodes {pool['wins']}W {pool['losses']}L {pool['ties']}T   "
+          f"win% {100.0*pool['wins']/max(1,tally):.1f}  (self-play excluded)")
+    if pool["mirrors"]:
+        print(f"   ! {pool['mirrors']} duplicate/self-play row(s) beyond the episode count"
+              f" -- a mirror episode contributes a guaranteed W AND a guaranteed L")
+    print(f"   shop mix: YARN_STORE present in {pool['yarn']}/{pool['yarn_games']} games")
+    if len(pool["by_opp"]) <= 1:
+        print("   ! SINGLE-OPPONENT ARM -- between-opponent variance is absent, so p10/p90")
+        print("     below describe seed variance inside ONE matchup and are NOT comparable")
+        print("     to a field sample. Structural claims need a multi-opponent run")
+        print("     (e.g. ./scripts/sweep.sh old 4362837462 15)")
+
+
 def show(p):
     a = p["agg"]; g = max(1, a["games"])
+    rows = p.get("games_rows") or []
+    pool = _pool(rows, p["agent"], a["games"], a["yarn"], a["games"])
     print(f"\n############ {p['name']}  (replay games={a['games']}) ############")
+    show_pool(p, pool)
+
     print("-- structures per game (endgame mean) --")
     ndays = max(1, sum(len(v) for v in a["days"].values()))
     ce = sum(r[4] for v in a["days"].values() for r in v) / ndays
     pe = sum(r[3] for v in a["days"].values() for r in v) / ndays
     print(f"   COOP~{ce:.1f}  PASTURE~{pe:.1f}")
-    print("-- herd per game (day10 / day16 / day29, median [p25-p75]) --")
+    print(f"-- herd per game (day10 / day16 / day29; ladder {LADDER_HDR.strip()}) --")
     for d in (10, 16, 29):
         v = a["days"].get(d, [])
-        if v:
-            print(f"   d{d}: COW {_band([r[0] for r in v])}  "
-                  f"SHEEP {_band([r[1] for r in v])}  GOOSE {_band([r[2] for r in v])}")
+        if not v:
+            continue
+        for i, sp in enumerate(("COW", "SHEEP", "GOOSE")):
+            print(_row(f"d{d} {sp}", [r[i] for r in v], 1, 10))
     print("-- coop builds / land buys by day --")
     print("   coop:", dict(sorted(a["coop_day"].items())))
     print("   land:", dict(sorted(a["land_day"].items())))
@@ -415,8 +662,8 @@ def show(p):
     print("-- unit op mix (share) --")
     tot = sum(a["ops"].values()) or 1
     print("   " + "  ".join(f"{k}={100*v/tot:.0f}%" for k, v in a["ops"].most_common(12)))
-    print(f"-- selling per game (src={a['src']}): units / px@sell / %at$1 floor, median [p25-p75] --")
-    print("   product            units                  px@sell              floor%          floor%p90")
+    print(f"-- selling per game (src={a['src']}): units / px@sell / %at$1 floor --")
+    print(_srow("", "", None, hdr=True))
     for prod in SELL_PRODUCTS:
         G = [sg.get(prod, [0, 0.0, 0]) for sg in a["sell_g"]]
         units = [v[0] for v in G]
@@ -424,7 +671,9 @@ def show(p):
         fl = [100.0 * v[2] / v[0] for v in G if v[0]]
         if sum(units) <= 0:
             continue
-        print(f"   {prod:11s} {_band(units):>22s} {_band(px):>22s} {_band(fl):>18s} {_tail(fl):>10s}")
+        print(_srow(prod, "units", units))
+        print(_srow("", "px@sell", px))
+        print(_srow("", "floor%", fl))
     print("-- CROPS per game (mean tiles by day) + max single-crop share --")
     print("   day | " + "".join(f"{c[:6]:>8s}" for c in CROPS) + "   maxshare")
     for d in range(6, 30, 3):
@@ -448,10 +697,10 @@ def show(p):
         print(f"   {d:3d} | {_mean([r[0] for r in v]):5.1f} {_mean([r[1] for r in v]):5.1f} |"
               f" {_mean([r[2] for r in v]):5.1f} | {_mean([r[4] for r in v]):7.1f} | {top}")
     if a["shed_g"]:
-        print(f"   end-of-day SHED    (per-game mean): {_band([r[0] for r in a['shed_g']])}  p90 {_tail([r[0] for r in a['shed_g']])}")
-        print(f"   end-of-day CARRIED (per-game mean): {_band([r[2] for r in a['shed_g']])}  p90 {_tail([r[2] for r in a['shed_g']])}")
-        print(f"   peak SHED          (per-game max) : {_band([r[1] for r in a['shed_g']])}  p90 {_tail([r[1] for r in a['shed_g']])}")
-        print(f"   peak SYSTEM        (per-game max) : {_band([r[3] for r in a['shed_g']])}  p90 {_tail([r[3] for r in a['shed_g']])}")
+        print(_row("", None, hdr=True, width=22))
+        for lab, i in (("end-of-day SHED", 0), ("peak SHED", 1),
+                       ("end-of-day CARRIED", 2), ("peak SYSTEM", 3)):
+            print(_row(lab, [r[i] for r in a["shed_g"]], 1, 22))
         print("   NOTE: shed alone understates stock -- the market can only SELL from the")
         print("   shed, so units carried in hands are unsellable until dropped.")
     print("-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --")
@@ -471,38 +720,99 @@ def show(p):
         print("-- REVENUE MIX (median per-game share) --")
         print("   " + "  ".join(f"{k}={p['mix'][k]:.1f}%" for k in
                                sorted(p["mix"], key=lambda k: -p["mix"][k])))
+    else:
+        print("-- REVENUE MIX -- unavailable: leaderboard replays carry no market audit, so")
+        print("   every per-day revenue_<product> column is 0. Use")
+        print("   `python -m tools.report.dsm_flows --summary` for DSM's mix (modelled).")
     b, f_, _s = a["wheat"]
     wsell = a["sell"].get("WHEAT", (0, 0, 0))[0] / g
     print(f"-- WHEAT per game: bought {b/g:.0f}  fed {f_/g:.0f}  sold {wsell:.0f}"
           f"   buy/feed={b/max(1,f_):.2f}")
-    print(f"-- YARN_STORE present in {a['yarn']}/{a['games']} games")
-    if p["games_csv"]:
-        print("-- GUARDS from games.csv (median / mean / min / max) --")
-        for k, v in p["games_csv"].items():
-            print(f"   {k:24s} {v['median']:9.1f} {v['mean']:9.1f} {v['min']:9.1f} {v['max']:9.1f}")
-    print("-- DISTRIBUTIONS across games (median [p25-p75], p90) --")
+
+    if rows:
+        # Episode-deduped, mirror-excluded: the same row set the POOL tally uses,
+        # so the win% here cannot disagree with the win% up there.
+        er = pool["eps_rows"]
+        mgn = [m for m in (_margin(r) for r in er) if m is not None]
+        print(f"-- GUARDS from games.csv (n={len(er)} episodes; ladder {LADDER_HDR.strip()}; "
+              f"norm = per-opponent median) --")
+        for k, v in _rows_ladder(er, GAMES_COLS).items():
+            if k == "sell_revenue_total" and not any(v):
+                print(_row(k, v, 1, 26) + "  | no market audit on these replays")
+                continue
+            nv = _normed(pool["eps_by_opp"], p["agent"], k)
+            print(_row(k, v, 1, 26) + (f"  | {nv:9.1f}" if nv is not None else ""))
+        led = _rows_ladder(er, LEDGER_COLS)
+        if led:
+            print(f"-- LEDGER (investment per game; ladder {LADDER_HDR.strip()}; "
+                  f"norm = per-opponent median) --")
+            for k, v in led.items():
+                if k == "land_cost_total" and p["name"] == "dsm":
+                    continue  # modelled for LB replays: up to 88,000 vs a 7,000 ceiling
+                nv = _normed(pool["eps_by_opp"], p["agent"], k)
+                print(_row(k, v, 0, 26) + (f"  | {nv:9.0f}" if nv is not None else ""))
+            cols = [c for c in led if c != "land_cost_total"]
+            if cols:
+                tot = []
+                for r in er:
+                    s = 0.0
+                    for c in cols:
+                        try:
+                            s += float(r.get(c) or 0)
+                        except (TypeError, ValueError):
+                            pass
+                    tot.append(s)
+                print(_row("input spend (excl. land)", tot, 0, 26))
+        if mgn:
+            wins = [m for m in mgn if m > 0]
+            loss = [m for m in mgn if m < 0]
+            print(f"-- MARGIN (final_money - opponent_final; n={len(mgn)}; ladder {LADDER_HDR.strip()}) --")
+            print(_row("all games", mgn, 0, 26))
+            if wins:
+                print(_row("wins", wins, 0, 26))
+            if loss:
+                print(_row("losses", loss, 0, 26))
+            print(f"   TARGET READ p10 {_q(mgn,.10):.0f}   max loss {min(mgn):.0f}   "
+                  f"losing < -$4k: {100.0*sum(1 for m in mgn if m < -4000)/len(mgn):.1f}%")
+            print(f"   TARGET READ median win {_med(wins):.0f}   wins > $30k: "
+                  f"{100.0*sum(1 for m in wins if m > 30000)/max(1,len(wins)):.1f}%   "
+                  f"win% {100.0*len(wins)/len(mgn):.1f}")
+            nmeds = []
+            for opp, rs in pool["eps_by_opp"].items():
+                if opp == p["agent"]:
+                    continue
+                mm = [m for m in (_margin(r) for r in rs) if m is not None]
+                if mm:
+                    nmeds.append(_med(mm))
+            if nmeds:
+                print(f"   NORMALISED margin = median of the {len(nmeds)} per-opponent "
+                      f"medians: {_med(nmeds):.0f}   (best {max(nmeds):.0f} / "
+                      f"worst {min(nmeds):.0f})")
+    else:
+        print("-- GUARDS from games.csv -- none (no games.csv for this arm) --")
+    print(f"-- DISTRIBUTIONS across games (ladder {LADDER_HDR.strip()}) --")
     if a["quad_g"]:
-        print(f"   4 quadrants (% of games)            {100.0*_mean(a['quad_g']):.1f}%")
+        print(f"   4 quadrants (% of games)             {100.0*_mean(a['quad_g']):.1f}%")
     if a["wheat_g"]:
-        print(f"   wheat bought / fed                 {_band(a['wheat_g'],2)}   p90 {_tail(a['wheat_g'],2)}")
+        print(_row("wheat bought / fed", a["wheat_g"], 2, 32))
     if a["yarn_sheep_g"]:
-        print(f"   SHEEP max, YARN worlds             {_band(a['yarn_sheep_g'])}   p90 {_tail(a['yarn_sheep_g'])}")
-    if p["games_csv"]:
-        for k, v in p["games_csv"].items():
-            print(f"   {k:34s} {v['median']:8.1f} [{v['p25']:.1f}-{v['p75']:.1f}]   p90 {v['p90']:.1f}")
-    print("-- structural per day (day CSV MEDIANS [p25-p75]) --")
+        print(_row("SHEEP max, YARN worlds", a["yarn_sheep_g"], 1, 32))
+    print("-- structural per day (day CSV MEDIAN [p10-p90]) --")
     dc = p["days_csv"]
-    print("   day | shed_max(p50[p25-p75])  shed_end  weeds   fert   watered  idle%")
+    print("   day | shed_max(med[p10-p90])  shed_end  weeds   fert   watered  idle%")
     for d in range(6, 30, 3):
         c = dc.get(d)
         if not c:
             continue
         def b(col, nd=1):
             v = c.get(col) or []
-            return _band(v, nd) if v else "-"
-        print(f"   {d:3d} | {b('max_shed_total'):>21s}  {b('end_shed_total'):>13s}  "
-              f"{b('weeds_max',2):>12s}  {b('plants_fertilized'):>12s}  "
-              f"{b('plants_watered'):>13s}  {b('idle_share_pct',2)}")
+            return _band1090(v, nd) if v else "-"
+        print(f"   {d:3d} | {b('max_shed_total'):>25s}  {b('end_shed_total'):>17s}  "
+              f"{b('weeds_max',2):>16s}  {b('plants_fertilized'):>16s}  "
+              f"{b('plants_watered'):>17s}  {b('idle_share_pct',2)}")
+    if rows:
+        print(f"-- PER-OPPONENT ({len(pool['by_opp'])} opponents) --")
+        _opponent_table(pool["eps_rows"], p["agent"])
 
 
 def _dsm_dir():
@@ -518,6 +828,9 @@ def main():
     ap.add_argument("--profile", choices=("ours", "dsm"), default="dsm")
     ap.add_argument("--run-dir", default="diag-replays/run-5")
     ap.add_argument("--dsm-dir", default=None, help="DSM replay dir (default: replays/DSM/v1 if present)")
+    ap.add_argument("--agent", default="old",
+                    help="games.csv `agent` label for the ours arm (old/new); the arm's "
+                         "own rows are selected so the opponent's seat is never pooled in")
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--compare", action="store_true")
     args = ap.parse_args()
@@ -525,10 +838,14 @@ def main():
     profs = []
     if "ours" in want:
         profs.append(profile("ours", f"{args.run_dir}/*_vs_*.json", f"{args.run_dir}/days_seed*.csv",
-                             "old", args.workers, run_dir=args.run_dir))
+                             args.agent, args.workers, run_dir=args.run_dir))
     if "dsm" in want:
         d = args.dsm_dir or _dsm_dir()
-        profs.append(profile("dsm", f"{d}/*.json", f"{d}/days_seed*.csv", "DSM", args.workers))
+        # run_dir is passed for the DSM arm too: replays/DSM/v1/games.csv holds
+        # both seats of every episode, and the `agent == "DSM"` filter in
+        # _games_rows is what keeps it to DSM's own 124 rows / 123 episodes.
+        profs.append(profile("dsm", f"{d}/*.json", f"{d}/days_seed*.csv", "DSM",
+                             args.workers, run_dir=d))
     for p in profs:
         show(p)
 

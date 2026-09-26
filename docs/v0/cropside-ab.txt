@@ -1,0 +1,27 @@
+arm A = A-old  (diag-replays/cp-A)  12 games
+arm B = C-cropside  (diag-replays/cp-C)  12 games
+matched pairs: 12   unmatched: 0 only-A, 0 only-B
+
+=== MARGIN (the low-noise readout, NOT the score) ===
+  A-old: W0  C-cropside: W0   (of 12 pairs)
+  delta money  median -3,501   mean -3,166   min -13,198   max +9,316
+  p10 -11,094  p25 -7,958  p75 +282  p90 +6,478
+  sign test: B better in 4/12 decided pairs   p=0.3877
+
+=== per opponent (median delta, wins A -> B) ===
+  kaggriculture-master-engine-v3               n=12 median    -3,501  W 0 -> 0
+
+=== defect columns (median delta; sign = B - A) ===
+  idle_share_pct                   -1.500   (1/12 worse)
+  idle_units_ready_total          -32.000   (0/12 worse)
+  idle_units_total               -153.000   (0/12 worse)
+  floor_sales                      +0.000   (1/12 worse)
+  discarded_units_total            +0.000   (0/12 worse)
+  stranded_at_bell               +105.000   (10/12 worse)  <-- majority moved the WRONG way
+  premium_below_base_frac          -0.052   (2/12 worse)
+  animal_escapes                   +0.000   (0/12 worse)
+  plants_died                     +11.000   (10/12 worse)  <-- majority moved the WRONG way
+  unwatered_eod                    +9.000   (8/12 worse)  <-- majority moved the WRONG way
+  missed_harvest_eod              +10.000   (10/12 worse)  <-- majority moved the WRONG way
+  shed_overflow_days               +0.000   (0/12 worse)
+  sell_revenue_total           -3,706.000   (8/12 worse)  <-- majority moved the WRONG way

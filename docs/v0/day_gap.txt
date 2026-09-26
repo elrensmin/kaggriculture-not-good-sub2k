@@ -1,0 +1,55 @@
+############ ours vs dsm — per-day gap ############
+ours diag-replays/v0-us  (agent=scratch, 8 day files)
+dsm  replays/DSM/v1  (agent=DSM, 123 day files)
+every figure = median of per-opponent medians (each opponent counts once)
+
+-- per-day medians (ours / dsm) --
+   day |    unit_turns |    idle_units | idle_share_pc | plants_watere | plants_fertil |   animals_fed | animals_cared | max_shed_tota | end_shed_tota |     weeds_max |       revenue
+     0 |    116/112    |     27/9      |     23/8      |     25/15     |      0/0      |      0/4      |      0/4      |      0/8      |      0/0      |      0/0      |      0/28    
+     2 |    162/162    |     78/38     |     48/24     |     25/19     |      0/0      |      0/3      |      0/7      |      0/5      |      0/0      |      0/0      |      0/399   
+     4 |    162/162    |      7/65     |      4/41     |     38/11     |      0/0      |      0/5      |      0/5      |      0/12     |      0/4      |      0/0      |      0/470   
+     6 |    162/208    |     84/2      |     52/1      |     23/23     |      0/0      |      0/6      |      0/7      |     24/10     |     15/0      |      0/0      |    224/1968  
+     8 |    162/230    |     35/7      |     22/3      |     28/37     |      0/0      |      0/10     |      0/11     |     23/16     |     15/3      |      0/0      |    374/2329  
+    10 |    258/318    |      5/0      |      2/0      |     45/48     |      0/4      |      0/19     |      0/19     |     21/45     |     15/27     |      0/0      |   2919/7283  
+    12 |    297/274    |     28/0      |      9/0      |     46/59     |      0/9      |      0/19     |      0/19     |     33/64     |     15/1      |      3/0      |   1950/3971  
+    14 |    297/295    |     14/0      |      5/0      |     59/56     |      0/10     |      0/21     |      0/21     |     16/89     |     15/10     |      4/0      |      0/7388  
+    16 |    297/296    |      6/0      |      2/0      |     48/57     |      0/10     |      0/19     |      0/19     |     39/93     |     15/4      |      8/1      |    529/7752  
+    18 |    297/295    |     20/0      |      7/0      |     57/55     |      0/12     |      0/14     |      0/13     |     19/89     |     15/5      |      5/1      |    178/6767  
+    20 |    297/295    |      8/0      |      3/0      |     53/58     |      0/14     |      0/15     |      0/15     |     23/88     |     15/8      |      2/1      |    238/5933  
+    22 |    294/295    |      0/0      |      0/0      |     46/59     |      0/14     |      0/13     |      0/13     |     52/92     |     15/7      |     21/1      |   2804/5307  
+    24 |    296/295    |      0/0      |      0/0      |     57/63     |      0/18     |      0/12     |      0/11     |     28/94     |     15/9      |      7/3      |    596/4987  
+    26 |    274/274    |      0/0      |      0/0      |     38/63     |      0/15     |      0/11     |      0/11     |     33/95     |     15/5      |     22/2      |   2285/5186  
+    28 |    275/274    |      0/0      |      0/0      |     15/49     |      0/14     |      0/3      |      0/2      |     21/94     |     19/17     |     18/6      |   2121/6810  
+
+-- by band: revenue contribution and idle work-units --
+   band      ours rev    dsm rev        gap       % | ours idle_u dsm idle_u
+   d0-5           801       1717       -916  -53.3% |         452        239
+   d6-11         7531      18511     -10980  -59.3% |         324         21
+   d12-17        3613      36728     -33115  -90.2% |         119          0
+   d18-23       12353      31728     -19375  -61.1% |         112          0
+   d24-29       19741      36405     -16664  -45.8% |         105          0
+   TOTAL        44039     125089     -81050  -64.8%
+
+-- cumulative revenue (sum of per-day medians) --
+   through d 5: ours       801  dsm      1717  gap      -916  ( -53.3%)  this day     +342
+   through d 8: ours      1399  dsm      6679  gap     -5280  ( -79.1%)  this day    -1955
+   through d11: ours      8332  dsm     20228  gap    -11896  ( -58.8%)  this day     -942
+   through d14: ours     10410  dsm     35595  gap    -25185  ( -70.8%)  this day    -7388
+   through d17: ours     11945  dsm     56956  gap    -45011  ( -79.0%)  this day    -6205
+   through d20: ours     12888  dsm     74275  gap    -61387  ( -82.6%)  this day    -5695
+   through d23: ours     24298  dsm     88684  gap    -64386  ( -72.6%)  this day    -2666
+   through d26: ours     28393  dsm    103735  gap    -75342  ( -72.6%)  this day    -2901
+   through d29: ours     44039  dsm    125089  gap    -81050  ( -64.8%)  this day    -7161
+
+-- totals over the season (sum of per-day medians) --
+   unit_turns           ours     7306.0   dsm     7527.0      -2.9%
+   idle_units           ours     1112.0   dsm      260.0    +327.7%
+   idle_share_pct       ours      627.7   dsm      166.6    +276.8%
+   plants_watered       ours     1011.0   dsm     1329.0     -23.9%
+   plants_fertilized    ours        0.0   dsm      238.0    -100.0%
+   animals_fed          ours        0.0   dsm      369.0    -100.0%
+   animals_cared        ours        0.0   dsm      373.0    -100.0%
+   max_shed_total       ours      872.0   dsm     1829.0     -52.3%
+   end_shed_total       ours      388.0   dsm      168.0    +131.0%
+   weeds_max            ours      190.0   dsm       39.0    +387.2%
+   revenue              ours    44039.0   dsm   125089.0     -64.8%

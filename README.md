@@ -1,209 +1,184 @@
 # Kaggriculture
 
-A productionized, refactored Kaggle agent for the **kaggriculture** competition
-environment, together with a deterministic A/B test harness (the `diagnose`
-package) for developing and measuring improvements without touching the
-production agent.
+A Kaggle agent for the **kaggriculture** competition, together with a diagnostic
+harness for measuring it without guessing.
 
 ## Layout
 
-The runnable code lives in a `src/` layer plus a `diagnose` package:
-
 | path | role |
 |------|------|
-| `src/main.py` | **production agent** — ~6,400-line, 45-layer refactor of the original notebook `agent`, proven behavior-identical. Do **not** edit while experimenting. |
-| `src/route_tape.py` | pre-computed opening route tape. **Read-only data.** |
-| `src/agent.py` | **experiment workspace** — a patch layer on top of `main.py`. `agent.patch(action, observation, configuration)` receives the action `main.py` produced and may alter it. Editing `patch()` is how you iterate; reset to a clean template after a patch is promoted into `main.py`. |
-| `public_agents/` | 13 reference/opponent agents used as adversaries in runs. |
-| `diagnose/` | the diagnostic / A-B harness, split from the old single-file `diagnose.py` into focused modules. Run via `python -m diagnose`. |
-| `package.py` | build (and optionally push, human-only) the **single-file** Kaggle submission from `src/main.py` + `src/agent.py` + `src/route_tape.py`. |
-| `Makefile` | run any harness command with ease (see below). |
+| `src/` | **the agent.** An onion of small layers (params/market/state/routing → budget/crop_plan/herd_plan/layout → sell_policy/endgame/scheduler/emit). `src/__init__.py` exposes `agent(observation, configuration)`. `action(t) = f(state(t))` — stateless, no route tape, no chassis, no patch layer. |
+| `tools/diagnose/` | the harness. Run the agent over a batch of public opponents in parallel, re-diagnose saved replays, render graph dashboards. Run via `python -m tools.diagnose`. |
+| `tools/labour`, `tools/market`, `tools/report`, `tools/gates` | read-only analysis tools (wasted turns, selling/pricing, ours-vs-DSM, acceptance gates). |
+| `public_agents/` | the 12 public "cloning" opponents used as adversaries. |
+| `package.py` | build the **single-file** Kaggle submission from the `src/` package (human-only push). |
+| `Makefile`, `scripts/sweep.sh` | run entry points. |
 | `diag-replays/` | saved local game replays and per-run CSVs (gitignored). |
+| `replays/DSM/v1/` | the #1 team's 123 leaderboard episodes — read-only reference data. |
+| `docs/DSM-vs-us(v0).md` | the data-backed diagnosis of this agent against the #1, with the open fix list. |
+| `docs/dsm_v1.md` | the #1 team's full anatomy (what we are copying). |
 
 ## Development model
 
-The golden rule: **never modify `src/route_tape.py`** (it's the pre-computed
-opening route data). `src/main.py` is editable — the patches you may improve
-live there (a ~45-layer stack plus a `make_agent` chassis). Most experiments go
-into `src/agent.py` as a patch, but a change that improves `main.py`'s own layers
-is a valid experiment too. The harness runs:
+The agent is **stateless**: every turn it rebuilds a `State` snapshot from the
+observation and plans from scratch. There is nothing to keep valid between turns,
+so any layer can be changed and re-run — a bug is a local fix, never a corrupted
+trajectory.
 
-- `--old`     → `main.py` alone
-- `--new`     → `main.py` + `agent.patch()`
-- `--compare` → both on the same seeds, side by side
+Two rules that matter:
 
-Because `--new`/`--compare` exercise *everything `main.py` does plus your patch*,
-results are measured against real production behavior rather than an isolated
-stub. Improving a patch means it has to beat `--old`, and regressions are caught
-directly.
+- **Judge on `result` (WIN/LOSS), never on a cross-game average.** The ladder is a
+  win/loss rating; margin is the low-noise *readout*, not the score. See the
+  anti-goal in `AGENTS.md`.
+- **A/B on identical seeds.** `src/params.py` is env-overridable, so two
+  configurations can be measured from one tree; `tools/report/arm_diff.py` diffs
+  them on matched `(opponent, seed)` pairs with a sign test.
 
 ## Quick start
 
 ```bash
-# A/B old vs new on one seed (deterministic)
-python -m diagnose --compare --pa 1 --seed 42
+# Run the agent against public agent 2 over 12 seeds (parallel across all cores)
+python -m tools.diagnose --scratch --pa 2 --batch 12 --seed 700
 
-# Test a patch over multiple opponents and seeds
-python -m diagnose --new --pa 1-6 --batch 3 --seed 7
+# The whole public field
+python -m tools.diagnose --scratch --pa 1-12 --batch 8 --seed 4362837462
 
-# Re-diagnose a saved run (regenerates CSVs; --render prints the day report)
-python -m diagnose --replay-dir diag-replays/run-1 --render
+# Re-diagnose a saved run (regenerates the CSVs; --render prints the day report)
+python -m tools.diagnose --replay-dir diag-replays/v0-us --render
 
-# Leaderboard analysis: local lb replays carry no seed, so the per-day CSVs are
-# keyed on the episode id from each filename and labeled with info.TeamNames;
-# both seats are analysed (a "seat" column is prefixed to the CSVs). Parallel
-# across all cores by default.
-python -m diagnose --replay-dir replays/DSM --lb
+# Leaderboard analysis: lb replays carry no seed, so per-day CSVs are keyed on the
+# episode id and labelled from info.TeamNames; both seats are analysed.
+python -m tools.diagnose --replay-dir replays/DSM/v1 --lb
 
-# Sweep our agent against ALL 13 public agents over several seeds, and get a
-# per-opponent wins/losses + averages summary:
-./sweep.sh new          # our patched agent (main.py + agent.patch())
-./sweep.sh old          # the production main.py agent
-./sweep.sh new 100 5    # start seed 100, 5 seeds per opponent
+# Sweep the agent against ALL 12 public agents + a per-opponent W-L summary
+./scripts/sweep.sh 4362837462 15        # start seed, seeds per opponent
+
+# Read the pool arm against DSM: POOL header, p10..p90 ladders, MARGIN read,
+# per-opponent table
+PYTHONPATH=. python -m tools.report.dsm_profile --compare \
+  --run-dir diag-replays/sweep_s4362837462_b15
 
 # Live public-agent index mapping
-python -c "import diagnose; print(diagnose.public_agent_names())"
+python -c "from tools import diagnose; print(diagnose.public_agent_names())"
 ```
 
-> `python -m diagnose` is the canonical entry point. The harness adds both the
-> repo root and `src/` to `sys.path` on import, so `import main` / `import agent`
-> / `import route_tape` resolve no matter how the CLI is launched (plain python,
-> `uv run`, or a fork-parallel worker).
+> `python -m tools.diagnose` is the canonical entry point. On import it puts the
+> **repo root** on `sys.path`, so `import src` (the agent) and `import tools.*`
+> resolve no matter how the CLI is launched — plain python, `uv run`, or a
+> fork-parallel worker.
 
-Full flag reference, seating convention, output formats and reproducibility are
-in `diagnose/cli.py` and the package docstring (`python -m diagnose --help`).
+> NOTE: `--pa 2 --batch 24` is 24 games against ONE opponent. DSM's 123 episodes
+> span 66 teams, so a single-opponent arm is not a comparable sample —
+> `dsm_profile` prints a POOL header that says which one you are looking at.
+
+Full flag reference and reproducibility notes: `python -m tools.diagnose --help`
+and `tools/diagnose/cli.py`.
 
 ## Pulling live tournament opponents (Kaggle API)
 
-Two helper scripts in `scripts/` fetch the current leaderboard and an
-opponent's episode replays straight from Kaggle using the `kaggle` python
-package (auth from `~/.kaggle/access_token` or `kaggle.json` /
+Two helper scripts in `tools/fetch/` fetch the current leaderboard and an
+opponent's episode replays straight from Kaggle using the `kaggle` python package
+(auth from `~/.kaggle/access_token` or `kaggle.json` /
 `KAGGLE_USERNAME`+`KAGGLE_KEY`; the package is in `.venv`).
 
 ```bash
 # 1. Top players of the tournament (team name + id + leaderboard score)
-python scripts/fetch_top_players.py --top 3 --json replays/top_players.json
+python tools/fetch/fetch_top_players.py --top 3 --json replays/top_players.json
 
 # 2. Pull a team's top-scoring submission's episode replays into replays/<team_name>/
-python scripts/pull_top_submissions.py --team 16732748 --team 16730612          # latest episode each
-python scripts/pull_top_submissions.py --top 3 --episodes all --out replays      # every episode, top-3 teams
-python scripts/pull_top_submissions.py --submission 56468867 --episode 112413080# one specific episode
+python tools/fetch/pull_top_submissions.py --team 16732748 --team 16730612   # latest each
+python tools/fetch/pull_top_submissions.py --top 3 --episodes all --out replays
+python tools/fetch/pull_top_submissions.py --submission 56468867 --episode 112413080
 ```
-
-`fetch_top_players.py` prints the ranked teams and writes them as JSON.
-`pull_top_submissions.py` resolves each team's highest-`public_score`
-submission, lists its episodes, and downloads the replay of the selected
-episode(s) (`--episodes latest` default, `--episodes all`, `--episodes N`, or a
-specific `--episode ID`) into `replays/<team_name>/` plus an `index.json`.
-Each replay is a full game recording you can study or match against.
 
 ## Makefile
 
-Everything above (and the grid/xray/graph/package workflows) is wrapped as a
-`make` target so you can run it with ease:
+Everything is wrapped as a `make` target:
 
 ```bash
-make help                  # list every target
-make compare PA=13 BATCH=2 SEED=700     # same-seed A/B for opponent 13
-make new PA=1-6 BATCH=3 SEED=7          # patched agent across several oppos
-make old                                # production main.py alone
-make grid PA=1,2,8 BATCH=8 SEED=700     # sweep agent E1_PARAMS (hedged)
-make xray PA=13 SEED=700                # per-step patch() investigation
-make render DIR=diag-replays/run-1      # re-diagnose a saved run
-make graph DIR=diag-replays/run-1       # dashboards + farm-board GIFs
-make animals                            # animal CARE payback chart
-make sweep                              # all 13 public agents (or MODE=old)
-make package                            # build dist/submission.py (no push)
-make package-check                      # build + prove bundle == local --new
-make verify                             # compile everything + import the harness
-make install                            # install/refresh kaggle-environments
+make help                                # list every target
+make scratch PA=2 BATCH=12 SEED=700      # run the agent vs PA 2 over 12 seeds
+make scratch PA=1-12 BATCH=8             # the whole public field
+make diag ARGS="--pa 1-12 --batch 4"     # raw CLI passthrough
+make sweep SEED=4362837462 BATCH=15      # all public agents + per-opponent summary
+make replay DIR=diag-replays/v0-us       # re-diagnose a saved run (no games)
+make replay-lb DIR=replays/DSM/v1        # leaderboard replays
+make graph DIR=diag-replays/v0-us        # dashboards + farm-board GIFs
+make animals DIR=diag-replays/v0-us      # animal CARE payback chart
+make package                             # build dist/submission.py (no push)
+make package-check                       # build + prove bundle == local src.agent
+make verify                              # compile + import the agent and harness
+make install                             # install/refresh kaggle-environments
 ```
 
-Targets default to the ambient `python3` and to `PA=13`, default `BATCH`=2,
-`SEED`=700, `WORKERS`=all cores. Override any knob on the command line:
+Targets default to the repo `.venv` when present, else `python3`, and to `PA=2`,
+`BATCH=2`, `SEED=700`, `WORKERS`=all cores. Override any knob inline:
 
 ```bash
-make compare PA=1,2,3 BATCH=12 SEED=700 WORKERS=4
-make grid  PA=9,12 BATCH=8 GRIDPARAMS='min_sell_frac=[0.9,1.0];shed_cap_frac=[0.9,0.95]'
-make diag ARGS="--old --pa 1-13 --batch 8 --seed 42 --workers 2"
+make scratch PA=1-12 BATCH=8 SEED=4362837462 WORKERS=4
 ```
 
 ### Multiple uv runs
 
-`uv` is supported but not required. To drive every target through uv, point `PY`
-at `uv run python` (either per-invocation or forever in your shell):
+`uv` is supported but not required. Point `PY` at `uv run python`:
 
 ```bash
-make compare PY='uv run python'         # one uv run for this target
-export PY='uv run python'               # every later make uses uv
-make new PA=1-6 BATCH=3 SEED=7
-```
-
-Run the CLI directly under uv the same way:
-
-```bash
-uv run python -m diagnose --compare --pa 13 --batch 12 --seed 700
+make scratch PY='uv run python' PA=2 BATCH=12
+uv run python -m tools.diagnose --scratch --pa 1-12 --batch 8
 uv run python package.py --check
 ```
 
 `pyproject.toml` marks the project as a **non-package** (`[tool.uv] package = false`)
-and only asks for `kaggle-environments>=1.32.7`, so `uv sync` installs the single
-runtime dependency without hunting for a build target. Use whichever runner you
-prefer — the harness behaves identically under plain python and uv.
+and only asks for `kaggle-environments>=1.32.7`.
 
 ## Packaging for Kaggle
 
-The working agent is three files (`src/main.py` chassis + `src/agent.py` patch +
-`src/route_tape.py`) and ships to Kaggle as **one self-contained `.py`**. Use
-`package.py` (v1 `route_tape` only):
+The agent is the `src/` package and ships as **one self-contained `.py`**:
 
 ```bash
 make package                            # build dist/submission.py (no push)
-python package.py --check               # build + prove it == local --new
-python package.py --push -m "message"   # build + submit to Kaggle (human only)
+python package.py --check               # build + prove it == local src.agent
+python package.py --push -m "message"   # build + submit (HUMAN ONLY)
 ```
 
-`dist/submission.py` embeds `route_tape`, `main`, and `agent.patch` as synthetic
-`sys.modules` entries (dependency order) and exposes the public
-`agent(observation, configuration)` built exactly like the harness's `--new`
-candidate — i.e. `agent.patch(main._original_agent(...))`. `--check` loads the
-bundle in a separate process and compares its final money to the local `--new`
-run on the same seed/opponent. `--push` submits via the `kaggle` CLI and refuses
-without `~/.kaggle/kaggle.json` **or** `KAGGLE_USERNAME`/`KAGGLE_KEY` **or** a
-`~/.kaggle/access_token`. See the guard in `AGENTS.md` — the agent never pushes.
+`package.py` embeds every `src/*.py` source (base64) and installs them at import
+time as submodules of a synthetic package, so their relative imports
+(`from . import params`, `from .job import Job`) resolve exactly as in the repo.
+Module order comes from a topological sort of those imports, so adding a layer
+needs no edit to `package.py`. `--check` loads the bundle in a fresh process and
+asserts its final bank equals the local `src.agent`'s on the same seed/opponent.
+`--push` refuses without Kaggle credentials. **The agent never pushes** — that is
+the operator's call; see `AGENTS.md`.
 
 ## Files at a glance
 
-| path | role | editable while experimenting? |
-|------|------|------------------------------|
-| `src/main.py` | production agent (editable) | **YES** |
-| `src/route_tape.py` | opening route data | **NO** |
-| `src/agent.py` | your patch over `main.py` ('new') | **YES** |
-| `diagnose/` | diagnostic / A-B harness (package, `python -m diagnose`) | yes |
-| `Makefile` | run any harness command with ease | yes |
-| `scripts/sweep.sh` | run `new`/`old` against all public agents over multiple seeds | yes |
-| `scripts/fetch_top_players.py` | fetch top tournament players (name + id + score) via the Kaggle API | yes |
-| `scripts/pull_top_submissions.py` | pull a team's top-submission episode replays into `replays/<team_name>/` | yes |
+| path | role | editable? |
+|------|------|-----------|
+| `src/*.py` | the agent (onion layers) | **YES — the product** |
+| `src/params.py` | every tunable knob (env-overridable via `SCRATCH_PARAMS`) | YES |
+| `tools/diagnose/` | harness (`python -m tools.diagnose`) | yes |
+| `tools/` (rest) | analysis tools | yes |
+| `Makefile`, `scripts/sweep.sh` | run entry points | yes |
+| `tools/fetch/*.py` | Kaggle-API helpers (top players, episode replays) | yes |
 | `package.py` | build + verify (+ human-only push) the single-file submission | yes |
 | `public_agents/*.py` | opponent agents | yes |
-| `GAME_DYNAMICS.md` | authoritative engine mechanics & measured payoff data (referenced from `AGENTS.md`) | yes |
-| `README.md`, `AGENTS.md`, `docs/` | docs | yes |
+| `GAME_DYNAMICS.md` | authoritative engine mechanics & measured payoff data | yes |
+| `README.md`, `AGENTS.md`, `tools/readme.md`, `docs/` | docs | yes |
+| `replays/DSM/v1/` | the #1's replays (reference data) | **NO** |
 
 ## Running / requirements
 
 - Python ≥ 3.12; runtime dependency `kaggle_environments` (≥ 1.32.7), pinned in
   `pyproject.toml`.
-- The `scripts/fetch_top_players.py` / `scripts/pull_top_submissions.py`
-  tournament helpers additionally use the `kaggle` package (in `.venv`) to talk
-  to the Kaggle API; they need your `~/.kaggle/access_token` (or kaggle.json /
-  `KAGGLE_USERNAME`+`KAGGLE_KEY`).
-- From the repo root, run the `python -m diagnose ...` / `make ...` commands
+- The `tools/fetch/` helpers additionally use the `kaggle` package (in `.venv`);
+  they need `~/.kaggle/access_token` (or kaggle.json / `KAGGLE_USERNAME`+`KAGGLE_KEY`).
+- From the repo root, run the `python -m tools.diagnose ...` / `make ...` commands
   above. A ready venv is in `.venv` (`source .venv/bin/activate`).
 
 ## Further reading
 
-- **Operating rules & patch workflow**: `AGENTS.md` (the handover guide).
-- **Engine mechanics & payoff data** (crops/animals/market/town/hiring/turn order):
-  `GAME_DYNAMICS.md`.
-- **Harness CLI / outputs / seating / reproducibility**: `diagnose/cli.py` and
-  `python -m diagnose --help`.
+- **Operating rules & workflow**: `AGENTS.md` (the handover guide).
+- **Engine mechanics & payoff data**: `GAME_DYNAMICS.md`.
+- **Why we are behind, phase by phase**: `docs/DSM-vs-us(v0).md`.
+- **What the #1 actually does**: `docs/dsm_v1.md`.
+- **Tooling index**: `tools/readme.md`.

@@ -6,7 +6,7 @@ is an explicit median or a count, never a pooled average of a rate.
 
 Usage::
 
-    PYTHONPATH=src:. python tools/dsm_report.py --cache /tmp/dsm_cache.json
+    PYTHONPATH=. python tools/dsm_report.py --cache /tmp/dsm_cache.json
 """
 from __future__ import annotations
 

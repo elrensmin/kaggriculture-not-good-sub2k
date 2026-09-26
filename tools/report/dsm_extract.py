@@ -25,7 +25,7 @@ Derived (no audit needed):
 
 Usage::
 
-    PYTHONPATH=src:. python tools/dsm_extract.py --dir replays/DSM/v1 \\
+    PYTHONPATH=. python tools/dsm_extract.py --dir replays/DSM/v1 \\
         --dump /tmp/dsm_cache.json --workers 0
 """
 from __future__ import annotations

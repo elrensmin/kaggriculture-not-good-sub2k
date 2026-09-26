@@ -16,7 +16,7 @@ Everything else is either movement-needed (pending work at another tile — the
 revenue-negative path) or truly idle (no pending work anywhere it can help).
 
 Usage:
-  PYTHONPATH=src:. python -m tools.labour.idle_pool --dir diag-replays/run-5 --glob 'old_vs_*.json'
+  PYTHONPATH=. python -m tools.labour.idle_pool --dir diag-replays/run-5 --glob 'old_vs_*.json'
 """
 from __future__ import annotations
 
@@ -25,7 +25,15 @@ import glob as globmod
 from collections import Counter
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
+from tools.diagnose.window import parse_days, in_window, describe
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 TEST_SEAT = 1
 CROP_MAXDAY = {"WHEAT": 4, "CARROT": 3, "TOMATO": 99, "STRAWBERRY": 99, "MELON": 12}
@@ -83,6 +91,8 @@ def analyze_game(path):
         if not obs or not act:
             continue
         day = i // 24
+        if not _in(day):  # window-guard
+            continue
         farm = obs["farms"][TEST_SEAT]
         priv = obs.get("private") or {}
         shed_room = SHED_CAP - sum(int(v) for v in (priv.get("shed") or {}).values())
@@ -112,10 +122,21 @@ def analyze_game(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default=".")
-    ap.add_argument("--glob", default="old_vs_*.json")
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
+    # Default must match every arm's naming (`old_vs_*`, `new_vs_*`, `scratch_vs_*`).
+    # It used to be `old_vs_*.json`, which silently analysed 0 games on a scratch run.
+    ap.add_argument("--glob", default="*_vs_*.json")
     ap.add_argument("--summary-only", action="store_true")
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     paths = sorted(globmod.glob(str(Path(args.dir) / args.glob)))
+    if not paths:
+        paths = sorted(p for p in globmod.glob(str(Path(args.dir) / "*.json"))
+                       if not p.endswith("_board.gif"))
     agg = Counter()
     n = 0
     for p in paths:

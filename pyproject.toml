@@ -1,7 +1,7 @@
 [project]
 name = "kagg-notebook-refactor"
 version = "0.1.0"
-description = "Kaggriculture diagnostic harness (main.py + agent.py patch over the diagnose package)"
+description = "Kaggriculture agent (the src package) + its diagnostic harness (tools.diagnose)"
 readme = "README.md"
 authors = [
     { name = "elrensmin", email = "keenignition@gmail.com" }
@@ -11,9 +11,9 @@ dependencies = [
     "kaggle-environments>=1.32.7",
 ]
 
-# This repo is a collection of runnable scripts (the diagnose package,
-# main/agent/route_tape under src/, and package.py), not a wheel to publish.
-# Treat it as a non-package project so `uv sync` / `uv run python -m diagnose ...`
-# sets up the dependency environment without hunting for a build target.
+# This repo is a collection of runnable scripts (the agent in src/, the harness
+# in tools/diagnose/, and package.py), not a wheel to publish. Treat it as a
+# non-package project so `uv sync` / `uv run python -m tools.diagnose ...` sets up
+# the dependency environment without hunting for a build target.
 [tool.uv]
 package = false

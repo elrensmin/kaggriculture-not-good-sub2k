@@ -1,0 +1,10 @@
+
+===== sell_price: diag-replays/v0-us (96 games, both seats) =====
+
+== summary over 96 games (totals + per-game counts; no averaging) ==
+   product      our units our avg$ our floor% |  opp units opp avg$ opp floor% | under/ahead
+   WHEAT            24904     33.3         0% |      31811     33.9         0% |    23/17   
+   CARROT            8702     48.5         0% |       9482     47.4         0% |     0/38   
+   TOMATO             688     96.3         0% |        720    139.1         0% |    11/0    
+   STRAWBERRY        9585    184.7         1% |      23855    190.3         1% |    25/1    
+   MELON             5760    175.8         0% |       6912    234.9         0% |    96/0    

@@ -14,10 +14,10 @@ which records *executed* units and prices for BOTH seats. Leaderboard replays
 carry no audit, so it falls back to each seat's SELL orders x the step price.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2
-  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2 --game 543252345
-  PYTHONPATH=src:. python -m tools.market.sell_price --dir diag-replays/consol-new2 --product WOOL
-  PYTHONPATH=src:. python -m tools.market.sell_price --path some_replay.json --seat 1
+  PYTHONPATH=. python -m tools.market.sell_price --dir diag-replays/consol-new2
+  PYTHONPATH=. python -m tools.market.sell_price --dir diag-replays/consol-new2 --game 543252345
+  PYTHONPATH=. python -m tools.market.sell_price --dir diag-replays/consol-new2 --product WOOL
+  PYTHONPATH=. python -m tools.market.sell_price --path some_replay.json --seat 1
 """
 from __future__ import annotations
 
@@ -28,8 +28,16 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import diagnose
+from tools import diagnose
+from tools.diagnose.window import parse_days, in_window, describe
 from kaggle_environments.envs.kaggriculture.kaggriculture import MARKET_PARAMS, PRICE_FLOOR
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 PRODUCTS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON",
             "EGG", "MILK", "WOOL", "FERTILIZER")
@@ -70,6 +78,8 @@ def _sell_from_action(rep, seat):
             continue
         obs = si[seat].get("observation")
         act = si[seat].get("action") or {}
+        if not _in(t // 24):  # window-guard
+            continue
         if not obs:
             continue
         px = (obs.get("market") or {}).get("prices") or {}
@@ -180,6 +190,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default=None)
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--path", default=None)
     ap.add_argument("--glob", default=None)
     ap.add_argument("--seat", type=int, default=None, help="our seat (default 1, or non-DSM on LB)")
@@ -188,6 +199,11 @@ def main():
     ap.add_argument("--summary", action="store_true", help="print only the cross-game summary")
     ap.add_argument("--workers", type=int, default=0)
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     only = args.product.upper() if args.product else None
 
     if args.path:

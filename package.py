@@ -1,197 +1,170 @@
-#!/usr/bin/env python3
-"""Build and (optionally) submit a single-file Kaggle Kaggriculture agent.
+#!/usr/bin/env python
+"""Build (and optionally submit) a single-file Kaggle Kaggriculture agent.
 
-The working agent is three parts (all under ``src/``) and must be shipped as ONE
-self-contained ``.py`` file (that is what the Kaggle runner executes):
+The agent is the ``src`` package: a stack of small modules that import each other
+with relative imports (``from . import params``, ``from .job import Job``). Kaggle
+wants ONE file exposing ``agent(observation, configuration)``.
 
-    src/main.py         the production chassis agent (reads the tape via the
-                        ``KAGGICULTURE_TAPE`` env + ``importlib``, exposes
-                        ``_original_agent``). Runs at import time.
-    src/agent.py        the experimental patch layer. ``import main as _main``;
-                        its ``patch(action, observation, configuration)`` is what
-                        turns "main alone" into our candidate ("new").
-    src/route_tape.py   the pre-computed opening route data (ROUTES / SHOP_ROUTES).
+The build therefore embeds every ``src/*.py`` source, base64-encoded, and installs
+them at import time as submodules of a synthetic package, so their relative imports
+resolve exactly as they do in the repo:
 
-The generated file embeds each source as a synthetic module registered in
-``sys.modules`` (order: route_tape -> main -> agent), then defines the public
-``agent(observation, configuration)`` exactly the way ``diagnose.load_new_agent``
-builds the "--new" agent:
+    _kagg_agent            <- src/__init__.py, exposes ``agent``
+    _kagg_agent.params     <- src/params.py
+    _kagg_agent.scheduler  <- src/scheduler.py
+    ...
 
-    def agent(observation, configuration=None):
-        return agent_module.patch(main_module._original_agent(observation,
-                                                              configuration),
-                                  observation, configuration)
+Module order is derived by a topological sort of the relative imports (Kahn), so
+adding a module to ``src/`` needs no edit here. The bundle imports nothing from the
+repo at runtime; it only needs ``kaggle_environments``.
 
-So the bundle is behaviorally `main + agent.patch()` over the route tape — the
-proven, gated candidate. It is fully self-contained (stdlib + the synthetic
-modules) and does not import any sibling file at runtime.
+Usage:
+  python package.py                        # -> dist/submission.py
+  python package.py --check                # + play one seeded game vs a public agent
+                                           #   and assert bundle == local src.agent
+  python package.py --push                 # HUMAN ONLY: submit via the kaggle CLI
 
-Usage
------
-    python package.py                # build dist/submission.py (no push)
-    python package.py --check        # build + run it vs a public opponent
-                                     #   (seed 42) to prove bundle fidelity
-    python package.py --push          # build + submit to Kaggle
-    python package.py --check --push -m "I1 opening + baseline tape"
-
-Flags
------
-  --out PATH        write the bundle to PATH            (default dist/submission.py)
-  --package NAME    python package name inside the bundle (default kaggriculture_agent)
-  --check           after building, import the bundle in a fresh Python process
-                    and play a seeded 1-vs-1 run vs a public agent; assert the
-                    final money matches the local "--new" run (proves
-                    the bundle and the harness-agent are identical).
-  --opp IDX         public opponent index for --check    (default 4 = pipe16-idle-workers)
-  --seed N          seed for --check   (default 42)
-  --push            submit to Kaggle with the kaggle CLI (requires credentials)
-  --competition S   competition slug for --push          (default kaggriculture)
-  -m MSG, --message MSG   submission message (--push)
-  -v, --verbose     print bundle assembly detail
-
-Requires the ``kaggle`` CLI only for --push. Credentials must be available via
-~/.kaggle/kaggle.json or KAGGLE_USERNAME/KAGGLE_KEY.
+The agent has NO permission to push: ``--push`` is the operator's call and is never
+run automatically. ``--check`` is opt-in too; a plain build stops after writing.
 """
 from __future__ import annotations
 
 import argparse
-import os
+import ast
+import base64
 import pathlib
 import subprocess
 import sys
-import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / "src"
 DEFAULT_OUT = ROOT / "dist" / "submission.py"
+PKG = "_kagg_agent"
 
-TAPE_FILES = {"v1": "route_tape.py"}
 
-# The --new agent is main + agent.patch. Kaggle wants a `agent` symbol; we keep
-# `patch` reachable only through the bundle so no external name is required.
-BUNDLE_TEMPLATE = '''\
-"""Single-file Kaggle Kaggriculture agent (auto-generated).
+# ---------------------------------------------------------------------------
+# source discovery + ordering
+# ---------------------------------------------------------------------------
+def _local_deps(tree: ast.AST) -> set:
+    """Names this module imports relatively: `from . import a, b` / `from .x import y`."""
+    deps = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level == 1:
+            if node.module:
+                deps.add(node.module.split(".")[0])
+            for alias in node.names:
+                deps.add(alias.name.split(".")[0])
+    return deps
 
-Generated by {script} on {when}.
-Embedded parts (each registered as a synthetic sys.modules entry in dependency
-order so their intra-file imports resolve):
 
-  route_tape  ->  main  ->  agent.patch  ->  public ``agent(...)``.
+def collect_sources(src_dir: pathlib.Path):
+    """Return (order, sources) with `order` a topological sort of the local imports."""
+    sources, deps = {}, {}
+    for path in sorted(src_dir.glob("*.py")):
+        name = path.stem if path.stem != "__init__" else "__init__"
+        sources[name] = path.read_text(encoding="utf-8")
+        tree = ast.parse(sources[name])
+        deps[name] = {d for d in _local_deps(tree)
+                      if d in {p.stem for p in src_dir.glob("*.py")} or d == "__init__"}
+    deps = {k: {d for d in v if d != k} for k, v in deps.items()}
 
-public ``agent`` is built exactly as diagnose.load_new_agent builds "--new":
-it runs the embedded main._original_agent then hands the action to the embedded
-agent.patch. Fully self-contained; imports no sibling file at runtime.
+    # Kahn: emit a module only once every module it imports has been emitted.
+    remaining = {k: set(v) for k, v in deps.items() if k != "__init__"}
+    order = []
+    while remaining:
+        ready = sorted(k for k, v in remaining.items() if not (v - set(order)))
+        if not ready:                                   # cycle: fall back to lexical
+            ready = sorted(remaining)
+        for k in ready:
+            order.append(k)
+            remaining.pop(k, None)
+    return order, sources
+
+
+# ---------------------------------------------------------------------------
+# the bundle
+# ---------------------------------------------------------------------------
+_BOOTSTRAP = '''"""Single-file Kaggle Kaggriculture agent (auto-generated).
+
+Do not edit: rebuild with `python package.py`. The real source is the `src/`
+package in the project repo; this file embeds it and installs each module under a
+synthetic package so the relative imports resolve unchanged.
 """
-
-import os as _os
+import base64 as _b64
 import sys as _sys
 import types as _types
 
-def _load_embedded_modules():
-    modules = {{}}
-    # route_tape first: main does `importlib.import_module('route_tape')` driven
-    # by KAGGICULTURE_TAPE; it must already be present in sys.modules.
-    _os.environ["KAGGICULTURE_TAPE"] = {tape_module!r}
+_PKG = {pkg!r}
+_SOURCES = {{
+{sources}
+}}
+_ORDER = {order!r}
 
-    _src = {route_tape!r}
-    _mod = _types.ModuleType({route_tape_modname!r})
-    _mod.__file__ = {route_tape_modname!r} + ".py"
-    exec(compile(_src, {route_tape_modname!r} + ".py", "exec"), _mod.__dict__)
-    _sys.modules[{route_tape_modname!r}] = _mod
-    modules["route_tape"] = _mod
+_pkg = _types.ModuleType(_PKG)
+_pkg.__path__ = []
+_sys.modules[_PKG] = _pkg
 
-    # main runs at import; reads sys.modules['route_tape'].
-    _src = {main!r}
-    _mod = _types.ModuleType("main")
-    _mod.__file__ = "main.py"
-    exec(compile(_src, "main.py", "exec"), _mod.__dict__)
-    _sys.modules["main"] = _mod
-    modules["main"] = _mod
+for _name in _ORDER:
+    _m = _types.ModuleType(_PKG + "." + _name)
+    _m.__package__ = _PKG
+    _m.__file__ = "<" + _PKG + "/" + _name + ".py>"
+    _sys.modules[_PKG + "." + _name] = _m
+    setattr(_pkg, _name, _m)
 
-    # agent.patch imports main as _main.
-    _src = {agent!r}
-    _mod = _types.ModuleType("agent")
-    _mod.__file__ = "agent.py"
-    exec(compile(_src, "agent.py", "exec"), _mod.__dict__)
-    _sys.modules["agent"] = _mod
-    modules["agent"] = _mod
+for _name in _ORDER:
+    exec(compile(_SOURCES[_name], "<" + _PKG + "/" + _name + ".py>", "exec"),
+         _sys.modules[_PKG + "." + _name].__dict__)
 
-    return modules
+_pkg.__package__ = _PKG
+exec(compile(_SOURCES["__init__"], "<" + _PKG + "/__init__.py>", "exec"), _pkg.__dict__)
 
-_modules = _load_embedded_modules()
-# Drop helper so runtime namespace stays clean.
-del _load_embedded_modules
-
-def agent(observation, configuration=None):
-    """Public entry point: full main agent, then the experimental patch."""
-    base = _modules["main"]._original_agent
-    patch = _modules["agent"].patch
-    action = base(observation, configuration)
-    return patch(action, observation, configuration)
-
-# Keep telemetry reachable for diagnostics without leaking names.
-_bundle = _modules
-_del_modules = ("route_tape", "main", "agent")
-del _del_modules
+agent = _pkg.agent
 '''
 
 
-def build(out: pathlib.Path, tape: str = "v1") -> None:
-    """Assemble the single-file bundle from route_tape + main + agent."""
-    tape_file = TAPE_FILES[tape]
-    route_tape_modname = tape_file[:-3]  # strip ".py"
-    parts = {
-        "route_tape": (SRC / tape_file).read_text(encoding="utf-8"),
-        "main": (SRC / "main.py").read_text(encoding="utf-8"),
-        "agent": (SRC / "agent.py").read_text(encoding="utf-8"),
-    }
+def build(out: pathlib.Path) -> pathlib.Path:
+    order, sources = collect_sources(SRC)
+    if "__init__" not in sources or "params" not in sources:
+        raise SystemExit("src/ looks wrong (need at least __init__.py and params.py)")
+    lines = []
+    for name in list(order) + ["__init__"]:
+        blob = base64.b64encode(sources[name].encode("utf-8")).decode("ascii")
+        lines.append(f'    {name!r}: _b64.b64decode({blob!r}).decode("utf-8"),')
+    body = _BOOTSTRAP.format(pkg=PKG, sources="\n".join(lines), order=list(order))
     out.parent.mkdir(parents=True, exist_ok=True)
-    body = BUNDLE_TEMPLATE.format(
-        script=os.path.basename(__file__),
-        when=__import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        tape_module=tape_file[:-3],
-        route_tape=parts["route_tape"],
-        main=parts["main"],
-        agent=parts["agent"],
-        route_tape_modname=route_tape_modname,
-    )
     out.write_text(body, encoding="utf-8")
-    # Quick import smoke inside this process would collide with the already-imported
-    # main/agent (single chassis). So we only syntax-check here; correctness is
-    # established by --check in a fresh subprocess.
-    compile(body, str(out), "exec")
-    print(f"[package] wrote {out} ({out.stat().st_size:,} bytes, tape={tape})")
+    compile(body, str(out), "exec")          # syntax check; real check is --check
+    print(f"[package] wrote {out} ({out.stat().st_size:,} bytes, "
+          f"{len(order)} modules: {' -> '.join(order)})")
+    return out
 
 
+# ---------------------------------------------------------------------------
+# --check: bundle vs the local src.agent, same seed, fresh process
+# ---------------------------------------------------------------------------
 def _run_bundle(bundle: pathlib.Path, opp: int, seed: int):
-    """Import the bundle and a public agent in a fresh process; return (our_money, opp_money)."""
     script = f"""
 import sys
 sys.path.insert(0, {str(ROOT)!r})
-# Build the bundle in THIS process as a standalone module.
 import importlib.util
 spec = importlib.util.spec_from_file_location("bundle", {str(bundle)!r})
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
-import diagnose
-# public agent index; must match a file under public_agents/.
-opp = diagnose.load_public_agent({opp!r})
-# Build the local "--new" reference IN THE SAME PROCESS so there is no F2 wobble.
-new_agent = diagnose.load_new_agent(fresh=False)
-# Both run in fresh envs against the same opponent seed.
-conf_a = {{"episodeSteps": diagnose.EPISODE_STEPS, "seed": {seed!r}}}
+from tools import diagnose
+import src
+opponent = diagnose.load_public_agent({opp!r})
 from kaggle_environments import make
-env_a = make("kaggriculture", debug=False, configuration=conf_a)
-env_a.run([mod.agent, opp])
-conf_b = {{"episodeSteps": diagnose.EPISODE_STEPS, "seed": {seed!r}}}
-env_b = make("kaggriculture", debug=False, configuration=conf_b)
-env_b.run([new_agent, opp])
-mon = lambda e: e.steps[-1][1][0] if e.done else None
-# last observation of player 0 (our seat) after game end
+conf = {{"episodeSteps": diagnose.EPISODE_STEPS, "seed": {seed!r}}}
+
+env_a = make("kaggriculture", debug=False, configuration=dict(conf))
+env_a.run([mod.agent, opponent])
+env_b = make("kaggriculture", debug=False, configuration=dict(conf))
+env_b.run([src.agent, opponent])
+
 def money(e):
     for info in reversed(e.steps):
-        row = info[0]  # seat 0 is our agent in both runs
+        row = info[0]
         ob = row.get("observation") if isinstance(row, dict) else None
         if ob is None:
             continue
@@ -200,13 +173,11 @@ def money(e):
         except Exception:
             continue
     return None
-am = money(env_a); bm = money(env_b)
-print("RESULT %r %r" % (am, bm))
+
+print("RESULT %r %r" % (money(env_a), money(env_b)))
 """
-    run = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=str(ROOT), capture_output=True, text=True, timeout=1800,
-    )
+    run = subprocess.run([sys.executable, "-c", script], cwd=str(ROOT),
+                         capture_output=True, text=True, timeout=1800)
     for line in run.stdout.splitlines():
         print("   [bundle] " + line)
     if run.returncode != 0:
@@ -214,30 +185,39 @@ print("RESULT %r %r" % (am, bm))
     last = [ln for ln in run.stdout.splitlines() if ln.startswith("RESULT ")]
     if not last:
         raise RuntimeError("no RESULT line emitted")
-    am, bm = tuple(float(x) for x in last[-1].split()[1:])
-    return am, bm
+    a, b = (float(x) for x in last[-1].split()[1:])
+    return a, b
 
 
 def check(bundle: pathlib.Path, opp: int, seed: int) -> bool:
-    print(f"[check] running bundle vs public-agent#{opp} seed {seed} in a fresh process...")
+    print(f"[check] bundle vs local src.agent, public-agent#{opp}, seed {seed}, fresh process...")
     am, bm = _run_bundle(bundle, opp, seed)
-    ok = (am is not None) and (bm is not None)
-    print(f"[check] bundle={am} | local --new={bm}")
-    return ok
+    same = (am is not None and bm is not None and abs(am - bm) < 1e-6)
+    print(f"[check] bundle={am} local={bm} -> {'IDENTICAL' if same else 'MISMATCH'}")
+    return same
+
+
+# ---------------------------------------------------------------------------
+# --push (human only)
+# ---------------------------------------------------------------------------
+def _find_kaggle() -> str:
+    import shutil
+    exe = shutil.which("kaggle")
+    if exe:
+        return exe
+    venv = ROOT / ".venv" / "bin" / "kaggle"
+    if venv.exists():
+        return str(venv)
+    raise SystemExit("[push] 'kaggle' CLI not found. Install it (e.g. `uv pip install kaggle`).")
 
 
 def push(bundle: pathlib.Path, competition: str, message: str) -> None:
-    """Submit with the kaggle CLI; guard on credentials first."""
     kaggle_exe = _find_kaggle()
     home_kg = pathlib.Path.home() / ".kaggle"
-    have_env = bool(os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY"))
-    have_json = (home_kg / "kaggle.json").exists()
-    have_tok = (home_kg / "access_token").exists()
-    if not (have_env or have_json or have_tok):
-        raise SystemExit(
-            "[push] Kaggle credentials not found. Put ~/.kaggle/kaggle.json, set "
-            "KAGGLE_USERNAME/KAGGLE_KEY, or drop a ~/.kaggle/access_token, then re-run --push."
-        )
+    have_env = bool(__import__("os").environ.get("KAGGLE_USERNAME")
+                    and __import__("os").environ.get("KAGGLE_KEY"))
+    if not (have_env or (home_kg / "kaggle.json").exists() or (home_kg / "access_token").exists()):
+        raise SystemExit("[push] Kaggle credentials not found; refusing to submit.")
     cmd = [kaggle_exe, "competitions", "submit", "-c", competition, "-f", str(bundle)]
     if message:
         cmd += ["-m", message]
@@ -249,49 +229,24 @@ def push(bundle: pathlib.Path, competition: str, message: str) -> None:
     print("[push] submitted.")
 
 
-def _find_kaggle() -> str:
-    """Locate the kaggle CLI (venv bin, PATH, or the .venv for this repo)."""
-    import shutil
-    exe = shutil.which("kaggle")
-    if exe:
-        return exe
-    venv = ROOT / ".venv" / "bin" / "kaggle"
-    if venv.exists():
-        return str(venv)
-    raise SystemExit(
-        "[push] 'kaggle' CLI not found. Install it (e.g. `uv pip install kaggle`) "
-        "or run from the repo with .venv active."
-    )
-
-
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(DEFAULT_OUT))
-    ap.add_argument("--tape", default="v1", choices=sorted(TAPE_FILES))
-    ap.add_argument("--check", action="store_true")
-    ap.add_argument("--opp", type=int, default=4)
+    ap.add_argument("--check", action="store_true",
+                    help="play one seeded game and assert bundle == local src.agent")
+    ap.add_argument("--opp", type=int, default=4, help="public agent index for --check")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--push", action="store_true")
+    ap.add_argument("--push", action="store_true", help="HUMAN ONLY: submit via the kaggle CLI")
     ap.add_argument("--competition", default="kaggriculture")
     ap.add_argument("-m", "--message", default="")
-    ap.add_argument("-v", "--verbose", action="store_true")
     ns = ap.parse_args(argv)
 
-    out = pathlib.Path(ns.out)
-    print(f"[package] tape={ns.tape} out={out}")
-    build(out, tape=ns.tape)
-
-    if ns.check:
-        ok = check(out, ns.opp, ns.seed)
-        if not ok:
-            raise SystemExit("[package] --check reported a bundle/local mismatch")
-
+    out = build(pathlib.Path(ns.out))
+    if ns.check and not check(out, ns.opp, ns.seed):
+        raise SystemExit("[package] --check reported a bundle/local mismatch")
     if ns.push:
-        # No automatic mock-run / --check before push: verification only happens if
-        # the user explicitly passed --check. Pushing never blocks on a local game.
-        push(out, ns.competition, ns.message or "auto-built main+patch")
-
+        push(out, ns.competition, ns.message or "auto-built src agent")
     return 0
 
 

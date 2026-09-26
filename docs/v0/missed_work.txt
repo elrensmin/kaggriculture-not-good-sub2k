@@ -1,0 +1,603 @@
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837462.json  (final 34697 vs opp 145967)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837463.json  (final 29320 vs opp 164290)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837464.json  (final 13011 vs opp 140901)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837465.json  (final 31902 vs opp 149309)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837466.json  (final 32219 vs opp 149883)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837467.json  (final 38667 vs opp 169694)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837468.json  (final 19037 vs opp 192197)
+  steps 720  |  idle steps 1097  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=574, HARVEST=408, WATER=1545
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=26, WATER=178
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=7, d23=10, d26=2, d28=11, d29=24
+
+Game: scratch_vs_kaggriculture-cloning-agent_seed4362837469.json  (final 13703 vs opp 158459)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837462.json  (final 34701 vs opp 144295)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837463.json  (final 29259 vs opp 164949)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837464.json  (final 13290 vs opp 141035)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837465.json  (final 31945 vs opp 148871)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837466.json  (final 31646 vs opp 154434)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837467.json  (final 38617 vs opp 168073)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837468.json  (final 21164 vs opp 173501)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 395
+  MISSED WORK (pending a full day, never addressed that day): DIG=230, FERT=572, HARVEST=429, WATER=1517
+  idle-on-work by type: DIG=20, FERT=196, HARVEST=15, WATER=212
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=48, d13=10, d19=3, d20=2, d22=27, d23=4, d26=5, d28=2, d29=17
+
+Game: scratch_vs_kaggriculture-master-engine-v3_seed4362837469.json  (final 22536 vs opp 171563)
+  steps 720  |  idle steps 1032  |  idle-on-WORK steps 366
+  MISSED WORK (pending a full day, never addressed that day): DIG=235, FERT=579, HARVEST=439, WATER=1528
+  idle-on-work by type: FERT=195, HARVEST=27, WATER=179
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d17=2, d22=7, d23=17, d29=15
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837462.json  (final 34671 vs opp 144324)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837463.json  (final 26718 vs opp 146692)
+  steps 720  |  idle steps 1043  |  idle-on-WORK steps 375
+  MISSED WORK (pending a full day, never addressed that day): DIG=243, FERT=567, HARVEST=455, WATER=1556
+  idle-on-work by type: DIG=33, FERT=183, HARVEST=15, WATER=172
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=26, d17=2, d22=27, d23=14, d26=4
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837464.json  (final 13111 vs opp 141195)
+  steps 720  |  idle steps 1083  |  idle-on-WORK steps 423
+  MISSED WORK (pending a full day, never addressed that day): DIG=187, FERT=526, HARVEST=483, WATER=1573
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=35, WATER=242
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=16
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837465.json  (final 31916 vs opp 148890)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837466.json  (final 31585 vs opp 154507)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837467.json  (final 38595 vs opp 168231)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837468.json  (final 17534 vs opp 174308)
+  steps 720  |  idle steps 1075  |  idle-on-WORK steps 430
+  MISSED WORK (pending a full day, never addressed that day): DIG=150, FERT=527, HARVEST=445, WATER=1500
+  idle-on-work by type: DIG=11, FERT=245, HARVEST=21, WATER=241
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d11=3, d12=18, d13=42, d14=14, d15=2, d16=12, d17=13, d18=15, d19=6, d20=7, d21=8, d22=3, d23=3, d24=3, d25=3, d29=1
+
+Game: scratch_vs_kaggriculture-one-more-wheat_seed4362837469.json  (final 28598 vs opp 159828)
+  steps 720  |  idle steps 1090  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=203, FERT=538, HARVEST=453, WATER=1492
+  idle-on-work by type: DIG=14, FERT=184, HARVEST=32, WATER=169
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d17=4, d20=23, d22=16, d23=4, d26=1, d29=1
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837462.json  (final 34684 vs opp 144303)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837463.json  (final 15959 vs opp 144588)
+  steps 720  |  idle steps 1187  |  idle-on-WORK steps 444
+  MISSED WORK (pending a full day, never addressed that day): DIG=346, FERT=567, HARVEST=301, WATER=1397
+  idle-on-work by type: DIG=23, FERT=192, HARVEST=44, WATER=232
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=28, d22=33, d23=24, d25=2, d26=15, d27=7, d28=7, d29=26
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837464.json  (final 13261 vs opp 141061)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837465.json  (final 31924 vs opp 148868)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837466.json  (final 31607 vs opp 154482)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837467.json  (final 38605 vs opp 168209)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837468.json  (final 5559 vs opp 174475)
+  steps 720  |  idle steps 1271  |  idle-on-WORK steps 480
+  MISSED WORK (pending a full day, never addressed that day): DIG=425, FERT=523, HARVEST=278, WATER=1275
+  idle-on-work by type: DIG=24, FERT=225, HARVEST=81, WATER=180
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=39, d13=31, d22=4, d23=7, d26=2, d27=47, d28=23, d29=50
+
+Game: scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837469.json  (final 30756 vs opp 175931)
+  steps 720  |  idle steps 976  |  idle-on-WORK steps 366
+  MISSED WORK (pending a full day, never addressed that day): DIG=258, FERT=549, HARVEST=483, WATER=1539
+  idle-on-work by type: DIG=27, FERT=179, HARVEST=21, WATER=173
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=28, d13=18, d15=3, d22=6, d23=9, d29=25
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837462.json  (final 34697 vs opp 145967)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837463.json  (final 29320 vs opp 164290)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837464.json  (final 13011 vs opp 140901)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837465.json  (final 31902 vs opp 149309)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837466.json  (final 32219 vs opp 149883)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837467.json  (final 38667 vs opp 169694)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837468.json  (final 19037 vs opp 192197)
+  steps 720  |  idle steps 1097  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=574, HARVEST=408, WATER=1545
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=26, WATER=178
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=7, d23=10, d26=2, d28=11, d29=24
+
+Game: scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837469.json  (final 13703 vs opp 158459)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837462.json  (final 34629 vs opp 140864)
+  steps 720  |  idle steps 1110  |  idle-on-WORK steps 413
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=30, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=3
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837463.json  (final 28361 vs opp 156668)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837464.json  (final 13499 vs opp 129047)
+  steps 720  |  idle steps 1069  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=190, FERT=530, HARVEST=488, WATER=1578
+  idle-on-work by type: DIG=24, FERT=196, HARVEST=27, WATER=234
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d28=1
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837465.json  (final 27692 vs opp 143410)
+  steps 720  |  idle steps 1076  |  idle-on-WORK steps 420
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=485, WATER=1574
+  idle-on-work by type: DIG=34, FERT=196, HARVEST=29, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=10
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837466.json  (final 31323 vs opp 132909)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837467.json  (final 38789 vs opp 168646)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=530, HARVEST=499, WATER=1599
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837468.json  (final 10210 vs opp 161187)
+  steps 720  |  idle steps 1049  |  idle-on-WORK steps 381
+  MISSED WORK (pending a full day, never addressed that day): DIG=368, FERT=569, HARVEST=331, WATER=1417
+  idle-on-work by type: DIG=30, FERT=188, HARVEST=24, WATER=184
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=36, d22=23, d23=16, d29=4
+
+Game: scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837469.json  (final 29612 vs opp 134890)
+  steps 720  |  idle steps 1078  |  idle-on-WORK steps 433
+  MISSED WORK (pending a full day, never addressed that day): DIG=191, FERT=529, HARVEST=487, WATER=1577
+  idle-on-work by type: DIG=50, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d26=1, d29=25
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837462.json  (final 35446 vs opp 144295)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837463.json  (final 4598 vs opp 142555)
+  steps 720  |  idle steps 1300  |  idle-on-WORK steps 468
+  MISSED WORK (pending a full day, never addressed that day): DIG=558, FERT=492, HARVEST=214, WATER=1093
+  idle-on-work by type: DIG=11, FERT=275, HARVEST=43, WATER=263
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=33, d27=5, d28=92, d29=36
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837464.json  (final 14932 vs opp 140985)
+  steps 720  |  idle steps 1074  |  idle-on-WORK steps 421
+  MISSED WORK (pending a full day, never addressed that day): DIG=190, FERT=530, HARVEST=488, WATER=1578
+  idle-on-work by type: DIG=24, FERT=209, HARVEST=27, WATER=234
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d28=1, d29=13
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837465.json  (final 31076 vs opp 144727)
+  steps 720  |  idle steps 1076  |  idle-on-WORK steps 420
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=485, WATER=1574
+  idle-on-work by type: DIG=34, FERT=196, HARVEST=29, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=10
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837466.json  (final 32319 vs opp 146576)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837467.json  (final 39233 vs opp 168320)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837468.json  (final 19034 vs opp 172092)
+  steps 720  |  idle steps 1004  |  idle-on-WORK steps 377
+  MISSED WORK (pending a full day, never addressed that day): DIG=287, FERT=550, HARVEST=450, WATER=1485
+  idle-on-work by type: DIG=23, FERT=173, HARVEST=23, WATER=207
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=8, d22=45, d23=12, d28=3, d29=8
+
+Game: scratch_vs_kaggriculture-reactive-router_seed4362837469.json  (final 18407 vs opp 155601)
+  steps 720  |  idle steps 1074  |  idle-on-WORK steps 423
+  MISSED WORK (pending a full day, never addressed that day): DIG=265, FERT=579, HARVEST=363, WATER=1453
+  idle-on-work by type: DIG=24, FERT=205, HARVEST=36, WATER=213
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=36, d22=28, d23=25, d26=7, d29=25
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837462.json  (final 34697 vs opp 145719)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837463.json  (final 29310 vs opp 163971)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837464.json  (final 12935 vs opp 140590)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837465.json  (final 31899 vs opp 149102)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837466.json  (final 32223 vs opp 149772)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837467.json  (final 38703 vs opp 169496)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837468.json  (final 19002 vs opp 192081)
+  steps 720  |  idle steps 1097  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=574, HARVEST=408, WATER=1545
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=26, WATER=178
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=7, d23=10, d26=2, d28=11, d29=24
+
+Game: scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837469.json  (final 13711 vs opp 158421)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837462.json  (final 35132 vs opp 145369)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837463.json  (final 4539 vs opp 150406)
+  steps 720  |  idle steps 1300  |  idle-on-WORK steps 468
+  MISSED WORK (pending a full day, never addressed that day): DIG=558, FERT=492, HARVEST=214, WATER=1093
+  idle-on-work by type: DIG=11, FERT=275, HARVEST=43, WATER=263
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=25, d13=33, d27=5, d28=92, d29=36
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837464.json  (final 14564 vs opp 141482)
+  steps 720  |  idle steps 1074  |  idle-on-WORK steps 421
+  MISSED WORK (pending a full day, never addressed that day): DIG=190, FERT=530, HARVEST=488, WATER=1578
+  idle-on-work by type: DIG=24, FERT=209, HARVEST=27, WATER=234
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d28=1, d29=13
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837465.json  (final 32509 vs opp 150534)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837466.json  (final 32228 vs opp 149473)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837467.json  (final 39055 vs opp 169739)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837468.json  (final 20894 vs opp 192773)
+  steps 720  |  idle steps 1062  |  idle-on-WORK steps 384
+  MISSED WORK (pending a full day, never addressed that day): DIG=262, FERT=569, HARVEST=413, WATER=1549
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=41, WATER=189
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=13, d23=11, d26=3, d29=37
+
+Game: scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837469.json  (final 19659 vs opp 159156)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 384
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=578, HARVEST=376, WATER=1464
+  idle-on-work by type: DIG=17, FERT=181, HARVEST=28, WATER=195
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=24, d23=13, d26=15, d28=7
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837462.json  (final 34697 vs opp 145719)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837463.json  (final 29310 vs opp 163971)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837464.json  (final 12935 vs opp 140590)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837465.json  (final 31899 vs opp 149102)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837466.json  (final 32223 vs opp 149772)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837467.json  (final 38703 vs opp 169496)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837468.json  (final 19002 vs opp 192081)
+  steps 720  |  idle steps 1097  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=574, HARVEST=408, WATER=1545
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=26, WATER=178
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=7, d23=10, d26=2, d28=11, d29=24
+
+Game: scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837469.json  (final 13711 vs opp 158421)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837462.json  (final 34784 vs opp 145274)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837463.json  (final 29782 vs opp 165611)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837464.json  (final 12984 vs opp 141146)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837465.json  (final 32026 vs opp 149549)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837466.json  (final 31791 vs opp 154153)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837467.json  (final 38723 vs opp 168853)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837468.json  (final 15608 vs opp 171720)
+  steps 720  |  idle steps 1032  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=254, FERT=583, HARVEST=456, WATER=1531
+  idle-on-work by type: DIG=13, FERT=177, HARVEST=33, WATER=192
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=48, d13=10, d20=2, d22=30, d23=3, d26=3, d28=1
+
+Game: scratch_vs_kaggriculture-v53-opening-signature_seed4362837469.json  (final 13661 vs opp 158440)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837462.json  (final 34697 vs opp 145967)
+  steps 720  |  idle steps 1112  |  idle-on-WORK steps 414
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=31, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=4
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837463.json  (final 29320 vs opp 164290)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837464.json  (final 13011 vs opp 140901)
+  steps 720  |  idle steps 1087  |  idle-on-WORK steps 408
+  MISSED WORK (pending a full day, never addressed that day): DIG=195, FERT=527, HARVEST=487, WATER=1578
+  idle-on-work by type: DIG=25, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d29=1
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837465.json  (final 31902 vs opp 149309)
+  steps 720  |  idle steps 1117  |  idle-on-WORK steps 412
+  MISSED WORK (pending a full day, never addressed that day): DIG=188, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=29, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=2
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837466.json  (final 32219 vs opp 149883)
+  steps 720  |  idle steps 1108  |  idle-on-WORK steps 410
+  MISSED WORK (pending a full day, never addressed that day): DIG=189, FERT=530, HARVEST=488, WATER=1584
+  idle-on-work by type: DIG=27, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837467.json  (final 38667 vs opp 169694)
+  steps 720  |  idle steps 1055  |  idle-on-WORK steps 416
+  MISSED WORK (pending a full day, never addressed that day): DIG=207, FERT=529, HARVEST=499, WATER=1598
+  idle-on-work by type: DIG=33, FERT=196, HARVEST=26, WATER=233
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=4, d11=6, d12=26, d13=30, d14=13, d15=13, d16=3, d17=5, d18=8, d19=20, d20=8, d23=3, d29=6
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837468.json  (final 19037 vs opp 192197)
+  steps 720  |  idle steps 1097  |  idle-on-WORK steps 374
+  MISSED WORK (pending a full day, never addressed that day): DIG=244, FERT=574, HARVEST=408, WATER=1545
+  idle-on-work by type: DIG=29, FERT=171, HARVEST=26, WATER=178
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=17, d17=2, d22=7, d23=10, d26=2, d28=11, d29=24
+
+Game: scratch_vs_market-smart-farming-kaggriculture_seed4362837469.json  (final 13703 vs opp 158459)
+  steps 720  |  idle steps 1137  |  idle-on-WORK steps 432
+  MISSED WORK (pending a full day, never addressed that day): DIG=264, FERT=569, HARVEST=355, WATER=1453
+  idle-on-work by type: DIG=41, FERT=211, HARVEST=12, WATER=219
+  idle-on-work by day: d0=1, d1=46, d2=8, d3=24, d4=5, d5=51, d6=73, d7=14, d8=18, d9=31, d10=6, d12=24, d13=24, d22=34, d23=41, d24=1, d26=18, d28=9, d29=4
+
+=== AGGREGATE over 96 games ===
+  WATER: 148693
+  FERT: 51642
+  HARVEST: 44054
+  DIG: 20992
+  ('idle_on_work', 412): 18
+  ('idle_on_work', 410): 12
+  ('idle_on_work', 416): 12
+  ('idle_on_work', 414): 11
+  ('idle_on_work', 408): 9
+  ('idle_on_work', 374): 7
+  ('idle_on_work', 432): 6
+  ('idle_on_work', 366): 2
+  ('idle_on_work', 423): 2
+  ('idle_on_work', 420): 2
+  ('idle_on_work', 468): 2
+  ('idle_on_work', 421): 2
+  ('idle_on_work', 384): 2
+  ('idle_on_work', 395): 1
+  ('idle_on_work', 375): 1
+  ('idle_on_work', 430): 1
+  ('idle_on_work', 444): 1
+  ('idle_on_work', 480): 1
+  ('idle_on_work', 413): 1
+  ('idle_on_work', 381): 1
+  ('idle_on_work', 433): 1
+  ('idle_on_work', 377): 1

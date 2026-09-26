@@ -21,12 +21,13 @@ day CSV's `shop_unlocks`. LB replays have no day CSV worth reading for this, so 
 demand line is built from the same replay stream.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.market.crop_demand --dir diag-replays/w7-b \
+  PYTHONPATH=. python -m tools.market.crop_demand --dir diag-replays/w7-b \
       --dsm-max 30 --out docs/supply/crop_demand.txt
 """
 from __future__ import annotations
 
 import argparse
+from tools.diagnose.window import parse_days, in_window, describe
 import glob
 import json
 import os
@@ -34,6 +35,13 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 
 # crop -> the shops that buy it (SHOPS table), and the single-product ones (2/turn).
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
+
 CROP_SHOPS = {
     "WHEAT": ("BAKERY", "PIZZA_SHOP", "BRUNCH_SPOT", "ICE_CREAM_SHOP", "FARMERS_MARKET"),
     "CARROT": ("PET_CAFE", "FARMERS_MARKET"),
@@ -78,6 +86,8 @@ def _one(arg):
                 for d in range(day, 30):
                     shops[d].add(s)
         if t % 24 != 0:
+            continue
+        if not _in(day):  # window-guard
             continue
         for row in obs["farms"][seat]["tiles"]:
             for tile in row:
@@ -127,11 +137,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True)
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--dsm-dir", default=None)
     ap.add_argument("--dsm-max", type=int, default=30)
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
+
     cap = tuple(CROP_SHOPS)
 
     ours = _run(sorted(glob.glob(os.path.join(args.dir, "*_vs_*.json"))), "ours",

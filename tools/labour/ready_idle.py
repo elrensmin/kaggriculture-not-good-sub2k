@@ -22,17 +22,25 @@ Reads replay JSONs (the tile state is only in the observation), so it is slower
 than the CSV tools; cap it with --max-games / --dsm-max.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.labour.ready_idle --dir diag-replays/w1-final \
+  PYTHONPATH=. python -m tools.labour.ready_idle --dir diag-replays/w1-final \
       --dsm-dir replays/DSM/v1 --dsm-max 40 --out docs/w3/ready_idle.txt
 """
 from __future__ import annotations
 
 import argparse
+from tools.diagnose.window import parse_days, in_window, describe
 import glob
 import json
 import os
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 PRODUCT_OF_ANIMAL = {"COW": "MILK", "SHEEP": "WOOL", "GOOSE": "EGG"}
 
@@ -56,11 +64,21 @@ def _one(arg):
            "by_day": defaultdict(Counter), "locked_day": Counter(),
            "locked_at_bell": 0, "unit_turns": 0, "pass_turns": 0, "games": 1}
     steps = rep["steps"]
-    for t, frame in enumerate(steps):
-        if len(frame) <= seat:
+    # PAIRING: a kaggle_environments step records the action that *produced* its
+    # observation, so the action taken FROM steps[t]["observation"] is
+    # steps[t + 1][seat]["action"]. Verified on a real replay: pos[t+1] ==
+    # pos[t] + action[t+1] holds for 97.1 % of moves, vs 53.3 % for the same-index
+    # pairing. Using the same index mis-assigns every (tile, op) pair, which is
+    # exactly what this tool conditions on.
+    last = len(steps) - 2
+    for t in range(max(0, len(steps) - 1)):
+        if not _in(t // 24):  # window-guard
+            continue
+        frame = steps[t]
+        if len(frame) <= seat or len(steps[t + 1]) <= seat:
             continue
         obs = frame[seat].get("observation")
-        act = frame[seat].get("action") or {}
+        act = steps[t + 1][seat].get("action") or {}
         if not obs:
             continue
         day = t // 24
@@ -79,7 +97,7 @@ def _one(arg):
             out["unit_turns"] += 1
             if tile == "LOCKED":
                 out["locked_day"][day] += 1
-                if t == len(steps) - 1:
+                if t == last:
                     out["locked_at_bell"] += 1
                 continue
             if not (isinstance(cmd, list) and cmd and cmd[0] == "PASS"):
@@ -166,11 +184,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True, help="our run dir")
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--dsm-dir", default=None)
     ap.add_argument("--dsm-max", type=int, default=40)
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
 
     ours = sorted(glob.glob(os.path.join(args.dir, "*_vs_*.json")))
     a = _run(ours, "ours", args.workers)

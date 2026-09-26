@@ -18,17 +18,25 @@ It also prints, at each drop, the shed composition and the market price of each
 item -- i.e. what we threw away versus what we chose to keep.
 
 Usage:
-  PYTHONPATH=src:. python -m tools.market.discards --dir diag-replays/w3a-a \
+  PYTHONPATH=. python -m tools.market.discards --dir diag-replays/w3a-a \
       --dsm-max 30 --out docs/w5/discards.txt
 """
 from __future__ import annotations
 
 import argparse
+from tools.diagnose.window import parse_days, in_window, describe
 import glob
 import json
 import os
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
+
+_WINDOW = None
+
+
+def _in(day):
+    return in_window(day, _WINDOW)
+
 
 PRODUCTS = ("WHEAT", "CARROT", "TOMATO", "STRAWBERRY", "MELON", "EGG", "MILK",
             "WOOL", "FERTILIZER")
@@ -77,6 +85,8 @@ def _one(arg):
             out["price_at_drop"][k] += float(prices.get(k, 0) or 0)
         out["events"] += 1
         day = t // 24
+        if not _in(day):  # window-guard
+            continue
         # ONE estimator for both arms so they are comparable: model the hour-23
         # force-drop (room = cap - shed, inventories dropped in order).
         disc = {}
@@ -163,12 +173,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True)
+    ap.add_argument("--days", default=None, help="restrict analysis to day window, e.g. 0-5 or 0-5,12-17")
     ap.add_argument("--dsm-dir", default=None)
     ap.add_argument("--dsm-max", type=int, default=30)
     ap.add_argument("--cap", type=int, default=100)
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+
+    global _WINDOW
+    _WINDOW = parse_days(args.days)
+    if _WINDOW:
+        print("window:", describe(_WINDOW))
 
     ours = sorted(glob.glob(os.path.join(args.dir, "*_vs_*.json")))
     a = _run(ours, "ours", args.cap, args.workers)

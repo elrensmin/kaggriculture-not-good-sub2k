@@ -17,7 +17,7 @@ The margin is a *diagnostic of win probability*, never the score (see AGENTS.md,
 "never trust cross-game averages" / wins-not-money). Use it to see whether a
 structural change moved Pr[win], then judge the guards.
 
-Run with ``PYTHONPATH=src:.`` (or just ``.venv/bin/python tools/margin.py``).
+Run with ``PYTHONPATH=.`` (or just ``.venv/bin/python tools/margin.py``).
 """
 from __future__ import annotations
 
