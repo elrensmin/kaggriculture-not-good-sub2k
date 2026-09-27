@@ -126,9 +126,15 @@ SEED_BUFFER_MIN = 2
 # Partial-fill the buffer when the full top-up is unaffordable. All-or-nothing was a
 # real bug (a $600 strawberry top-up bought nothing on $300 of spendable cash), but it
 # was measured inside a net-negative package; default off until isolated.
+# Set 1 as part of the opening package (the Boey mix asks for 10 MELON + 4 STRAWBERRY,
+# and an all-or-nothing buy can silently zero a crop for the whole script).
 SEED_PARTIAL_FILL = False
 # land buys keep this much cash in reserve afterwards (never spend to zero pre-revenue).
 CASH_RESERVE = 1500
+# During the opening the bank is meant to be COMMITTED (DSM ends d0 at $6, Boey $30):
+# holding $1,500 is what left `opening cash committed` at 0.81. Applies while
+# day <= OPENING_HERD_UNTIL_DAY; set 0 in the opening package. Default = unchanged.
+CASH_RESERVE_OPENING = 1500
 # one hand per ~this many owned tiles (hands+ground lockstep).
 TILES_PER_HAND = 4
 # The engine hires ONE hand per HIRE order and caps the market list at
@@ -147,6 +153,12 @@ PLANT_CUTOFF_HOUR = 18
 # knife-edge goods: crash to $1 within ~50-100 units above I0 -> hard stop.
 CEILING_GOODS = ("STRAWBERRY", "MILK", "WOOL")
 CEILING = 100  # never sell a ceiling good when inventory >= I0 + CEILING
+# Shed-drain lever: how much deeper into the above-base range a ceiling good may be
+# sold. The sell path is the other half of the chaining change: CHAIN lifted harvests
+# but pushed `shed_overflow_days` +1 and `discarded_units_total` +7.5 (96/96) because the
+# extra produce could not leave the shed. 0 = today's behaviour; positive values sell
+# further down the curve to convert stock into cash (watch the floor% / px tail).
+SELL_CEILING_BOOST = 0
 # melon's quadratic above-curve floors at ~158 net units: sell below that.
 MELON_CEILING = 150
 # endgame liquidation: from this day sell everything (ignore the scarcity hold).
@@ -283,6 +295,31 @@ WATER_READY_FALLBACK = False
 # 2.59), which is where the chaining numbers come from -- the #1 chains FEED at 0.07
 # moves/op against our 2.00. This is a pure ordering fix and does not change any priority.
 SAME_TILE_FIRST = False
+# While a critical job (tonight's weed / tonight's escape) is pending, the K units
+# NEAREST to each such tile are held back from chaining a non-critical local op, so a
+# dying tile still gets rescued. K=1 keeps almost all chaining; the first (too blunt)
+# version blocked every unit whenever any critical existed and removed the entire
+# CHAIN gain. Set SAME_TILE_PROTECT_CRITICAL=False to reproduce the unguarded arm.
+SAME_TILE_PROTECT_CRITICAL = True
+CRITICAL_RESCUE_K = 1
+
+# ---------------------------------------------------------------------------
+# BINDING-ROOT CONTROLLER (src/roots.py) -- state-derived priority multipliers.
+#
+# Fixed priorities cannot express "the farm is behind on water THIS turn but ahead on
+# planting"; the DAG names the roots but the kernel never asked which one is binding.
+# `roots.binding(state)` computes an urgency in [0,1] per op class from the observation
+# (empty/owned, unwatered-in-window/planted, unfed/animals, needs-structure/animals,
+# weeds/owned, ready/units, shed/100) and `roots.apply` scales each job:
+#
+#     priority_eff = priority * (1 + URGENCY_SLOPE * weight * urgency)
+#
+# so a class that is behind lifts, without changing the plan shape. The base priorities
+# and every hardcoded constant stay where they are -- this only re-orders across classes.
+# 0.0 disables it entirely (default = today's behaviour) so the two can be A/B'd.
+URGENCY_SLOPE = 0.0
+# Per-op weight on the urgency (1.0 = neutral). Set in code, not via SCRATCH_PARAMS.
+URGENCY_WEIGHTS: dict = {}
 
 # ---------------------------------------------------------------------------
 # ON_TILE_BONUS -- FINISH THE VISIT. This is the tile-visit fix.
@@ -566,7 +603,8 @@ HERD_SPECIES_ORDER = ("GOOSE", "SHEEP", "COW")
 #
 # MEASURED AS A STANDALONE CHANGE (8 paired games, `--perturb 'no_script|OPENING_SCRIPT=0'`):
 #   dNAV_d5  +$3,410   (it is the instrument that reaches d5 crop_units 50/50, the
-#                       #1's exact mix, and open_dist 13 -> 5)
+#                       #1's exact mix; the old open_dist metric read 13 -> 5 and has
+#                       since been deleted -- see tools/phases/dag.py)
 #   dterm    -$7,350   0/8, p=0.005
 # => on its own it is a PAPER improvement: the sign-disagreement flag fired on 8/8.
 # The reason is the coupling: the 9 WHEAT tiles are FEED for the 5 animals and the 10
@@ -587,6 +625,21 @@ OPENING_STANDING = {
     4: {"MELON": 10, "STRAWBERRY": 10},
     5: {"MELON": 10, "STRAWBERRY": 10},
 }
+# Boey's opening mix: same melon block, a QUARTER of the strawberry, and the freed tiles
+# go to the herd (Boey runs ~8 animals at d5 and fills all 25 tiles). Only the standing
+# counts differ -- the script mechanism, ramp and seed ask are unchanged.
+OPENING_STANDING_BOEY = {
+    0: {"MELON": 6, "WHEAT": 9},
+    1: {"MELON": 10, "WHEAT": 10},
+    2: {"MELON": 10, "WHEAT": 4, "STRAWBERRY": 4},
+    3: {"MELON": 10, "STRAWBERRY": 4},
+    4: {"MELON": 10, "STRAWBERRY": 4},
+    5: {"MELON": 10, "STRAWBERRY": 4},
+}
+# Master switch for the opening package (Boey mix + bigger opening herd + bought feed +
+# committed cash + partial seed fill). OFF by default so every arm is A/B-able; applied
+# AFTER _apply_env_overrides so OPENING_MIX_BOEY=1 from SCRATCH_PARAMS works.
+OPENING_MIX_BOEY = False
 # The opening seed ask is the script's need, not the usual small buffer: by the end
 # of d0 the #1 has 9 wheat and 6 melon in the ground, which a 6-seed buffer cannot buy.
 OPENING_SEED_BUFFER = 12
@@ -603,6 +656,21 @@ OPENING_SEED_BUFFER = 12
 # gates instead of by a plan. So while `day <= OPENING_HERD_UNTIL_DAY` the targets
 # are the opening standing counts, exactly like `OPENING_STANDING` for the crops.
 OPENING_HERD = {"COW": 2, "SHEEP": 3}
+# Scalar knobs so the opening herd can be A/B'd from SCRATCH_PARAMS (a dict cannot be).
+# The h5 state is assembled from these AFTER _apply_env_overrides() at the bottom.
+# Boey runs ~8 animals (4 COW + 2 SHEEP + 2 GOOSE on a 40-game d5 scan) and fills the
+# 25-tile quadrant with them; our 5 leaves the reserved ring half-empty.
+OPENING_HERD_COW = 2
+OPENING_HERD_SHEEP = 3
+OPENING_HERD_GOOSE = 0
+# Allow the opening herd to be fed from BOUGHT wheat (Boey buys ~3.5k/game). Without
+# this the `_wheat_tiles >= 1.7*herd` gate caps the opening at ~5 animals because our
+# own wheat is not standing yet; the feed_cover reserve below is the real guard.
+OPENING_BUY_FEED = False
+# Reserve the seed cost of the WHOLE remaining script (not just today's) before the
+# animal gate may spend. Fixes the MELON cap: with today-only, d0 animal buys left $23
+# and the d1 melon top-up was unfunded before `CROP_PLAN['MELON'].end = 2` closed.
+OPENING_SEED_RESERVE_HORIZON = False
 OPENING_HERD_UNTIL_DAY = 5
 # MEASURED (24 paired games, `shadow_prices --perturb
 # 'both|OPENING_FEED_DAYS=0;OPENING_SEED_FLOOR=0'`): **dterm +$9,436 median,
@@ -791,6 +859,13 @@ def _apply_env_overrides() -> None:
 CROP_SCALE = 1.0
 
 _apply_env_overrides()
+
+# rebuild the opening-herd table from its scalars so SCRATCH_PARAMS reaches it, and
+# select the requested opening mix.
+OPENING_HERD = {"COW": OPENING_HERD_COW, "SHEEP": OPENING_HERD_SHEEP,
+                "GOOSE": OPENING_HERD_GOOSE}
+if OPENING_MIX_BOEY:
+    OPENING_STANDING = OPENING_STANDING_BOEY
 
 # re-sync the wheat ramp from its scalars, so a SCRATCH_PARAMS override of WHEAT_TARGET /
 # WHEAT_PEAK actually reaches CROP_PLAN (which was built before the overrides ran).

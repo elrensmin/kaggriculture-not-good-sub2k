@@ -67,7 +67,7 @@ Sources: `docs/v0/phase1.txt`, `docs/v0-boey/phase_all_vs_boey.txt`.
 | animals | 4 | 5 | 10 | WARN |
 | idle share % | **27.2** | 26.2 | **6.9** | BAD |
 | owned / quadrants / hands | 25 / 1 / 6 | 25 / 1 / 6 | 25 / 1 / 6 | ok |
-| `open_dist` | **9** | 0 | n/a | BAD |
+| **empty owned tiles** | **9** | 0 | 0 | **BAD** |
 
 **DAG causation (the trace we fix against):**
 
@@ -89,9 +89,15 @@ Against Boey, `opening cash committed` explains **7** deficient metrics, not 3.
 deficient ancestor**, but it is **not dependency-free in practice**: closing it adds crop tiles, which
 adds water demand — which is why Step 3 below depends on Step 1.
 
-**Trap, measured.** `open_dist` is descriptive, not an objective. Closing it via `WHEAT_LANDS_DAY=2`
-cost **−$15,452 (0/8, p=0.005)**; `P_BUILD` 45→95 and `BUILD_PER_TURN` 2→3 likewise cost margin. Ship
-opening changes only with a paired `dterm`.
+**Closing the opening is not free.** Matching a *shape* by moving the land schedule cost
+**−$15,452 (0/8, p=0.005)** with `WHEAT_LANDS_DAY=2`; `P_BUILD` 45→95 and `BUILD_PER_TURN` 2→3 likewise
+cost margin. Ship opening changes only with a paired `dterm`.
+
+> **`open_dist` has been removed.** The old "L1 distance from DSM's d5 script" metric is deleted from
+> `tools/phases/dag.py` (and its `DSM_D5_STATE` vector). Boey's optimal opening — 10 MELON + 4
+> STRAWBERRY + ~8 animals — is non-zero against DSM's vector *by construction*, so the metric punished
+> the stronger arm. The opening is now judged on the **tile budget** (`empty owned tiles`, `planted
+> tiles`, MELON/STRAWBERRY tiles) and `idle share %`.
 
 ---
 
@@ -160,6 +166,23 @@ The crew is not idle (`idle-on-work` ~72 turns/game); it never reaches the work.
 **WATER 1,341 / FERT 561 / HARVEST 472 / DIG 337** (`missed_work.txt`). `_pick` splits one tile's acts
 into separate trips; that is the root both leaders have solved and we have not.
 
+**MEASURED — the chaining fix is a revenue lever that breaks the health watchlist.** Three 96-game
+arms on the same seeds/opponents (`docs/v0/step1-*.txt`, `arm_diff` vs the baseline reconstructed from
+`docs/v0/sweep-run.txt`):
+
+| arm | median margin vs base | sign | watchlist |
+|---|---|---|---|
+| **CHAIN** `SAME_TILE_FIRST=1;SAME_TILE_MIN_PRIORITY=0` | **+$10,626** | **96/96, p=0.0000** | `shed_overflow_days` **+1 (96/96 worse)**, `discarded` +7.5, `stranded_at_bell` **+$1,218**, `plants_died` **+9 (83/96)**, `missed_harvest_eod` +7.5, idle share +2.0 pp |
+| **ROOT** + `URGENCY_SLOPE=0.6` (`src/roots.py`) | +$8,057 | 84/96, p=0.0000 | worse than CHAIN on every guard: overflow +2.5, discards +20, `plants_died` +13, idle +3.3 pp |
+| **GUARD** CHAIN + `SAME_TILE_PROTECT_CRITICAL` | −$1,593 (47/96, p=0.92 — **inert**) | — | fixes all of it: `plants_died` **−14 (0/96 worse)**, overflow **−1 day (0/96)**, discards −7.5, idle −0.6 pp |
+
+So the gain came from chaining *even while a tile was about to die* (the guard is too blunt: any
+pending critical disables chaining for the whole turn, which on a 100-tile farm is almost always), and
+the shed overflow/discard/strand rise is the **C1/C6 sell-side coupling** chaining exposes. Neither
+arm passes the watchlist gate as-is; the two correctives are (a) narrow the guard to the unit nearest
+the critical tile / only when the local job is low-value, and (b) ship it with the sell-ceiling
+workstream (§7 Step 2/3), never before it. This is the non-composability rule in one measurement.
+
 ### 3.2 Volume, not price
 
 `dsm_profile` selling, ours (audit) vs DSM (reconstructed) — Boey's line totals are in
@@ -182,6 +205,46 @@ fertilizer to resell into the deep `log`-curve goods).
 
 `crop_demand` peaks: WHEAT 33 / 57 / —, STRAWBERRY 31 / 56 / —, CARROT 17 / 55 / —, MELON 6 / 10 / 10
 against Boey's per-day curve in `docs/v0-boey/crop_demand.txt`.
+
+### 3.3 Demand-side permutations — the shop draw is latent now and decisive later
+
+The engine's demand rule is exact (`_town_consume`): every **4 steps**, each unlocked shop
+instance subtracts `multiplier` from `market["inventory"][item]` for each product on its menu —
+`2` for single-product shops (`YARN_STORE`, `PET_CAFE`), `1` otherwise; the town center drains 1
+every 24. Shops unlock every **3 days**, drawn **with replacement**, so instances stack.
+**Drain/day = instances × multiplier × 6.**
+
+**It does not act in the opening** — d0–d5 has exactly one shop, and YARN appears in 0/36 opening
+games — but it shapes the whole season's revenue mix. The two branches are asymmetric and must be
+handled dynamically:
+
+| branch | demand consequence | policy |
+|---|---|---|
+| **YARN_STORE** (2× drain, WOOL only) | wool becomes the premium line | buy **SHEEP** after the reveal; keep the goose line as the no-YARN fallback |
+| **no YARN** | no wool buyer; single-product drain is 2× but scarce | lean on **GOOSE→EGG** (BAKERY/BRUNCH) and MILK shops |
+
+Running metric: `tools/market/demand_map.py` — season shop drain vs our sales per product, plus a
+YARN/no-YARN split. Measured on the fresh arm (`docs/v0/demand_map.txt`):
+
+| product | season shop drain | our sold | coverage | our px | below-base |
+|---|---|---|---|---|---|
+| WHEAT | 378 | 128 | 34 % | $42.1 | 0 % |
+| WOOL | 288 | 88 | 31 % | $209.8 | 5 % |
+| STRAWBERRY | 270 | 94 | 35 % | $133.7 | 6 % |
+| MILK | 234 | 107 | 46 % | $178.3 | 0 % |
+| CARROT | 162 | 20 | **12 %** | $49.9 | 0 % |
+| TOMATO | 162 | 50 | 31 % | $84.3 | 0 % |
+| EGG | 117 | 52 | 44 % | $54.2 | 0 % |
+
+**We satisfy 12–46 % of the modelled shop drain on every line** — the unmet-demand side of the
+volume gap, and the reason the demand map is the instrument for the season plan rather than a
+phase-1 one. Boey fills far more of it and adds **trading** on the deep `log`-curve goods
+(6,786 wheat + 4,622 fertilizer sold/game on 3,497 + 728 bought).
+
+**Caveat, and it is the whole point of the running metric:** the draw is a function of our own
+play (`_spawn_weeds` shares the RNG stream), so the two arms are *different worlds*. YARN appears
+in **95/96** of our games against **78/123** DSM and **238/359** Boey — no shop-conditioned
+comparison across arms is controlled. `demand_map` prints the mix first for exactly this reason.
 
 ---
 
@@ -258,7 +321,19 @@ a strategy change.**
 
 ## 7. Fix plan — dependency-ordered, one gate per step
 
-**Gate after every step (same seeds, before committing):**
+**Two-stage protocol: SCREEN on 16 games, CONFIRM on the field.** A full arm is ~13 minutes and
+~6.6 GB; screening must not cost that just to see a direction.
+
+```bash
+# SCREEN (16 games, ~2-3 min): --pa 1-4 --batch 4
+#   judge only direction + sign; a screen that regresses a guard is dead and never reaches confirm
+.venv/bin/python -m tools.diagnose --scratch --pa 1-4 --batch 4 --seed 4362837462 --run-dir diag-replays/sc-X
+.venv/bin/python -m tools.report.arm_diff --a diag-replays/<prev> --b diag-replays/sc-X
+# CONFIRM (96 games) — only if the screen moved the target and no watchlist column regressed
+.venv/bin/python -m tools.diagnose --scratch --pa 1-12 --batch 8 --seed 4362837462 --run-dir diag-replays/stepN
+```
+
+**Gate after every confirmed step (same seeds, before committing):**
 
 ```bash
 # 1. run the candidate
@@ -280,12 +355,23 @@ symptoms moved with it; `arm_diff` median margin is not negative; the DSM self-c
 
 ---
 
-**Step 1 — Finish the tile on one visit. No dependencies.**
+**Step 0 — DONE: `open_dist` deleted.** `tools/phases/dag.py`, `tools/phases/phase_map.py`, the
+`params.py` comment and this document. No code path or output prints it.
+
+**Step 1 — Finish the tile on one visit. Implemented, measured, NOT yet shippable.**
 - **DAG node:** `WATER ops per planted tile` — ROOT, owner `src/scheduler.py::_pick`, **no deficient ancestor**.
 - **Evidence (both references):** WATER chained 0.0 % vs 21.8 / 22.7 %; PLANT→WATER split 86 % vs 4 / 12 %; WATER 2.92 vs 1.17 / 1.25 mv/op; FEED 2.12 vs 0.09 / 0.54.
-- **Target:** coverage **0.58 → ≥0.77**; `moves/act` **2.03 → ~0.8**.
-- **Expected downstream (DAG):** `plants died` ↓, `weeds` ↓, `HARVEST ops` ↑, `shed peak` ↑.
-- **Gate phase:** phase2. **Watch:** `plants died`, `weeds`, margin must not fall.
+- **Shipped as knobs + code:** `SAME_TILE_FIRST`, `SAME_TILE_MIN_PRIORITY`, `SAME_TILE_PROTECT_CRITICAL`, and `src/roots.py` (the state-derived priority multiplier, `URGENCY_SLOPE`).
+- **Measured (§3.1):** CHAIN **+$10,626, 96/96 (p=0.0000)** but fails the watchlist (`plants_died` +9, overflow +1 day, stranded +$1,218); the critical guard removes the cost *and* the gain (−$1,593, p=0.92); the urgency controller at 0.6 is worse than CHAIN on every guard.
+- **Correctives before re-testing:** (a) narrow the guard to the unit nearest the critical tile (or only when the local job is low-value) so most chaining survives; (b) **ship with Step 2/3** — the overflow/discard/strand rise is the C1/C6 sell-side coupling, so chaining cannot land alone.
+- **Not shippable yet.** Gate phase: phase2. **Watch:** `plants died`, `weeds`, `shed_overflow_days`, `discarded`, `stranded_at_bell`, margin.
+
+**New instruments shipped with this step:**
+- `src/roots.py` — the binding-root controller (state-derived priority multipliers; `URGENCY_SLOPE=0` is inert by default).
+- `tools/market/demand_map.py` — the demand-side running metric (season shop drain vs our sales, YARN/no-YARN split; §3.3, `docs/v0/demand_map.txt`, `docs/v0-boey/demand_map.txt`).
+- `tools/phases/compose.py` — the portfolio/interaction evaluator: runs base + candidates + every 2^k combination on matched seeds and reports each combination's interaction term and sign test, so combinations are evaluated instead of hill-climbed.
+
+
 
 **Step 2 — STRAWBERRY sell ceiling. No dependencies.**
 - **DAG node:** sell-policy leaf; C6 edge into shed fill.
@@ -297,8 +383,8 @@ symptoms moved with it; `arm_diff` median margin is not negative; the DSM self-c
 - **Dependency (DAG):** `plant_ops → water_ops → plants_died`; sowing more tiles before coverage is fixed raises deaths.
 - **DAG nodes:** `opening cash committed` (ROOT) → MELON/animals; `PLANT ops` (ROOT) → WATER/idle.
 - **Evidence:** cash 0.81 vs 1.00 / 0.99; MELON 6 vs 10 / 10; PLANT 20 vs 30 / 31; idle 27 % vs 26 % / 7 %.
-- **Target:** MELON 10, PLANT ~30, `open_dist` 0, opening idle near Boey's.
-- **Gate phase:** phase1 **plus paired `dterm`** (the `open_dist` trap costs −$15,452).
+- **Target:** MELON 10, STRAWBERRY 4, PLANT ~30, `empty owned tiles` ≤ 2, opening idle near Boey's.
+- **Gate phase:** phase1 **plus paired `dterm`** (closing a shape gap by moving land cost −$15,452).
 
 **Step 4 — Wheat / feed self-sufficiency. Depends on Step 3.**
 - **DAG edge:** `wheat_tiles [p2] → feed_ops [p2]`; feed gates `animals`.

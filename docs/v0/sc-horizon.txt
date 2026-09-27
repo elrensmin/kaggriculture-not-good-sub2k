@@ -1,0 +1,30 @@
+arm A = OPEN  (diag-replays/sc-open)  16 games
+arm B = HORIZON  (diag-replays/sc-horizon)  16 games
+matched pairs: 16   unmatched: 0 only-A, 0 only-B
+
+=== MARGIN (the low-noise readout, NOT the score) ===
+  OPEN: W0  HORIZON: W0   (of 16 pairs)
+  delta money  median -3,324   mean -2,549   min -8,145   max +13,985
+  p10 -7,648  p25 -5,404  p75 -191  p90 +863
+  sign test: B better in 4/16 decided pairs   p=0.0768
+
+=== per opponent (median delta, wins A -> B) ===
+  kaggriculture-cloning-agent                  n=4  median    -2,624  W 0 -> 0
+  kaggriculture-master-engine-v3               n=4  median    -3,490  W 0 -> 0
+  kaggriculture-one-more-wheat                 n=4  median    -3,497  W 0 -> 0
+  kaggriculture-pipe16-idle-workers            n=4  median    -3,498  W 0 -> 0
+
+=== defect columns (median delta; sign = B - A) ===
+  idle_share_pct                   +4.700   (16/16 worse)  <-- majority moved the WRONG way
+  idle_units_ready_total           +1.000   (8/16 worse)
+  idle_units_total               +344.000   (16/16 worse)  <-- majority moved the WRONG way
+  floor_sales                     -32.500   (0/16 worse)
+  discarded_units_total            +0.000   (5/16 worse)
+  stranded_at_bell               -581.500   (0/16 worse)
+  premium_below_base_frac          +0.003   (8/16 worse)
+  animal_escapes                   +0.000   (0/16 worse)
+  plants_died                     -10.000   (0/16 worse)
+  unwatered_eod                    +5.000   (12/16 worse)  <-- majority moved the WRONG way
+  missed_harvest_eod               -1.500   (4/16 worse)
+  shed_overflow_days               +0.000   (5/16 worse)
+  sell_revenue_total          -18,254.000   (15/16 worse)  <-- majority moved the WRONG way

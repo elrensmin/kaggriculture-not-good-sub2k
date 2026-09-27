@@ -1,0 +1,90 @@
+
+############ ours [diag-replays/v1-us] agent=scratch  (episodes=96) ############
+-- shop mix (read first: the draw is coupled to our own empty tiles) --
+   BAKERY           games    60   median unlock d9   1x/4t = 6/product/day
+   BRUNCH_SPOT      games    60   median unlock d15   1x/4t = 6/product/day
+   FARMERS_MARKET   games    83   median unlock d15   1x/4t = 6/product/day
+   ICE_CREAM_SHOP   games    72   median unlock d6   1x/4t = 6/product/day
+   PET_CAFE         games    36   median unlock d9   2x/4t = 12/product/day
+   PIZZA_SHOP       games    77   median unlock d12   1x/4t = 6/product/day
+   SMOOTHIE_SHOP    games    50   median unlock d18   1x/4t = 6/product/day
+   YARN_STORE       games    95   median unlock d6   2x/4t = 12/product/day
+
+-- per product: season drain vs our sales (medians over episodes) --
+   product        drain    sold   cov%      px  below%  hypotheses
+   CARROT           162      20     12    49.9       0  PET_CAFE only (2x). FARMERS_MARKET adds demand.
+   EGG              117      52     44    54.2       0  BAKERY/BRUNCH; the no-YARN line. Keep geese without wool demand.
+   MILK             234     107     46   178.3       0  PIZZA/ICE_CREAM/SMOOTHIE; cow line.
+   STRAWBERRY       270      94     35   133.7       6  4 shops; knife-edge curve -- price tail matters.
+   TOMATO           162      50     31    84.3       0  PIZZA/FARMERS.
+   WHEAT            378     128     34    42.1       0  5 shops; log curve, absorbs volume -- the trade line.
+   WOOL             288      88     31   209.8       5  YARN_STORE only; 2x/turn. React AFTER the reveal (sheep).
+
+-- drain vs our sales by day (median units/day) --
+   day |   WHEAT  STRAWB  CARROT    WOOL    MILK     EGG
+       |   drain   drain   drain   drain   drain   drain
+     0 |       0       0       0       0       0       0
+     6 |       6       6       6      12       6       6
+     9 |       6       6       6      12       6       6
+    12 |       6       6       6      12       6       6
+    18 |       6       6       6      12       6       6
+    24 |       6       6       6      12       6       6
+    27 |       6       6       6      12       6       6
+       |    sold    sold    sold    sold    sold    sold
+     0 |       0       0       0       0       0       0
+     6 |       0       0       0       0       0       0
+     9 |       0       0       0       0       6       0
+    12 |       0       0       0       0       6       0
+    18 |       5       8       0       6       6       4
+    24 |       3       8       0       9       4       1
+    27 |       6       8       4       2      11       4
+
+-- YARN split (reactive hypothesis): 95 YARN games / 1 no-YARN --
+   WOOL   YARN sold      88   no-YARN sold      72   delta +16
+   EGG    YARN sold      52   no-YARN sold      82   delta -30
+   MILK   YARN sold     107   no-YARN sold      96   delta +11
+
+############ Boey [diag-replays/boey-lb]  (episodes=359) ############
+-- shop mix (read first: the draw is coupled to our own empty tiles) --
+   BAKERY           games   242   median unlock d12   1x/4t = 6/product/day
+   BRUNCH_SPOT      games   233   median unlock d12   1x/4t = 6/product/day
+   FARMERS_MARKET   games   241   median unlock d12   1x/4t = 6/product/day
+   ICE_CREAM_SHOP   games   221   median unlock d9   1x/4t = 6/product/day
+   PET_CAFE         games   229   median unlock d9   2x/4t = 12/product/day
+   PIZZA_SHOP       games   236   median unlock d9   1x/4t = 6/product/day
+   SMOOTHIE_SHOP    games   234   median unlock d9   1x/4t = 6/product/day
+   YARN_STORE       games   238   median unlock d9   2x/4t = 12/product/day
+
+-- per product: season drain vs our sales (medians over episodes) --
+   product        drain    sold   cov%      px  below%  hypotheses
+   CARROT           216     968    448     0.0       3  PET_CAFE only (2x). FARMERS_MARKET adds demand.
+   EGG              144    2025   1406     0.0      87  BAKERY/BRUNCH; the no-YARN line. Keep geese without wool demand.
+   MILK             216     720    333     0.0      83  PIZZA/ICE_CREAM/SMOOTHIE; cow line.
+   STRAWBERRY       288     356    124     0.0      22  4 shops; knife-edge curve -- price tail matters.
+   TOMATO           144       0      0     0.0       0  PIZZA/FARMERS.
+   WHEAT            360    6786   1885     0.0       5  5 shops; log curve, absorbs volume -- the trade line.
+   WOOL             180     161     89     0.0      89  YARN_STORE only; 2x/turn. React AFTER the reveal (sheep).
+
+-- drain vs our sales by day (median units/day) --
+   day |   WHEAT  STRAWB  CARROT    WOOL    MILK     EGG
+       |   drain   drain   drain   drain   drain   drain
+     0 |       0       0       0       0       0       0
+     6 |       6       6      12      12       6       6
+     9 |       6       6      12      12       6       6
+    12 |       6       6      12      12       6       6
+    18 |       6       6       6      12       6       6
+    24 |       6       6       6      12       6       6
+    27 |       6       6       6      12       6       6
+       |    sold    sold    sold    sold    sold    sold
+     0 |      62       0       0       0       0       0
+     6 |     176       0       0      15       0      33
+     9 |     184       0       0      10       0      22
+    12 |     323       0       0      12      42      29
+    18 |     201      68       0       6      26      62
+    24 |     243       8      75      13      30      64
+    27 |     302      12      81       9      35      89
+
+-- YARN split (reactive hypothesis): 238 YARN games / 121 no-YARN --
+   WOOL   YARN sold     330   no-YARN sold      94   delta +236
+   EGG    YARN sold    1880   no-YARN sold    2267   delta -387
+   MILK   YARN sold     681   no-YARN sold     829   delta -148

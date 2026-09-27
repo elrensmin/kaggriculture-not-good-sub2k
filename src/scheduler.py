@@ -13,7 +13,7 @@ import collections
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 
-from . import budget, crop_plan, emit, endgame, herd_plan, layout, routing, sell_policy
+from . import budget, crop_plan, emit, endgame, herd_plan, layout, roots, routing, sell_policy
 from . import params
 from .job import Job, P_PLANT
 
@@ -206,6 +206,9 @@ def plan(state):
     if params.HERD_ENABLED:
         jobs += herd_plan.jobs(state)
     jobs += endgame.jobs(state)
+    # Binding-root controller: re-weight every job by how far its op class is behind
+    # its own requirement this turn (see src/roots.py). URGENCY_SLOPE=0 disables it.
+    jobs = roots.apply(jobs, state)
     jobs.sort(key=lambda j: -j.priority)
     assigned = [False] * len(jobs)
     claimed = set()  # tiles another unit is already walking to this turn
@@ -217,6 +220,23 @@ def plan(state):
     # not chain -- MEASURED with a `_pick` wrapper. Pure ordering; no priority changes.
     preop = {}
     if params.SAME_TILE_FIRST:
+        # A local job must NOT pre-empt a tile that is about to die -- but only for the
+        # unit that would actually rescue it. Blocking EVERY unit whenever any critical
+        # job exists made the guard inert (any pending critical is common on a big farm):
+        # it removed the whole chaining gain (-$10,075 vs CHAIN, p=0.92 vs baseline).
+        # Narrow form: the K nearest units to each pending critical job are "rescuers" and
+        # may not take a non-critical job underfoot; everyone else keeps chaining.
+        # Measured: docs/v0/step1-*.txt.
+        rescuers = set()
+        if params.SAME_TILE_PROTECT_CRITICAL:
+            for j in jobs:
+                if not j.critical or j.tile is None:
+                    continue
+                near = sorted(
+                    range(n),
+                    key=lambda i: routing.manhattan(state.positions[i], j.tile),
+                )[:max(0, params.CRITICAL_RESCUE_K)]
+                rescuers.update(near)
         for i in range(n):
             pos = state.positions[i]
             inv = state.unit_inv(i)
@@ -228,6 +248,8 @@ def plan(state):
                     continue
                 if j.priority < params.SAME_TILE_MIN_PRIORITY and not j.critical:
                     continue      # not worth chaining; leave it to the global assignment
+                if i in rescuers and not j.critical:
+                    continue      # this unit is the nearest to a tile about to die
                 keys = (-j.priority,)
                 if best_key is None or keys < best_key:
                     best_key, best = keys, (jidx, j)

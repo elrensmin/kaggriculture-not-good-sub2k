@@ -116,7 +116,13 @@ def feed_reserve(state):
     herd = sum(_animal_counts(state).values())
     if herd <= 0:
         return 0.0
-    days = max(0, params.WHEAT_LANDS_DAY - state.day)
+    if params.OPENING_BUY_FEED and state.day <= params.OPENING_HERD_UNTIL_DAY:
+        # Opening package: the herd eats BOUGHT wheat (Boey buys ~3.5k/game), so a
+        # 5-day `WHEAT_LANDS_DAY` reserve for a 10-animal herd is $1,500 of a $3,000
+        # bank. Cover = OPENING_FEED_DAYS instead.
+        days = max(0, params.OPENING_FEED_DAYS)
+    else:
+        days = max(0, params.WHEAT_LANDS_DAY - state.day)
     return herd * days * params.FEED_PRICE_GUESS
 
 
@@ -146,6 +152,21 @@ def _script_seed_need(state):
     """
     if not params.OPENING_SCRIPT:
         return 0.0
+    if params.OPENING_SEED_RESERVE_HORIZON:
+        # Reserve seed only for crops whose planting window CLOSES inside the opening
+        # (MELON: end=2) -- those are the ones the script cannot buy later. Reserving the
+        # whole script (wheat/strawberry too) over-held cash: measured cash_commit 0.99 ->
+        # 0.73, animals/feed down, idle +7 pp, margin -$3,324 (docs/v0/sc-horizon.txt).
+        crops = {c for t in params.OPENING_STANDING.values() for c in t
+                 if params.CROP_PLAN[c]["end"] <= params.OPENING_HERD_UNTIL_DAY}
+        total = 0.0
+        for crop in crops:
+            target = max((int((params.OPENING_STANDING.get(d) or {}).get(crop, 0))
+                          for d in range(state.day, params.OPENING_HERD_UNTIL_DAY + 1)),
+                         default=0)
+            have = _standing(state, crop) + int(state.seeds.get(crop, 0))
+            total += max(0, target - have) * params.CROPS[crop]["seed"]
+        return float(total)
     table = params.OPENING_STANDING.get(state.day)
     if not table:
         return 0.0
@@ -181,9 +202,13 @@ def market_intents(state):
         need = params.WHEAT_TILES_PER_ANIMAL * (herd + 1)
         # In the opening, cash is the feed capacity: we commit the bank before any
         # crop can feed the herd, and the feed_cover term below prices that. From
-        # HERD_OPENING_DAYS on, the wheat base is the gate.
+        # HERD_OPENING_DAYS on, the wheat base is the gate -- UNLESS OPENING_BUY_FEED,
+        # which lets the opening herd eat bought wheat (Boey's behaviour) so the herd
+        # is not capped at ~5 animals by our own not-yet-standing wheat.
         can_feed = (_wheat_tiles(state) >= need
-                    or state.day <= params.HERD_OPENING_DAYS)
+                    or state.day <= params.HERD_OPENING_DAYS
+                    or (params.OPENING_BUY_FEED
+                        and state.day <= params.OPENING_HERD_UNTIL_DAY))
         # Cover the bought-feed gap until our own wheat ripens -- for the WHOLE
         # herd, not just the animal being bought. Per-animal cover let us buy six
         # animals on day 0 and leave $600 for six mouths: measured, FEED ops went to

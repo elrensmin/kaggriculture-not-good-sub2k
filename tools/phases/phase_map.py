@@ -44,7 +44,7 @@ from tools.diagnose.config import PUBLIC_AGENT_MAP, TEST_SEAT
 from tools.diagnose.games import run_game
 from tools.diagnose.runbook import _make_seeds, _parse_pa_arg
 
-from .dag import DSM_DAILY, DSM_DAILY_SOURCE, DSM_D5_STATE, EDGES, METRICS, PHASES
+from .dag import DSM_DAILY, DSM_DAILY_SOURCE, EDGES, METRICS, PHASES
 from tools.diagnose.window import parse_days, describe
 
 DAY = 24
@@ -189,15 +189,6 @@ def _series(days, src):
                 out.append((d, rec["flow"].get("HARVEST", 0) / planted if planted else 0.0))
             elif key == "cash_commit":
                 out.append((d, 0.0))                      # filled per game below
-            elif key == "open_dist":
-                # L1 distance from the #1's invariant d5 state (see dag.DSM_D5_STATE).
-                # Emitted only up to d5: it is a d5 reading, and `agg="last"` on a window
-                # that SPANS phases would otherwise read it at d17.
-                if d > 5:
-                    continue
-                st = rec["stock"]
-                out.append((d, float(sum(abs(st.get(k, 0) - v)
-                                         for k, v in DSM_D5_STATE.items()))))
     return out
 
 

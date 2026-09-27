@@ -97,15 +97,14 @@ for _d, _row in DSM_DAILY.items():
 for _d, _row in DSM_DAILY.items():
     _row["crops"] = sum(_row[k] for k in ("wheat", "straw", "carrot", "tomato", "melon"))
     _row["water_per_tile"] = (_row["water"] / _row["crops"]) if _row["crops"] else 0.0
-# The #1's day-5 state. MEASURED, not transcribed: it is IDENTICAL in 40/40 of his
-# replays (and 25/25 in the state_value audit) -- 2 COW + 3 SHEEP, 10 MELON + 10
-# STRAWBERRY planted, 25 owned tiles, 1 quadrant, cash $746-883. Two consequences:
-#   * his opening is an unconditional SCRIPT, so `shop -> herd mix` cannot act at d0-d5
-#     (the wool response is a midgame re-specialisation -- see the `yarn` metric);
-#   * a regression of his terminal bank on his d5 state is degenerate (no variance),
-#     which is why `state_value --ref-from` reports R^2 ~ 0.03 on his arm.
-DSM_D5_STATE = {"plant_MELON": 10, "plant_STRAWBERRY": 10, "animal_COW": 2,
-                "animal_SHEEP": 3, "animal_GOOSE": 0, "owned": 25, "quadrants": 1}
+# NOTE (historical, kept as prose only): the #1's day-5 state is IDENTICAL in 40/40 of
+# his replays -- 2 COW + 3 SHEEP, 10 MELON + 10 STRAWBERRY planted, 25 owned tiles, 1
+# quadrant, cash $746-883 -- so his opening is an unconditional SCRIPT (the wool response
+# is a midgame re-specialisation; see docs/dsm_v1.md). A `open_dist` DAG metric used to
+# measure the L1 distance from that vector; it was DELETED because Boey's optimal opening
+# (10 MELON + 4 STRAWBERRY + ~8 animals) is non-zero against it by construction, so
+# scoring it penalises the stronger arm. The opening is now judged on the tile budget
+# (`empty_tiles` / `planted tiles`) and `idle_pct`. Do not re-add it as a target.
 
 DSM_DAILY_SOURCE = ("docs/dsm_v1.md §3 (all 30 days; median per game) + "
                     "dsm_profile's per-day idle%/crop tiles")
@@ -128,12 +127,6 @@ def M(label, phase, src, agg, target_key, better, tol, owner, desc):
 
 METRICS = {
     # ---- phase 1: opening ---------------------------------------------------
-    "open_dist": M("d5 distance from the #1's script", 1, "derived:open_dist", "last", "none",
-                   "lower", 0.5, "the opening as a whole (all layers)",
-                   "L1 distance in units from the #1's d5 signature (10 MELON + 10 "
-                   "STRAWBERRY planted, 2 COW + 3 SHEEP, 25 owned, 1 quadrant). "
-                   "MEASURED INVARIANT in 40/40 of his replays -- his opening is a fixed "
-                   "script, not a reaction, so this is an exact target, not a range."),
     "cash_commit": M("opening cash committed", 1, "derived:cash_commit", "last", "none",
                      "higher", 0.15, "src/herd_plan.py::market_intents + src/crop_plan.py::market_intents",
                      "Fraction of the $3,000 opening bank spent by end of day 0. The #1 ends d0 at $6."),

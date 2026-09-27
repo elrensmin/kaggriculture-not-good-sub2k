@@ -30,7 +30,7 @@ def _sellable(item: str, inv: int) -> bool:
     if item == "WHEAT":
         return inv < params.I0
     if item in params.CEILING_GOODS:        # MILK / WOOL / STRAWBERRY
-        return inv < params.I0 + params.CEILING
+        return inv < params.I0 + params.CEILING + params.SELL_CEILING_BOOST
     if item == "MELON":
         return inv < params.I0 + params.MELON_CEILING  # quadratic floor at ~158 net
     if item == "EGG" or item == "FERTILIZER":

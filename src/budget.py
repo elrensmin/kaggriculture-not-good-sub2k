@@ -20,13 +20,17 @@ def market_intents(state):
     """Land + hiring orders. Land first (structural), then hires up to the day's target."""
     out = []
     owned = set(state.unlocked)
+    # During the opening the bank is meant to be committed, not reserved (see
+    # params.CASH_RESERVE_OPENING); the season reserve is unchanged.
+    reserve = (params.CASH_RESERVE_OPENING
+               if state.day <= params.OPENING_HERD_UNTIL_DAY else params.CASH_RESERVE)
     for q in ("NE", "SW", "SE"):
         if q in owned:
             continue
         # hands+ground lockstep: buy land only when we can keep working it after
         # the purchase (cash reserve guards against a pre-revenue bankruptcy).
         if (state.day >= params.LAND_TARGET_DAY[q]
-                and state.money >= params.LAND_COST[q] + params.CASH_RESERVE):
+                and state.money >= params.LAND_COST[q] + reserve):
             out.append(["BUY_LAND"])
         break  # one BUY_LAND per turn; the engine fills quadrants in order anyway
 
