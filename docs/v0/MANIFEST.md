@@ -7,7 +7,7 @@ Every file here is raw tool output for the **current** agent (`src/`, tree defau
 | field | value |
 |---|---|
 | **ours** | `diag-replays/v1-us` — `python -m tools.diagnose --scratch --pa 1-12 --batch 8 --seed 4362837462` = **96 games**, 12 public opponents × 8 seeds, `agent=scratch` |
-| **config** | current tree defaults, **no `SCRATCH_PARAMS`**: `MOVE_WEIGHT=20`, `DIST_CAP=1`, `HERD_ENABLED=True`, `HERD_BUY_UNTIL=12`, `HERD_BUY_FROM_DAY=0`, `OPENING_SCRIPT=True`, `STRUCTURE_HOLDBACK=12`, `PLANT_RAMP=True`, `FERTILIZE_FROM_DAY=99`, `CROP_SCALE=1.0`. Snapshot in `config.txt`/`HEAD.txt`. |
+| **config** | current tree defaults, **no `SCRATCH_PARAMS`**: `MOVE_WEIGHT=20`, `DIST_CAP=1`, `HERD_ENABLED=True`, `HERD_BUY_UNTIL=12`, `HERD_BUY_FROM_DAY=0`, `OPENING_SCRIPT=True`, **`OPENING_TAPE=True`** (the shipping default), **`OPENING_TAPER_BOEY=True`** + **`OPENING_HERD_BOEY=True`** (the measured d0–d5 script), **`MAX_HIRE_PER_TURN=1`** (was 99 — 5-at-once HIREs silently dropped the tape's sells/seeds past `MAX_ORDERS=10`), **opening crew 5** (`target_hands`, Boey's measured median), `STRUCTURE_HOLDBACK=12`, `PLANT_RAMP=True`, `FERTILIZE_FROM_DAY=99`, `CROP_SCALE=1.0`. Snapshot in `config.txt`/`HEAD.txt`. The 96-game `dterm` confirmation for the tape is **still open**. |
 | **DSM** | `replays/DSM/v1` — **123 replays / 122 episodes** (+1 self-play), 66 opponents. Every tool that samples DSM is passed `--dsm-max 123` or `--max 0` (note: `--dsm-max 0` is an **empty** slice). |
 | **audit** | ours audit-backed; DSM leaderboard replays carry **no market audit**, so `sell_revenue_*`, `avg_price_*`, `discarded_*`, `land_cost_*` are 0/modelled for DSM. |
 
@@ -42,6 +42,12 @@ Every file here is raw tool output for the **current** agent (`src/`, tree defau
 | `fertilizer_flow_us.txt`, `fertilizer_flow_dsm.txt` | `tools.market.fertilizer_flow --dir <arm> --max 0 --seat 1 --label US` / `--dir replays/DSM/v1 --max 0` | 96 / 123 |
 | `dsm_flows.txt` | `tools.report.dsm_flows --dir replays/DSM/v1 --summary --max-games 123` | — / 123 |
 | `phase1.txt`, `phase2.txt`, `phase3.txt` | `tools.phases.phase_map --phase <p> --pa 1-12 --batch 2 --ref-from replays/DSM/v1 --ref-max 123` | 24 live / 123 ref |
+| `sc-cur-tape-dsm.txt` | `phase_map --phase phase1 --pa 1-12 --batch 2 --ref-from replays/DSM/v1 --ref-max 123` with the current default (**`OPENING_TAPE=True`**) | 24 live / 123 ref |
+| `sc-cur-tape.txt` | same, `--pa 1-4 --batch 4 --ref-from diag-replays/boey-lb --ref-max 60` (Boey reference, 16 games) | 16 live / 60 ref |
+| `sc-p1-boeyscript.txt` | the CURRENT top readout: `phase_map --phase phase1 --pa 1-4 --batch 4 --ref-from diag-replays/boey-lb --ref-max 60 --team Boey`, with `OPENING_TAPER_BOEY`/`OPENING_HERD_BOEY` on | 16 live / 60 ref |
+| `sc-cur-tape2-dsm.txt` | the same tree, `--pa 1-12 --batch 2 --ref-from replays/DSM/v1 --ref-max 123` | 24 live / 123 ref |
+| `sc-p1-chain.txt` | `SCRATCH_PARAMS='SAME_TILE_FIRST=1;SAME_TILE_MIN_PRIORITY=0'` — the Step-4 water-chain diagnostic (WATER 53→58, but MELON 9→7, idle 0.78→11.0) | 16 live / 60 ref |
+| `sc-p1-base.txt` | the same 16-game Boey screen with the pre-tape defaults (`OPENING_TAPE=0`) | 16 live / 60 ref |
 | `phase_all_vs_dsm.txt` | same, `--phase all ... --spread` | 24 live / 123 ref |
 | `phase_dag.txt` | `tools.phases.phase_map --dag` | — |
 | `phase_dsm_selfcheck.txt` | `tools.phases.phase_map --phase all --replay-dir replays/DSM/v1 --max-games 123 --seat auto` | — / 123 |

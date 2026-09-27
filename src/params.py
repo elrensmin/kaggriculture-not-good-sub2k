@@ -98,6 +98,10 @@ HANDS_MIDGAME = 12
 
 
 def target_hands(day: int) -> int:
+    # Opening crew, MEASURED from Boey's replays: 5 hands (max/day median) on d0 and
+    # 5-6 through d5 -- he plants 20 tiles and waters 20 on d0 with 5. We ran 4 on d0
+    # (24 unit-turns short, the exact size of the d0 sow gap) and 6 from d2 once the
+    # duplicate HIRE was removed, so the opening schedule is flat at 5.
     if day >= 29:
         return 10
     if day >= 26:
@@ -108,9 +112,7 @@ def target_hands(day: int) -> int:
         return 10
     if day >= 6:
         return 8
-    if day >= 2:
-        return 6
-    return 4
+    return 5
 
 
 # ---- land schedule. Re-issue BUY_LAND every turn until filled. ---------------
@@ -141,9 +143,11 @@ TILES_PER_HAND = 4
 # MAX_ORDERS=10, so requesting a whole day's crew in one turn silently truncates
 # everything after it (animals, feed, seeds). Order the list by priority and spread
 # the hires; the day has 24 turns and the crew only has to be complete by the end.
-# The truncation defect is real, but capping hires was measured inside a
-# net-negative package; left at the old value until it can be isolated.
-MAX_HIRE_PER_TURN = 99
+# MEASURED: with the opening tape as the default, one turn's list is
+# sells + trade + feed + seed + 3 animal orders + the hire block, and 5-at-once HIREs
+# pushed the tape's bulk sells and the MELON/STRAWBERRY seeds past slot 10 -- the
+# dropped orders are exactly the d2 revenue and the d1->d2 MELON top-up. One per turn.
+MAX_HIRE_PER_TURN = 1
 # stop planting after this hour: a crop planted late can't be watered the same
 # day and dies that night (consecutive_unwatered 1 -> 2 = weed).
 PLANT_CUTOFF_HOUR = 18
@@ -385,6 +389,56 @@ PLANT_WATER_CAP_DIVISOR = 0
 # fix. `SLICE_PENALTY` replaces `_pick`'s two-pass band restriction with a finite penalty,
 # so band-local work is still strongly preferred but no longer absolute.
 EXACT_ASSIGN = False
+# PLANT GLOBAL: do not bind a PLANT job to the worker's own slice. Measured defect in the
+# opening -- with ~13 crop tiles and 6 bands, some workers have no empty tile in their
+# band and plant nothing while the script still has a deficit. Global = nearest empty
+# on the farm, still assigned one-per-worker.
+PLANT_GLOBAL = False
+# OPENING TAPE (src/opening.py): one owner for the opening market commitment. Buys the
+# full seed basket right after the sells, ahead of hires/herd/feed, so a closing crop
+# window (MELON ends d2) cannot be starved by the MAX_ORDERS=10 cap.
+# ON since the d0-d5 structural audit moved the phase-1 roots: cash committed 0.81 -> 0.97,
+# MELON 6 -> 10, STRAWBERRY 6 -> 4, idle 26.3 % -> 18.9 %, d0-d5 sell revenue ~$3.0k/game
+# (median over 16 games, `revenue_<p>` summed over d0-d5 in diag-replays/sc-tape21).
+# Season-margin confirmation on the 96-game field is still PENDING (see
+# docs/DSM-vs-us(v0).md §2); it is not a claim, it is the next gate.
+OPENING_TAPE = True
+# The opening herd's daily loop (feed/care/collect/pickup) outranks discretionary field
+# work while the tape runs, so the revenue engine actually runs.
+OPENING_HERD_PRIORITY_BONUS = 40
+# Units per opening SELL order (engine caps each order's qty only by stock; the default
+# TRICKLE=6 throttled the opening cash engine). MEASURED, and it was a DEAD KNOB until
+# now: `opening.market_intents` sells with `params.TRICKLE` (6), so the opening hoarded
+# cash ($693 at d4) while the herd stalled. Wired into the sell line.
+OPENING_SELL_CHUNK = 30
+# Opening trade leg: buy wheat below base (market inventory above I0) with spare cash.
+OPENING_TRADE_CASH_FLOOR = 700
+OPENING_TRADE_CHUNK = 12
+# THE TILE BUDGET, CLOSED. Boey's d0-d5 medians (40 replays, seat by name) fill all 25
+# tiles EVERY day: crops(day) + herd(day) = 25. The old tape planned only 20 (12 crops +
+# an 8-tile static ring) and built 4 structures, leaving 10 owned tiles empty on d0.
+# `OPENING_TAPER_BOEY` selects the measured per-day crop table and a ring reservation
+# that grows with the herd; OFF reproduces the old 12-crop/8-ring script for A/B.
+OPENING_TAPER_BOEY = True
+# The herd table: 3 COW + 2 SHEEP on d0 (no GOOSE -- coops arrive with the d2 goose),
+# reaching 4 COW + 3 SHEEP + 2 GOOSE by d4. OFF reproduces the old 4/2/2 ratio ramp that
+# topped out at 8 and bought cheapest-first (GOOSE first), which reached 5.
+OPENING_HERD_BOEY = True
+# Days of look-ahead when buying seed: the d1->d2 MELON top-up (7 -> 10) must be bought
+# before MELON's window closes at d2, and the ask is derived from CROP_BY_DAY rather than
+# a static basket so it cannot crowd the animal budget on d0.
+OPENING_SEED_PREBUY_DAYS = 1
+# The tape emits its own HIRE, and `budget.market_intents` hires to the SAME formula --
+# two owners against one target produced 7 hands where Boey runs 5, which is exactly the
+# idle share. OFF: budget is the single owner of hiring.
+OPENING_HIRE_FROM_TAPE = False
+# CLOSING-WINDOW PRIORITY. A crop whose planting window shuts soon (MELON ends d2) must
+# have its seed bought and its tile planted before discretionary spend, or the crop is
+# lost for the season -- the market list is ordered sells -> hires -> herd -> seeds and
+# capped at MAX_ORDERS=10, so the seed ask is the first thing dropped. Enabled, the
+# seed for a crop closing within WINDOW_URGENT_DAYS is moved up to just after the sells.
+WINDOW_SEED_FIRST = False
+WINDOW_URGENT_DAYS = 2
 # A `critical` job (survival WATER, at-risk FEED) pays NO walk cost at any distance, so its
 # key is `-priority` for every unit and only the `d` tie-break separates them -- inside one
 # unit's choice. ACROSS units the per-unit loop order decides, so a unit five tiles away can

@@ -13,7 +13,8 @@ import collections
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 
-from . import budget, crop_plan, emit, endgame, herd_plan, layout, roots, routing, sell_policy
+from . import (budget, crop_plan, emit, endgame, herd_plan, layout, opening, roots,
+               routing, sell_policy)
 from . import params
 from .job import Job, P_PLANT
 
@@ -122,12 +123,18 @@ def _plant_jobs(state, used, slices, n, limit=None):
     if not crops:
         return []
     jobs = []
+    all_band = [p for s in slices for p in s]
     for i in range(n if limit is None else min(n, limit)):
         crop = (_band_crop(state, slices[i], crops, i) if params.BAND_MONOCROP
                 else crops[i % len(crops)])
         if crop is None:
             continue
-        tile = _nearest_empty_in_slice(state, used, slices[i])
+        # WORK MUST NOT BE BOUND TO A BAND THAT DOES NOT CONTAIN IT. With ~13 opening
+        # crop tiles and 6 bands some workers have no empty tile in their slice and
+        # plant nothing while the script has a deficit. PLANT_GLOBAL lets any worker
+        # take the nearest empty on the farm.
+        band = all_band if params.PLANT_GLOBAL else slices[i]
+        tile = _nearest_empty_in_slice(state, used, band)
         if tile is None:
             continue
         used.add(tile)
@@ -186,6 +193,27 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
     return None
 
 
+def _urgent_window_seeds(state):
+    """BUY_SEED orders for crops whose planting window closes within WINDOW_URGENT_DAYS.
+
+    Returned so `plan` can place them immediately after the sells (and ahead of hires,
+    the herd and the discretionary seed buffer), because the market list is capped at
+    MAX_ORDERS=10 and the seed ask is otherwise the first entry dropped.
+    """
+    out = []
+    for crop in params.PLANT_ORDER:
+        plan = params.CROP_PLAN.get(crop)
+        if plan is None:
+            continue
+        if plan["end"] - state.day > params.WINDOW_URGENT_DAYS:
+            continue
+        have = int(state.seeds.get(crop, 0))
+        deficit = plan["target"] - have     # coarse: the market layer buys the rest
+        if deficit > 0:
+            out.append(["BUY_SEED", crop, min(deficit, 8)])
+    return out
+
+
 def plan(state):
     cost = routing.default_cost(state)
     n = state.unit_count()
@@ -202,10 +230,18 @@ def plan(state):
         # don't create new tiles while the survival backlog is already too big to serve
         n_surv = sum(1 for j in field_jobs if j.op == "WATER" and j.critical)
         plant_limit = max(0, n - n_surv // params.PLANT_WATER_CAP_DIVISOR)
-    jobs = field_jobs + _plant_jobs(state, used, slices, n, limit=plant_limit)
-    if params.HERD_ENABLED:
-        jobs += herd_plan.jobs(state)
-    jobs += endgame.jobs(state)
+    if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
+        # `opening.jobs` owns the tape's job list: field work + named-tile plant jobs +
+        # herd + endgame, with the herd's daily loop re-prioritised. It was DEAD CODE
+        # until now -- the scheduler rebuilt the same list without the herd bonus, so
+        # BUILD/PICKUP/PLACE (60/60/95) lost the race to PLANT/WATER (85/90) and only
+        # 1 of the 5 d0 animals got placed, against Boey's 5.
+        jobs = opening.jobs(state)
+    else:
+        jobs = field_jobs + _plant_jobs(state, used, slices, n, limit=plant_limit)
+        if params.HERD_ENABLED:
+            jobs += herd_plan.jobs(state)
+        jobs += endgame.jobs(state)
     # Binding-root controller: re-weight every job by how far its op class is behind
     # its own requirement this turn (see src/roots.py). URGENCY_SLOPE=0 disables it.
     jobs = roots.apply(jobs, state)
@@ -379,11 +415,19 @@ def plan(state):
     #                    turn's cash before the first HIRE was reached.
     #   3. herd       -- animals, then the feed top-up
     #   4. seeds      -- buffered, so the least urgent
-    market = list(sell_policy.market_intents(state))
-    market += budget.market_intents(state)
-    if params.HERD_ENABLED:
-        market += herd_plan.market_intents(state)
-    market += crop_plan.market_intents(state)
+    if params.OPENING_TAPE:
+        # The tape owns the opening market list (sells + full seed basket in one ordered
+        # block); the per-turn layers do not also jostle for the 10 slots.
+        market = list(opening.market_intents(state))
+        market += budget.market_intents(state)
+    else:
+        market = list(sell_policy.market_intents(state))
+        if params.WINDOW_SEED_FIRST:
+            market += _urgent_window_seeds(state)
+        market += budget.market_intents(state)
+        if params.HERD_ENABLED:
+            market += herd_plan.market_intents(state)
+        market += crop_plan.market_intents(state)
     market += crop_plan.fertilizer_buy_intent(state)
     market += endgame.market_intents(state)
     ops = [o if o is not None else ['PASS'] for o in ops]

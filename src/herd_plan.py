@@ -152,6 +152,12 @@ def _script_seed_need(state):
     """
     if not params.OPENING_SCRIPT:
         return 0.0
+    if params.OPENING_TAPE:
+        # The tape (src/opening.py) owns the opening seed purchase, so the generic
+        # script reserve must NOT also hold cash back -- it was reserving against the
+        # DSM 10-strawberry table while the tape plants 4, and that over-reserve is why
+        # the herd stalled at 4 animals (idle 63 %).
+        return 0.0
     if params.OPENING_SEED_RESERVE_HORIZON:
         # Reserve seed only for crops whose planting window CLOSES inside the opening
         # (MELON: end=2) -- those are the ones the script cannot buy later. Reserving the

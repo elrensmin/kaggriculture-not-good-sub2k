@@ -10,34 +10,25 @@ phase_map — structural phase audit (LIVE mode)
 
    metric                            ours      #1   ratio       owner
    ------------------------------------------------------------------------------------------------------------
-   CARE ops                         25.0   34.0   0.74x  BAD  src/herd_plan.py::jobs
    STRAWBERRY tiles                 4.00   10.0   0.40x  BAD  src/params.py::CROP_PLAN
    WATER ops                        53.0   74.0   0.72x  BAD  src/crop_plan.py::jobs
-   FEED ops                         21.0   27.0   0.78x  WARN src/herd_plan.py::jobs
-   hands                            7.00   6.00   1.17x  WARN src/budget.py::market_intents (target_hands, TILES_PER_HAND)
-   animals on board                 5.00   5.00   1.00x  ok   src/herd_plan.py::market_intents
+   hands                            5.00   6.00   0.83x  WARN src/budget.py::market_intents (target_hands, TILES_PER_HAND)
+   animals on board                 7.00   5.00   1.40x  ok   src/herd_plan.py::market_intents
+   CARE ops                         33.0   34.0   0.97x  ok   src/herd_plan.py::jobs
    opening cash committed           0.97   1.00   0.97x  ok   src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
-   empty owned tiles                4.00   0.00      -  ok   src/crop_plan.py::plant_queue
-   idle share %                     18.9   26.2   0.72x  ok   src/scheduler.py::plan
-   MELON tiles                      10.0   10.0   1.00x  ok   src/params.py::CROP_PLAN
+   empty owned tiles                3.50   0.00      -  ok   src/crop_plan.py::plant_queue
+   FEED ops                         27.0   27.0   1.00x  ok   src/herd_plan.py::jobs
+   idle share %                     0.78   26.2   0.03x  ok   src/scheduler.py::plan
+   MELON tiles                      9.00   10.0   0.90x  ok   src/params.py::CROP_PLAN
    owned tiles                      25.0   25.0   1.00x  ok   src/budget.py::market_intents
-   PLANT ops                        26.0   30.0   0.87x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   PLANT ops                        27.0   30.0   0.90x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
    quadrants unlocked               1.00   1.00   1.00x  ok   src/budget.py::market_intents
    shops unlocked                   1.00   1.00   1.00x  ok   -  LATENT (RNG-revealed)
-   animal structures                5.00   5.00   1.00x  ok   src/herd_plan.py::jobs
-   YARN_STORE unlocked              0.50   0.00      -  ok   -  LATENT (RNG-revealed)
+   animal structures                7.00   5.00   1.40x  ok   src/herd_plan.py::jobs
+   YARN_STORE unlocked              0.00   0.00      -  ok   -  LATENT (RNG-revealed)
 
 ############ causal trace (phase1) ############
    each deficient metric traced UP its causes; the deepest line is the furthest upstream
-
-   CARE ops = 25.00 vs 34.00   [ BAD ]
-      <- animals on board               [OK]  care is free and daily, and it banks the bonus
-         <- opening cash committed         [OK]  the same bank buys the opening herd -- you cannot fund both fully
-         <- owned tiles                    [OK]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
-         <- YARN_STORE unlocked            [OK]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
-            <- quadrants unlocked             [OK]  a quadrant is 25 tiles
-            <- shops unlocked                 [OK]  YARN_STORE is one of the shops in the draw
-               <- opening cash committed         [OK]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
 
    STRAWBERRY tiles = 4.00 vs 10.00   [ BAD ]
       <- owned tiles                    [OK]  the ramp can only claim tiles we own
@@ -65,8 +56,4 @@ phase_map — structural phase audit (LIVE mode)
     explains 1 other deficient metric(s): WATER ops
     downstream mechanisms:
       -> WATER ops: ongoing crops need watering to keep producing
-
- 2. CARE ops  (25.00 vs 34.00)
-    Free, daily, and it banks the production bonus.
-    owner: src/herd_plan.py::jobs
 

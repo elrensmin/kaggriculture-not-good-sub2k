@@ -142,6 +142,18 @@ METRICS = {
     "animals": M("animals on board", 1, "stock:animals", "max", "animals",
                  "higher", 1.0, "src/herd_plan.py::market_intents",
                  "Daily feed/care/collect work is what fills the odd opening days."),
+    # The herd COMBINATION, extracted from Boey's replays (medians, 40 games): 3 COW +
+    # 2 SHEEP on d0 with no GOOSE (coops come with the d2 goose), reaching 4 COW + 3 SHEEP
+    # + 2 GOOSE by d4. A total alone cannot tell a correct herd from a GOOSE-heavy one.
+    "cows": M("COW on board", 1, "stock:animal_COW", "max", "cow",
+              "higher", 2, "src/opening.py::_herd_target",
+              "The d0 commitment: 3 COW at $400, bought before the crop payment."),
+    "sheep": M("SHEEP on board", 1, "stock:animal_SHEEP", "max", "sheep",
+               "higher", 2, "src/opening.py::_herd_target",
+               "2 SHEEP on d0 at $500; wool from d6."),
+    "geese": M("GOOSE on board", 1, "stock:animal_GOOSE", "max", "goose",
+               "higher", 1, "src/opening.py::_herd_target",
+               "Coops arrive on d2; eggs are the earliest daily revenue (d4)."),
     "structures": M("animal structures", 1, "stock:structures", "max", "structs",
                     "higher", 4, "src/herd_plan.py::jobs",
                     "Built only to house animals we already own."),

@@ -54,50 +54,74 @@ normalised margin but the worse tail — it dumps 58 floor units a game and lose
 
 ## 2. Phase 1 — opening (d0–d5)
 
-Sources: `docs/v0/phase1.txt`, `docs/v0-boey/phase_all_vs_boey.txt`.
+Sources: `docs/v0/phase1.txt`, `docs/v0-boey/phase_all_vs_boey.txt`. Current **us** values are fresh
+d0–d5 audits of the shipped tree with the opening tape on (`OPENING_TAPE=True`):
+`docs/v0/sc-p1-boeyscript.txt` (60 Boey replays, 16 games) and `docs/v0/sc-cur-tape2-dsm.txt`
+(123 DSM replays, 24 games). The `us` column is the tape because the tape is now the tree default.
 
 | metric | us | DSM | Boey | DAG |
 |---|---|---|---|---|
-| opening cash committed | **0.81** | 1.00 | 0.99 | **ROOT** |
-| PLANT ops | **20** | 30 | 31 | **ROOT** |
-| MELON tiles | **6** | 10 | 10 | BAD |
-| STRAWBERRY tiles | 6 | 10 | **4** | — (archetype) |
-| WATER ops | 45 | 74 | 76 | BAD |
-| CARE ops | 20 | 34 | 40 | BAD |
-| animals | 4 | 5 | 10 | WARN |
-| idle share % | **27.2** | 26.2 | **6.9** | BAD |
-| owned / quadrants / hands | 25 / 1 / 6 | 25 / 1 / 6 | 25 / 1 / 6 | ok |
-| **empty owned tiles** | **9** | 0 | 0 | **BAD** |
+| opening cash committed | **0.97** | 1.00 | 0.99 | closed |
+| PLANT ops | 27 | 30 | 30 | ok |
+| MELON tiles | 9 | 10 | 10 | ok |
+| STRAWBERRY tiles | 4 | 10 | 4 | **ROOT vs DSM** — Boey-match by choice |
+| WATER ops | 53 | 74 | **76** | **BAD both refs** |
+| CARE ops | 33 | 34 | **40** | **BAD vs Boey** |
+| FEED ops | 27 | 27 | **38** | **BAD vs Boey** |
+| animals | 7 | 5 | **10** | **BAD vs Boey** |
+| — COW / SHEEP / GOOSE | 4 / 2 / 1 | 2 / 3 / 2 | **4 / 3 / 2** | COW ok, GOOSE WARN |
+| idle share % | **0.78** | 26.2 | 6.62 | ok — now *below* Boey |
+| owned / quadrants / hands | 25 / 1 / 5 | 25 / 1 / 6 | 25 / 1 / 5 | ok |
+| empty owned tiles | 3.5 | 0 | 0 | ok (was 4) |
+| d0–5 sell revenue (us only) | **$3,107** | — | — | median/game, 16 games |
 
-**DAG causation (the trace we fix against):**
+The `d0–5 revenue` row is ours only: leaderboard replays carry no market audit and no day CSVs, so the
+reference number is not comparable and is not quoted. `$3,107` is the median per-game sum of
+`revenue_<p>` over d0–d5 in `diag-replays/sc-tape-v2` (16 games).
+
+**What closed, and how.** The d0–d5 script is now Boey's measured one, and the tile budget closes every
+day (`crops(day) + herd(day) = 25`): a 13-tile WHEAT base on d0 (`CROP_BY_DAY`) harvested from age 2
+(`opening._early_harvest`), a ring reservation that grows with the herd (5 → 9) instead of a constant 8,
+a per-day species table (3 COW + 2 SHEEP on d0, no GOOSE; 4 COW + 3 SHEEP + 2 GOOSE by d4), and a seed
+ask derived from the day's table so the d0 basket ($690 seed + $2,200 herd) fits the $3,000 bank.
+Three dead mechanisms were wired: `OPENING_SELL_CHUNK` (sells used `TRICKLE=6` — the opening hoarded
+cash), `opening.jobs()` (never called, so the herd's BUILD/PICKUP/PLACE never had its priority bonus and
+only 1 of 5 d0 animals got placed), and `MAX_HIRE_PER_TURN=99` (5 at-once HIREs pushed the tape's bulk
+sells and seeds past `MAX_ORDERS=10`, dropped silently). The duplicate HIRE (tape + `budget`) is now
+single-owner, and the opening crew is 5 (Boey's measured median).
+
+**A/B (16 games, matched, `arm_diff` old script → new):** median margin **+$3,230** (9/16, p=0.80),
+`idle_share_pct` **−1.7**, `sell_revenue_total` **+$9,293**, `idle_units_total` **−96**. Watchlist cost:
+`stranded_at_bell` +$102 (16/16), `floor_sales` +11 (12/16), `plants_died` +1. The structure is a clear
+gain; the sell-side coupling is the same C1/C6 edge as Step 2.
+
+**The remaining root is WATER coverage, not the script.** Against Boey the deficient metrics are
+`animals` (7 vs 10), `CARE` (33 vs 40), `FEED` (27 vs 38) and `WATER` (53 vs 76) — one cluster, and the
+DAG ties it to the water chain rather than to the tile budget:
 
 ```
-animals on board     <- opening cash committed          [ROOT]   (explains 7 vs Boey)
-MELON / STRAWBERRY   <- opening cash committed          [ROOT]
-quadrants            <- opening cash committed          [ROOT]
-WATER ops            <- MELON tiles, PLANT ops
-WATER ops            <- PLANT ops                       [ROOT]
-idle share %         <- PLANT ops                       [ROOT]
-CARE ops             <- animals on board <- opening cash committed  [ROOT]
+WATER ops            (53 vs 76)  [ROOT]  <- scheduler._pick, no deficient ancestor (§3.1)
+  -> wheat yield     the 13 WHEAT tiles are watered below the 2-4 window, so they yield ~1-2
+                     units each instead of 4-6 and the opening BUYS its feed:
+                     `product_cost` $1,315 over d0-5 (53 wheat units) against $2,068 of revenue.
+  -> animals         (7 vs 10)  the feed bill is what stops the last 2 SHEEP/GOOSE ($800);
+                     cash never exceeds ~$214 while feed is bought.
+     -> CARE (33 vs 40), FEED (27 vs 38)   one feed + one care per animal per day
 ```
 
-Boey's opening is **DSM's script plus a bigger herd**: cash 0.99, PLANT 31, WATER 76, MELON 10, and
-**10 animals bought before the crop payment** — while we hold ~19 % of the bank and sow 6+6.
-Against Boey, `opening cash committed` explains **7** deficient metrics, not 3.
+So the herd target is a **liquidity** consequence of the water chain: we commit the correct basket and
+place 5 on d0, but we cannot fund the d5 herd because $1,315 of the opening goes to bought feed that our
+own wheat should have provided. Measured feed-cost ledger (`diag-replays/sc-tape-v2` day CSVs): seed
+$1,127, animals $2,267, **bought products $1,315**, revenue $2,068 — net −$2,688 against the $3,000 bank.
 
-**Verdict.** The opening is half-sown and under-committed against both references. The root has **no
-deficient ancestor**, but it is **not dependency-free in practice**: closing it adds crop tiles, which
-adds water demand — which is why Step 3 below depends on Step 1.
+**Verdict.** Phase 1's *structure* is closed: cash committed 0.97, MELON 9, STRAWBERRY 4, PLANT 27,
+hands 5, empty 3.5, and **idle 0.78 % — below Boey's 6.62 %**. What remains is the **herd cluster
+(animals/CARE/FEED)**, and it is blocked by **water coverage** — the midgame root of §3.1, which the
+tape cannot fix because it is a crew-assignment problem. That is Step 7 of §7, now the top item.
 
 **Closing the opening is not free.** Matching a *shape* by moving the land schedule cost
 **−$15,452 (0/8, p=0.005)** with `WHEAT_LANDS_DAY=2`; `P_BUILD` 45→95 and `BUILD_PER_TURN` 2→3 likewise
 cost margin. Ship opening changes only with a paired `dterm`.
-
-> **`open_dist` has been removed.** The old "L1 distance from DSM's d5 script" metric is deleted from
-> `tools/phases/dag.py` (and its `DSM_D5_STATE` vector). Boey's optimal opening — 10 MELON + 4
-> STRAWBERRY + ~8 animals — is non-zero against DSM's vector *by construction*, so the metric punished
-> the stronger arm. The opening is now judged on the **tile budget** (`empty owned tiles`, `planted
-> tiles`, MELON/STRAWBERRY tiles) and `idle share %`.
 
 ---
 
@@ -125,7 +149,7 @@ Sources: `docs/v0/phase2.txt`, `docs/v0-boey/phase_all_vs_boey.txt`.
 **DAG causation:**
 
 ```
-animals on board [p2]      <- animals [p1] <- opening cash committed [p1]   (has a BAD ancestor)
+animals on board [p2]      <- animals [p1]  (p1 ROOT vs Boey; opening cash committed is now CLOSED)
 COLLECT/FEED/FERTILIZE [p2]<- animals on board [p2]
 WATER ops per planted tile <- scheduler._pick          [ROOT, NO bad ancestor]
 plants died [p2]           <- WATER ops per planted tile [p2]   (lag 2)
@@ -269,7 +293,7 @@ Sources: `docs/v0/phase3.txt`, `docs/v0-boey/phase_all_vs_boey.txt`.
 WATER ops [p3]      <- WATER ops [p2] <- plants planted [p2]
 weeds [p3]          <- WATER ops [p3]   (retiring a tile weeds it)
 HARVEST per planted <- HARVEST ops <- weeds, plants died
-FERTILIZE [p3]      <- FERTILIZE [p2] <- animals [p2] <- animals [p1] <- opening cash committed [p1]
+FERTILIZE [p3]      <- FERTILIZE [p2] <- animals [p2] <- animals [p1] (p1 ROOT; cash closed by the tape)
 shed at the bell    <- HARVEST ops [p3]
 ```
 
@@ -310,7 +334,7 @@ a strategy change.**
 
 | edge (DAG) | measured |
 |---|---|
-| `plant_ops [p1] → water_ops [p1]` | sowing under-committed; coverage 0.58 vs 0.77–0.83 |
+| `plant_ops [p1] → water_ops [p1]` | PLANT closed by the tape (26 vs 30/32); the WATER gap (53 vs 74/78) is now crew-limited, not seed-limited |
 | `water_ops [p2] → plants_died [p2]` (lag 2) | died 21 vs 0–2; weeds 17 vs 0–1 |
 | `animals [p1] → animals [p2]` | 11 vs 20–22; FEED/COLLECT/FERTILIZE all ~0.4–0.5× |
 | `wheat_tiles [p2] → feed_ops [p2]` | `feed_surplus` −126 vs +191 / +3,021 |
@@ -379,16 +403,36 @@ symptoms moved with it; `arm_diff` median margin is not negative; the DSM self-c
 - **Target:** our STRAWBERRY `px` p10 → ≥ base, `floor%` p90 < 1 % **at growing volume**.
 - **Gate phase:** phase2/3. **Watch:** `shed_pressure_days`, `stranded_at_bell`, `floor_sales`.
 
-**Step 3 — Finish the opening crop script. Depends on Step 1.**
-- **Dependency (DAG):** `plant_ops → water_ops → plants_died`; sowing more tiles before coverage is fixed raises deaths.
-- **DAG nodes:** `opening cash committed` (ROOT) → MELON/animals; `PLANT ops` (ROOT) → WATER/idle.
-- **Evidence:** cash 0.81 vs 1.00 / 0.99; MELON 6 vs 10 / 10; PLANT 20 vs 30 / 31; idle 27 % vs 26 % / 7 %.
-- **Target:** MELON 10, STRAWBERRY 4, PLANT ~30, `empty owned tiles` ≤ 2, opening idle near Boey's.
-- **Gate phase:** phase1 **plus paired `dterm`** (closing a shape gap by moving land cost −$15,452).
+**Step 3 — Opening script: DONE. The Boey script is the tape's d0–d5 plan.**
+- **DAG:** closed `opening cash committed` (0.81 → **0.97** vs 1.00) and the PLANT/MELON root.
+  Phase-1 now reads MELON 9, STRAWBERRY 4, PLANT 27, hands 5, empty 3.5, **idle 0.78 %** (Boey 6.62).
+- **Shipped:** the measured per-day tables in `src/opening.py` (`CROP_BY_DAY`, `HERD_BY_DAY_SPECIES`),
+  a ring reservation that grows with the herd, `_early_harvest` (wheat taken at first yield, so the
+  d0 sow converts on schedule), `_seed_need`/`_animal_budget` (the d0 basket is $690 seed + $2,200 herd
+  against the $3,000 bank), and three previously dead mechanisms wired: `OPENING_SELL_CHUNK`,
+  `opening.jobs()`, `MAX_HIRE_PER_TURN=1`.
+- **A/B (16 games, old script → new):** median margin **+$3,230** (9/16), revenue **+$9,293**,
+  idle **−1.7 pp**. Watchlist: `stranded_at_bell` +$102 (16/16), `floor_sales` +11 — the Step 2 edge.
+- **Gate (still open):** the 96-game paired `dterm` for the whole tape. `WHEAT_LANDS_DAY=2` stays
+  rejected: **−$15,452 (0/8, p=0.005)**.
+- **Residue:** `animals` 7 vs 10, `CARE` 33 vs 40, `FEED` 27 vs 38 — a liquidity consequence of the
+  water chain below, not of the script.
 
-**Step 4 — Wheat / feed self-sufficiency. Depends on Step 3.**
+**Step 4 — WATER coverage is now the top item. Depends on Step 3 (done).**
+- **DAG:** `WATER ops` (53 vs 76) is the root with no deficient ancestor, owner `src/scheduler.py::_pick`.
+- **Evidence (this tree):** the 13 WHEAT tiles are watered below the 2–4 window, so they yield ~1–2
+  units instead of 4–6 and the opening BUYS its feed — `product_cost` **$1,315** over d0–d5 (53 wheat
+  units) against $2,068 of revenue; the feed bill is what stops the last 2 SHEEP/GOOSE ($800).
+- **Diagnostic (16 games, `SAME_TILE_FIRST=1`, `docs/v0/sc-p1-chain.txt`):** WATER 53 → **58**,
+  `cash committed` 0.97 → 1.00, GOOSE 1 → **2** — but MELON 9 → 7, empty 3.5 → 5, idle 0.78 → 11.0.
+  The chain moves the root and must be shipped **with** the sell side (Step 2), exactly as §3.1 says.
+- **Gate:** phase1 **and** phase2, with the Step 2 ceiling. **Watch:** `plants_died`, `weeds`,
+  `shed_overflow_days`, `discarded`, `stranded_at_bell`, margin.
+
+**Step 5 — Wheat / feed self-sufficiency. Depends on Step 4.**
 - **DAG edge:** `wheat_tiles [p2] → feed_ops [p2]`; feed gates `animals`.
-- **Evidence:** `feed_surplus` **−126 vs +191 / +3,021**; 130 wheat bought/game; 20 wheat tiles died unharvested vs 5.
+- **Evidence:** `feed_surplus` **−126 vs +191 / +3,021**; 53 wheat units bought in the opening alone
+  (step 4's ledger); 20 wheat tiles died unharvested vs 5.
 - **Target:** `feed_surplus` ≥ 0; wheat peak 33 → ~57.
 - **Gate phase:** phase2. **Watch:** `shed_pressure_days`.
 
