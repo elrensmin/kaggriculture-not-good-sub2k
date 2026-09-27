@@ -415,7 +415,15 @@ def plan(state):
     #                    turn's cash before the first HIRE was reached.
     #   3. herd       -- animals, then the feed top-up
     #   4. seeds      -- buffered, so the least urgent
-    if params.OPENING_TAPE:
+    # DAY-GATED, like the jobs branch above. This branch used to be `if OPENING_TAPE:`
+    # with no day test, so from d6 to the bell the market list was the TAPE's -- which
+    # meant `sell_policy` ran only through the tape's internal call and
+    # `herd_plan.market_intents` (herd expansion) and `crop_plan.market_intents` (the
+    # seed buffer) NEVER RAN AT ALL. Measured cost of that mis-wiring: the midgame had
+    # no seed rebuy and no herd buying, which is why the full-season idle sat at ~25 %.
+    # Turning the tape's own sell block into the single owner exposed it as a $0 finish
+    # with a full shed (discarded 140 units, shed pressure 17 days).
+    if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
         # The tape owns the opening market list (sells + full seed basket in one ordered
         # block); the per-turn layers do not also jostle for the 10 slots.
         market = list(opening.market_intents(state))

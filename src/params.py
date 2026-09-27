@@ -298,7 +298,14 @@ WATER_READY_FALLBACK = False
 # same-tile (d=0) assignment rate is only **31 % overall, 22 % for CARE** (mean distance
 # 2.59), which is where the chaining numbers come from -- the #1 chains FEED at 0.07
 # moves/op against our 2.00. This is a pure ordering fix and does not change any priority.
-SAME_TILE_FIRST = False
+#
+# ON, at the default `SAME_TILE_MIN_PRIORITY=70` -- and the threshold is the whole point.
+# The first arm used `SAME_TILE_MIN_PRIORITY=0`, which let a unit standing on ANY local
+# job chain instead of walking to a PLANT: PLANT 27 -> 28, MELON 9 -> 7, empty 3.5 -> 5,
+# idle 0.78 -> 11.0 (docs/v0/sc-p1-chain.txt). At >=70 the chain is limited to the urgent
+# local ops and the trade disappears: PLANT 27 -> 30, empty -> 3.0, cash 0.97 -> 1.00.
+# Season A/B: margin +$5,061, revenue +$8,747, `plants_died` -5.5 (0/16 worse).
+SAME_TILE_FIRST = True
 # While a critical job (tonight's weed / tonight's escape) is pending, the K units
 # NEAREST to each such tile are held back from chaining a non-critical local op, so a
 # dying tile still gets rescued. K=1 keeps almost all chaining; the first (too blunt)
@@ -432,6 +439,17 @@ OPENING_SEED_PREBUY_DAYS = 1
 # two owners against one target produced 7 hands where Boey runs 5, which is exactly the
 # idle share. OFF: budget is the single owner of hiring.
 OPENING_HIRE_FROM_TAPE = False
+# The tape's sell block (surplus WHEAT above a 2-day feed reserve, FERTILIZER, EGG) and
+# `sell_policy.market_intents` BOTH emit opening sells. Collapsing them to one owner
+# looked right but MEASURED SLIGHTLY WORSE: margin 0 in 12/16 pairs and -$1.1k mean
+# over the 4 decided pairs, because sell_policy's per-item sells add liquidity the tape's
+# single chunk does not. Kept as a knob; OFF ships.
+OPENING_OWNS_SELLS = False
+# Days of the herd's feed to hold back before selling surplus WHEAT. 2 is the measured
+# balance (3 cost 8 pp of idle); 1 sells one more day's cover per turn, which is the
+# difference between funding the last SHEEP ($500) and not: on d3 we hold 48 wheat and
+# still end the opening ~$380 short of the 9-animal target.
+OPENING_WHEAT_KEEP_DAYS = 2
 # CLOSING-WINDOW PRIORITY. A crop whose planting window shuts soon (MELON ends d2) must
 # have its seed bought and its tile planted before discretionary spend, or the crop is
 # lost for the season -- the market list is ordered sells -> hires -> herd -> seeds and
@@ -515,6 +533,24 @@ P_BUILD = 95
 P_FEED = 100
 
 P_WATER_SURVIVAL = 90
+
+# Window ("bonus") watering: the +1-yield water at ages 2-4 (wheat) / 6-12 (melon).
+# It sat as a bare constant 50 in `job.py` until now, which is why every A/B of it
+# measured nothing. 50 is BELOW P_CARE (70), P_PLANT (85) and P_PICKUP (88), so the
+# yield water is the first field job to be dropped -- wheat then gets only the
+# survival water and yields 1 unit instead of 3, and the opening buys its feed
+# ($1,322 over d0-d5) instead of eating its own crop.
+#
+# MEASURED (16-game phase screen vs 60 Boey replays, with SAME_TILE_FIRST on):
+#   50 -> WATER 62, animals 7, idle 9.78      85 -> WATER 63, animals 7
+#  100 -> WATER 63, animals 7                120 -> WATER 66, animals 8, idle 5.08
+#  140/160 -> identical to 120 (saturates above P_HARVEST=100). Alone (no chain) 120
+#  gives WATER 58 / animals 7, so the two changes are synergistic, not additive.
+P_WATER_BONUS = 120
+
+P_COLLECT_FERT = 55
+
+P_FERTILIZE = 54
 
 FERT_RESERVE = 5
 # Do not FERTILIZE during the opening: sell the fertilizer instead. Measured on the

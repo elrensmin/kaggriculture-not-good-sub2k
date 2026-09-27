@@ -26,8 +26,14 @@ P_PLANT = 85
 P_CARE = params.P_CARE
 P_PICKUP_ANIMAL = 60  # placing animals is not urgent
 P_PLACE = 60
-P_COLLECT_FERT = 55
-P_FERTILIZE = 54
-P_WATER_BONUS = 50
+P_COLLECT_FERT = params.P_COLLECT_FERT
+P_FERTILIZE = params.P_FERTILIZE
+# Window watering ("bonus" water: the +1/+2 yield watering at ages 2-4 for wheat,
+# 6-12 for melon). This was a bare constant (50) until it was moved into params --
+# an A/B of `P_WATER_BONUS` therefore silently measured nothing. It is the op the
+# WATER-coverage root is short of: survival water (90) fires only when the plant is
+# about to die, so a wheat tile watered only by survival yields 1-2 units instead of
+# 4-6 and the opening buys its feed (see docs/DSM-vs-us(v0).md §2).
+P_WATER_BONUS = params.P_WATER_BONUS
 P_BUILD = params.P_BUILD
 P_DIG = 20

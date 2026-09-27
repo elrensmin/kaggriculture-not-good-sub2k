@@ -265,7 +265,14 @@ def market_intents(state):
     params.OPENING_FEED_DAYS = feed_days
     params.OPENING_HERD = _herd_target(state.day)
 
-    out = list(sell_policy.market_intents(state))
+    # SINGLE SELL OWNER during the tape. `sell_policy` and the tape's block below BOTH
+    # emitted opening sells for the same goods (WHEAT/FERTILIZER/EGG), and with the herd,
+    # seeds and hire orders the list ran past `MAX_ORDERS=10` -- the tail (the tape's bulk
+    # sell) was dropped silently. Measured on d3: shed WHEAT 48, feed water fine, money
+    # $226, and only ~7 wheat units sold in the whole day, so the last SHEEP ($500) was
+    # never funded. The tape's own block covers WHEAT/FERTILIZER/EGG, which is the whole
+    # d0-d5 sell surface (no MILK/WOOL/MELON/STRAWBERRY is harvested before d6).
+    out = [] if params.OPENING_OWNS_SELLS else list(sell_policy.market_intents(state))
 
     # EARLY CASH ENGINE: the default sell policy HOLDS wheat for scarcity, so the opening
     # earns almost nothing until d4-5 and the herd cannot be funded past ~5 animals.
@@ -279,7 +286,7 @@ def market_intents(state):
     # TAPE14/17 balance: sell surplus wheat above a 2-day feed reserve, plus fertilizer
     # and eggs. Stopping wheat sales entirely cost liquidity and the herd fell back
     # (revenue $2,498 -> $2,101, animals 6 -> 5, idle 13.3 -> 23.2; docs/v0/sc-p1-tape19.txt).
-    reserved = unfed_now * 2 + 2
+    reserved = unfed_now * int(params.OPENING_WHEAT_KEEP_DAYS) + 2
     for item in ("WHEAT", "FERTILIZER", "EGG"):
         have = int(state.shed.get(item, 0))
         keep = reserved if item == "WHEAT" else 0
