@@ -15,6 +15,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob as globmod
 from collections import Counter
@@ -95,10 +103,7 @@ def _ours_seat(rep):
 
 def _dsm_seat(rep):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    for i, n in enumerate(names):
-        if n and "DSM" in str(n).upper():
-            return i
-    return 0
+    return team_mod.seat_of_names(names, fallback=0)
 
 
 def main():
@@ -109,7 +114,10 @@ def main():
     ap.add_argument("--glob", default="*_vs_*.json")
     ap.add_argument("--dsm-dir", default="replays/DSM/v1")
     ap.add_argument("--dsm-max", type=int, default=8)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     global _WINDOW
     _WINDOW = parse_days(args.days)

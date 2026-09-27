@@ -1,0 +1,126 @@
+phase_map — structural phase audit (LIVE mode)
+   opponents: 1-12  seeds: 2  games/phase: 24
+   truncated at: phase1=d5(144 steps)
+   reference : 123 replays from replays/DSM/v1 (seat=auto), reduced identically
+
+############ phase1 (opening, d0-d5) — 24 games (live, 12 opponents x 2 seeds) ############
+   did we commit the land, the crew and the first production?
+   reference: 123 replays from replays/DSM/v1 (seat=auto), reduced identically
+   both arms reduced over d0-d5 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   CARE ops                         20.0   34.0   0.59x  BAD  src/herd_plan.py::jobs
+   opening cash committed           0.81   1.00   0.81x  BAD  src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
+   MELON tiles                      6.00   10.0   0.60x  BAD  src/params.py::CROP_PLAN
+   d5 distance from the #1's script   9.00   0.00      -  BAD  the opening as a whole (all layers)
+   PLANT ops                        19.0   30.0   0.63x  BAD  src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   WATER ops                        45.0   74.0   0.61x  BAD  src/crop_plan.py::jobs
+   animals on board                 4.00   5.00   0.80x  WARN src/herd_plan.py::market_intents
+   empty owned tiles                8.00   0.00      -  WARN src/crop_plan.py::plant_queue
+   FEED ops                         21.0   27.0   0.78x  WARN src/herd_plan.py::jobs
+   STRAWBERRY tiles                 6.00   10.0   0.60x  WARN src/params.py::CROP_PLAN
+   hands                            6.00   6.00   1.00x  ok   src/budget.py::market_intents (target_hands, TILES_PER_HAND)
+   idle share %                     26.3   26.2   1.00x  ok   src/scheduler.py::plan
+   owned tiles                      25.0   25.0   1.00x  ok   src/budget.py::market_intents
+   quadrants unlocked               1.00   1.00   1.00x  ok   src/budget.py::market_intents
+   shops unlocked                   1.00   1.00   1.00x  ok   -  LATENT (RNG-revealed)
+   animal structures                4.00   5.00   0.80x  ok   src/herd_plan.py::jobs
+   YARN_STORE unlocked              0.00   0.00      -  ok   -  LATENT (RNG-revealed)
+
+############ phase1: distribution, not just the median ############
+   metric                              p10      p25      med      p75      p90      min      max   ours
+   animals on board                    4.0      4.0      4.0      4.0      4.0      4.0      4.0
+   CARE ops                           20.0     20.0     20.0     20.0     20.0     20.0     20.0
+   opening cash committed              0.8      0.8      0.8      0.8      0.8      0.8      0.8
+   empty owned tiles                   8.0      8.0      8.0      8.0      8.0      8.0      8.0
+   FEED ops                           21.0     21.0     21.0     21.0     21.0     21.0     21.0
+   hands                               6.0      6.0      6.0      6.0      6.0      6.0      6.0
+   idle share %                       26.3     26.3     26.3     26.3     26.3     26.3     26.3
+   MELON tiles                         6.0      6.0      6.0      6.0      6.0      6.0      6.0
+   d5 distance from the #1's script      9.0      9.0      9.0      9.0      9.0      9.0      9.0
+   owned tiles                        25.0     25.0     25.0     25.0     25.0     25.0     25.0
+   PLANT ops                          19.0     19.0     19.0     19.0     19.0     19.0     19.0
+   quadrants unlocked                  1.0      1.0      1.0      1.0      1.0      1.0      1.0
+   shops unlocked                      1.0      1.0      1.0      1.0      1.0      1.0      1.0
+   STRAWBERRY tiles                    6.0      6.0      6.0      6.0      6.0      6.0      6.0
+   animal structures                   4.0      4.0      4.0      4.0      4.0      4.0      4.0
+   WATER ops                          45.0     45.0     45.0     45.0     45.0     45.0     45.0
+   YARN_STORE unlocked                 0.0      0.0      0.0      0.0      0.0      0.0      0.0
+
+   -- reference arm (123 replays from replays/DSM/v1 (seat=auto), reduced identically) --
+   metric                              p10      p25      med      p75      p90      min      max   reference
+   animals on board                    5.0      5.0      5.0      5.0      5.0      5.0      5.0
+   CARE ops                           33.0     34.0     34.0     35.0     36.0     32.0     37.0
+   opening cash committed              1.0      1.0      1.0      1.0      1.0      1.0      1.0
+   empty owned tiles                   0.0      0.0      0.0      0.5      0.5      0.0      1.0
+   FEED ops                           27.0     27.0     27.0     28.0     29.0     26.0     30.0
+   hands                               6.0      6.0      6.0      6.0      6.0      5.0      6.0
+   idle share %                       22.6     24.7     26.2     27.2     28.4     20.1     29.0
+   MELON tiles                        10.0     10.0     10.0     10.0     10.0     10.0     10.0
+   d5 distance from the #1's script      0.0      0.0      0.0      0.0      0.0      0.0      0.0
+   owned tiles                        25.0     25.0     25.0     25.0     25.0     25.0     25.0
+   PLANT ops                          29.0     29.0     30.0     30.0     30.0     28.0     30.0
+   quadrants unlocked                  1.0      1.0      1.0      1.0      1.0      1.0      1.0
+   shops unlocked                      1.0      1.0      1.0      1.0      1.0      1.0      1.0
+   STRAWBERRY tiles                   10.0     10.0     10.0     10.0     10.0     10.0     10.0
+   animal structures                   5.0      5.0      5.0      5.0      5.0      5.0      5.0
+   WATER ops                          74.0     74.0     74.0     75.0     75.0     71.0     77.0
+   YARN_STORE unlocked                 0.0      0.0      0.0      0.0      1.0      0.0      1.0
+
+
+############ causal trace (phase1) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   CARE ops = 20.00 vs 34.00   [ BAD ]
+      <- animals on board               [WARN]  care is free and daily, and it banks the bonus
+         <- opening cash committed         [BAD]  the same bank buys the opening herd -- you cannot fund both fully
+         <- owned tiles                    [OK]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+         <- YARN_STORE unlocked            [OK]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+            <- quadrants unlocked             [OK]  a quadrant is 25 tiles
+            <- shops unlocked                 [OK]  YARN_STORE is one of the shops in the draw
+               <- opening cash committed         [BAD]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+   opening cash committed = 0.81 vs 1.00   [ BAD ]
+
+   MELON tiles = 6.00 vs 10.00   [ BAD ]
+      <- opening cash committed         [BAD]  the d0-d2 MELON block is bought with opening cash
+
+   d5 distance from the #1's script = 9.00 vs 0.00   [ BAD ]
+
+   PLANT ops = 19.00 vs 30.00   [ BAD ]
+
+   WATER ops = 45.00 vs 74.00   [ BAD ]
+      <- MELON tiles                    [BAD]  melon's water window is ages 6-12, so it drives early demand
+      <- PLANT ops                      [BAD]  a newly planted tile must be watered the same day or it weeds that night
+      <- STRAWBERRY tiles               [WARN]  ongoing crops need watering to keep producing
+         <- opening cash committed         [BAD]  the d0-d2 MELON block is bought with opening cash
+         <- owned tiles                    [OK]  the ramp can only claim tiles we own
+         <- YARN_STORE unlocked            [OK]  a shop also changes which crop pays
+            <- quadrants unlocked             [OK]  a quadrant is 25 tiles
+            <- shops unlocked                 [OK]  YARN_STORE is one of the shops in the draw
+               <- opening cash committed         [BAD]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. opening cash committed  (0.81 vs 1.00)
+    Fraction of the $3,000 opening bank spent by end of day 0. The #1 ends d0 at $6.
+    owner: src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
+    explains 3 other deficient metric(s): CARE ops, MELON tiles, WATER ops
+    downstream mechanisms:
+      -> animals on board: the same bank buys the opening herd -- you cannot fund both fully
+      -> MELON tiles: the d0-d2 MELON block is bought with opening cash
+      -> quadrants unlocked: the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+ 2. PLANT ops  (19.00 vs 30.00)
+    Seeding rate; throttled by the CROP_PLAN ramp.
+    owner: src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+    explains 1 other deficient metric(s): WATER ops
+    downstream mechanisms:
+      -> idle share %: planting is the only other filling work
+      -> WATER ops: a newly planted tile must be watered the same day or it weeds that night
+
+ 3. d5 distance from the #1's script  (9.00 vs 0.00)
+    L1 distance in units from the #1's d5 signature (10 MELON + 10 STRAWBERRY planted, 2 COW + 3 SHEEP, 25 owned, 1 quadrant). MEASURED INVARIANT in 40/40 of his replays -- his opening is a fixed script, not a reaction, so this is an exact target, not a range.
+    owner: the opening as a whole (all layers)
+

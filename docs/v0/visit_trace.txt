@@ -1,0 +1,36 @@
+
+========================================================================================
+  TILE VISITS — phase 2   (DSM 123 games, US 96 games)
+========================================================================================
+
+  --- DSM (#1) ---
+    games 123   stops/game 885   ops/stop mean 1.90
+    ops per stop  1:46%  2:29%  3:15%  4+:10%
+    tile-days 90530   one-stop 86%   split 14%   extra trips/tile-day 0.202
+    most-split op-pairs inside a tile-day (split share):
+      CARE -> FEED                     n=   5750  split    5%
+      CARE -> COLLECT_FERTILIZER       n=   3409  split   24%
+      COLLECT_FERTILIZER -> CARE       n=   3403  split  100%
+      COLLECT_FERTILIZER -> FEED       n=   2973  split   23%
+      HARVEST -> CARE                  n=   2886  split  100%
+      PLACE -> PLACE                   n=   2260  split   98%
+      COLLECT_FERTILIZER -> HARVEST    n=   1483  split    4%
+      HARVEST -> WATER                 n=   1402  split   19%
+      PLACE -> CARE                    n=   1297  split  100%
+      PLANT -> WATER                   n=   1223  split    4%
+
+  --- US ---
+    games 96   stops/game 606   ops/stop mean 1.36
+    ops per stop  1:72%  2:21%  3:7%  4+:0%
+    tile-days 43173   one-stop 78%   split 22%   extra trips/tile-day 0.350
+    most-split op-pairs inside a tile-day (split share):
+      CARE -> COLLECT_FERTILIZER       n=   5062  split   18%
+      FEED -> CARE                     n=   4699  split  100%
+      FEED -> COLLECT_FERTILIZER       n=   2570  split  100%
+      COLLECT_FERTILIZER -> HARVEST    n=   1550  split   78%
+      CARE -> FEED                     n=   1300  split   89%
+      COLLECT_FERTILIZER -> CARE       n=   1181  split  100%
+      COLLECT_FERTILIZER -> FEED       n=    979  split   97%
+      FEED -> HARVEST                  n=    541  split  100%
+      PLANT -> WATER                   n=    489  split   86%
+      PLACE -> FEED                    n=    425  split  100%

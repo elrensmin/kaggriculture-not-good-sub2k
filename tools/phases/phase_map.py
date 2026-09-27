@@ -25,6 +25,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import multiprocessing as mp
 import os
@@ -312,13 +320,11 @@ _AGENT = None
 
 
 def _seat_of(rep, spec):
-    """Which seat to analyse. ``auto`` finds the team named DSM, else TEST_SEAT."""
+    """Which seat to analyse. ``auto`` finds the configured team (default DSM), else TEST_SEAT."""
     if spec not in (None, "auto"):
         return int(spec)
-    for i, n in enumerate((rep.get("info") or {}).get("TeamNames") or []):
-        if n and "DSM" in str(n).upper():
-            return i
-    return TEST_SEAT
+    return team_mod.seat_of_names((rep.get("info") or {}).get("TeamNames") or [],
+                                  fallback=TEST_SEAT)
 
 
 def _reduce_obj(obj, seat, phase, day0, day1):
@@ -698,7 +704,10 @@ def main(argv=None):
                     help="also print per-metric p10/p25/median/p75/p90/min/max for ours "
                          "(and the reference arm). Use this: a median over a bimodal "
                          "population hides the defect you are hunting.")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     ns = ap.parse_args(argv)
+    team_mod.set_team(ns.team)
 
     from .dag import PHASES as _PHASES
 

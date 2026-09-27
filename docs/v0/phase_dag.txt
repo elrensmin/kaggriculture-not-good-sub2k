@@ -1,0 +1,97 @@
+############ the causal DAG ############
+
+  opening cash committed
+     -> animals on board                 the same bank buys the opening herd -- you cannot fund both fully
+     -> MELON tiles                      the d0-d2 MELON block is bought with opening cash
+     -> quadrants unlocked               the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+  quadrants unlocked
+     -> owned tiles                      a quadrant is 25 tiles
+     -> owned tiles                      NE at d6 is worth 25 tiles for the whole strawberry ramp
+     -> quadrants unlocked               land is bought in order, one quadrant at a time
+  owned tiles
+     -> animals on board                 ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+     -> empty owned tiles                more ground with the same crew leaves tiles bare
+     -> hands                            hands are hired to ground: min(schedule, owned//TILES_PER_HAND)
+     -> STRAWBERRY tiles                 the ramp can only claim tiles we own
+  animals on board
+     -> animals on board                 phase 1's herd is the floor for phase 2's herd
+     -> CARE ops                         care is free and daily, and it banks the bonus
+     -> FEED ops                         one wheat per animal per day
+     -> idle share %                     feed/care/collect are DAILY work; a crop-only farm has nothing to do on the odd days
+     -> animal structures                housing is built only for animals already owned
+  MELON tiles
+     -> WATER ops                        melon's water window is ages 6-12, so it drives early demand
+  STRAWBERRY tiles
+     -> WATER ops                        ongoing crops need watering to keep producing
+  PLANT ops
+     -> idle share %                     planting is the only other filling work
+     -> WATER ops                        a newly planted tile must be watered the same day or it weeds that night
+  idle share %
+     -> empty owned tiles                idle crew + bare tiles = the ramp is throttling planting
+  owned tiles
+     -> animals on board                 the herd is tile-blocked: an animal tile is a crop tile
+     -> hands                            hands are capped by ground
+     -> STRAWBERRY tiles                 the strawberry ramp peaks at 30 tiles
+     -> TOMATO tiles                     the third rotation also needs room
+     -> WHEAT tiles                      tiles are the ceiling on every crop ramp (C4)
+  hands
+     -> idle share %                     a crew bigger than the work idles
+     -> WATER ops                        the crew is the watering capacity
+  animals on board
+     -> animals at the bell              the herd at the bell is the herd we fed to the end
+     -> COLLECT_FERTILIZER ops           one fertilizer per animal per day
+     -> FEED ops                         one per animal per day
+     -> FERTILIZE ops                    fertilizer supply gates FERTILIZE
+     -> idle share %                     daily feed/care/collect work
+     -> shed peak                        milk/wool/egg/fertilizer also land in the shed (C1)
+     -> animal structures                housing follows animals
+  WHEAT tiles
+     -> FEED ops                         home-grown wheat is the cheap feed (C2)
+     -> WATER ops                        wheat's window is ages 2-4
+  STRAWBERRY tiles
+     -> WATER ops                        watering demand scales with standing crops
+  FERTILIZE ops
+     -> FERTILIZE ops                    the fertilizer chain carries over
+     -> HARVEST ops                      fertilizer doubles one-shot yield and ongoing fruit
+     -> idle share %                     the fertilize/pickup chain is more daily work
+  COLLECT_FERTILIZER ops
+     -> FERTILIZE ops                    the pickup -> fertilize chain
+  WATER ops
+     -> plants died                      an unwatered plant weeds after two nights (C5)
+     -> WATER ops                        the same watering demand carries into the last days
+     -> weeds                            watering is what keeps a tile from becoming a weed
+  WATER ops per planted tile
+     -> plants died                      coverage, not raw watering, is what keeps plants alive
+  plants died
+     -> HARVEST ops                      a dead plant is a harvest that never happens
+     -> weeds                            a dead plant IS a weed
+  HARVEST ops
+     -> HARVEST ops                      standing crops at d18 are what d18-29 can harvest
+     -> shed peak                        harvests land in the shed
+  weeds
+     -> HARVEST ops                      weed tiles have to be dug before they can be replanted
+     -> weeds                            weeds only accumulate
+  shed peak
+     -> idle share %                     a full shed turns harvest into DROP/PICKUP walking
+  planted tiles
+     -> WATER ops                        every planted tile is watering demand
+  animals at the bell
+     -> idle share %                     the herd is the daily work in the endgame too
+  weeds
+     -> HARVEST ops                      a weeded tile cannot be harvested
+  WATER ops
+     -> weeds                            retiring a tile means it weeds -- deliberately (rule #4)
+  HARVEST ops
+     -> HARVEST per planted tile         throughput against what was standing
+  shed at the bell
+     -> idle share %                     carrying to a full shed costs turns
+  HARVEST per planted tile
+     -> shed at the bell                 harvests that cannot be sold accumulate in the shed
+  shops unlocked
+     -> YARN_STORE unlocked              YARN_STORE is one of the shops in the draw
+  YARN_STORE unlocked
+     -> animals on board                 MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+     -> STRAWBERRY tiles                 a shop also changes which crop pays
+
+  nodes: 44   edges shown: 62
+  feedback cycles: none

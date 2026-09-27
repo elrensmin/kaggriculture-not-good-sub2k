@@ -32,6 +32,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob as globmod
 from collections import Counter, defaultdict
@@ -52,10 +60,7 @@ ANIMAL_PRODUCT = {"GOOSE": "EGG", "COW": "MILK", "SHEEP": "WOOL"}
 
 
 def _dsm_seat(rep):
-    for i, n in enumerate((rep.get("info") or {}).get("TeamNames") or []):
-        if n and "DSM" in str(n).upper():
-            return i
-    return 0
+    return team_mod.seat_of_names((rep.get("info") or {}).get("TeamNames") or [], fallback=0)
 
 
 def _units(steps, seat):
@@ -241,7 +246,10 @@ def main():
     ap.add_argument("--unit", type=int, default=None,
                     help="unit index for the trace (0=farmer); default = busiest that day")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     global _WINDOW
     _WINDOW = parse_days(args.days)

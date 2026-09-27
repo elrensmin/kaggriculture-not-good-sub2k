@@ -35,6 +35,7 @@ import glob as globmod
 import os
 from collections import defaultdict
 
+from tools import team as team_mod
 from tools.diagnose.window import parse_days, in_window, describe
 
 # Work/output columns present in BOTH arms' day CSVs, audit-free unless noted.
@@ -112,12 +113,17 @@ def main():
                     help="our run dir (its days_seed*.csv)")
     ap.add_argument("--dsm", default=None, help="DSM replay dir (default replays/DSM/v1)")
     ap.add_argument("--ours-agent", default="old")
-    ap.add_argument("--dsm-agent", default="DSM")
+    ap.add_argument("--dsm-agent", default=None,
+                    help="team name for the reference arm (default: DSM / $KAGG_OPPONENT)")
     ap.add_argument("--pooled-too", action="store_true",
                     help="also print the pooled medians, to show the frame distortion")
     ap.add_argument("--days", default=None,
                     help="restrict to a day window, e.g. 0-5 or 0-5,12-17")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
+    args.dsm_agent = args.dsm_agent or team_mod.get()
 
     ranges = parse_days(args.days)
     days = [d for d in range(30) if in_window(d, ranges)]

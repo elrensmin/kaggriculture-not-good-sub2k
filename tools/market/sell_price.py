@@ -21,6 +21,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob as globmod
 import os
@@ -47,9 +55,10 @@ BASE = {p: MARKET_PARAMS[p]["base"] for p in MARKET_PARAMS}
 def _seat_zero(rep):
     """Our seat: 1 on harness runs. On LB replays fall back to the non-DSM seat."""
     names = (rep.get("info") or {}).get("TeamNames") or []
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return 1 - i if len(names) > 1 else 1
+    hits = team_mod.seats_of_names(names)
+    if hits:
+        other = 1 - hits[0]
+        return other if 0 <= other < len(names) else 1
     return 1
 
 
@@ -198,7 +207,10 @@ def main():
     ap.add_argument("--game", default=None, help="only games whose file/seed contains this")
     ap.add_argument("--summary", action="store_true", help="print only the cross-game summary")
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
     global _WINDOW
     _WINDOW = parse_days(args.days)
     if _WINDOW:

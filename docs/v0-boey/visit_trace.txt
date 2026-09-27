@@ -1,0 +1,36 @@
+
+========================================================================================
+  TILE VISITS — phase 2   (Boey 359 games, US 96 games)
+========================================================================================
+
+  --- Boey (#1) ---
+    games 359   stops/game 858   ops/stop mean 1.78
+    ops per stop  1:52%  2:29%  3:9%  4+:10%
+    tile-days 231892   one-stop 75%   split 25%   extra trips/tile-day 0.328
+    most-split op-pairs inside a tile-day (split share):
+      CARE -> FEED                     n=  35927  split    8%
+      COLLECT_FERTILIZER -> CARE       n=  26400  split  100%
+      CARE -> COLLECT_FERTILIZER       n=  11432  split   24%
+      COLLECT_FERTILIZER -> FEED       n=  10528  split   49%
+      FEED -> HARVEST                  n=   9264  split   25%
+      HARVEST -> CARE                  n=   6661  split  100%
+      COLLECT_FERTILIZER -> HARVEST    n=   5721  split   17%
+      HARVEST -> COLLECT_FERTILIZER    n=   5654  split  100%
+      PLANT -> WATER                   n=   4682  split   12%
+      FEED -> PLACE                    n=   3579  split   79%
+
+  --- US ---
+    games 96   stops/game 606   ops/stop mean 1.36
+    ops per stop  1:72%  2:21%  3:7%  4+:0%
+    tile-days 43173   one-stop 78%   split 22%   extra trips/tile-day 0.350
+    most-split op-pairs inside a tile-day (split share):
+      CARE -> COLLECT_FERTILIZER       n=   5062  split   18%
+      FEED -> CARE                     n=   4699  split  100%
+      FEED -> COLLECT_FERTILIZER       n=   2570  split  100%
+      COLLECT_FERTILIZER -> HARVEST    n=   1550  split   78%
+      CARE -> FEED                     n=   1300  split   89%
+      COLLECT_FERTILIZER -> CARE       n=   1181  split  100%
+      COLLECT_FERTILIZER -> FEED       n=    979  split   97%
+      FEED -> HARVEST                  n=    541  split  100%
+      PLANT -> WATER                   n=    489  split   86%
+      PLACE -> FEED                    n=    425  split  100%

@@ -1,10 +1,10 @@
 
-===== ours[diag-replays/v0-us]  (replay games sampled: 12) =====
+===== ours[diag-replays/v1-us]  (replay games sampled: 96) =====
 day | max_shed end_shed weeds_max plants_fert | animals_fed
-herd endgame: COW 0.0  SHEEP 0.0  GOOSE 0.0
-price-at-sell (qty-weighted): MILK=0.0(q0)  STRAWBERRY=176.6(q1245)  MELON=168.6(q720)  WOOL=0.0(q0)  EGG=0.0(q0)
+herd endgame: COW 4.3  SHEEP 3.8  GOOSE 2.7
+price-at-sell (qty-weighted): MILK=176.5(q10022)  STRAWBERRY=133.1(q8882)  MELON=190.9(q2910)  WOOL=208.7(q8371)  EGG=54.2(q5883)
 
-===== dsm  (replay games sampled: 12) =====
+===== dsm  (replay games sampled: 96) =====
 day | max_shed end_shed weeds_max plants_fert | animals_fed
   0 |      8.0      0.0      0.00         0.0 |         4.0
   1 |      4.0      0.0      0.02         0.0 |         5.0
@@ -36,5 +36,5 @@ day | max_shed end_shed weeds_max plants_fert | animals_fed
  27 |     92.8      9.7      4.00        15.0 |        10.8
  28 |     91.5     18.9      5.94        13.6 |         3.0
  29 |     83.8      2.5     10.44         0.4 |         0.2
-herd endgame: COW 3.8  SHEEP 1.6  GOOSE 5.2
-price-at-sell (qty-weighted): MILK=94.8(q1800)  STRAWBERRY=167.6(q2961)  MELON=205.0(q720)  WOOL=172.8(q2310)  EGG=51.4(q2904)
+herd endgame: COW 6.2  SHEEP 0.9  GOOSE 4.9
+price-at-sell (qty-weighted): MILK=103.2(q19231)  STRAWBERRY=151.1(q21657)  MELON=202.4(q5790)  WOOL=147.2(q15158)  EGG=48.4(q21716)

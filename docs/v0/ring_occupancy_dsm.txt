@@ -1,0 +1,30 @@
+
+==============================================================================================
+  replays/DSM/v1 (seat auto)   (123 games)
+==============================================================================================
+
+  --- board composition at day 17 (mean tiles per game) ---
+   band   tiles   animals   plants   struct   empty   animal%
+      0      96      72.0     23.0      0.0     0.0      75%
+      1     288     168.0    119.0      0.0     1.0      58%
+      2     480     192.0    271.0      0.0     2.0      40%
+      3     672      72.0    548.0      0.0    52.0      11%
+      4     864       0.0    721.0      0.0   125.0       0%
+
+  --- board composition at day 29 (mean tiles per game) ---
+   band   tiles   animals   plants   struct   empty   animal%
+      0      96      72.0      0.0     24.0    21.0      75%
+      1     288      96.0     29.0     72.0   100.0      33%
+      2     480      96.0     86.0     48.0   208.0      20%
+      3     672      24.0    158.0      0.0   377.0       4%
+      4     864       0.0    203.0      0.0   544.0       0%
+
+  --- claim order (median first day a band sees one) ---
+   band   first ANIMAL   first PLANT
+      0              0            10
+      1              0             1
+      2              0             0
+      3              7             0
+      4              8             0
+
+  animals at d29: ring(0-2) 264.0 / total 288.0 = 92% of the herd inside radius 2

@@ -1,0 +1,30 @@
+
+==============================================================================================
+  Boey   (359 games)
+==============================================================================================
+
+  --- board composition at day 17 (mean tiles per game) ---
+   band   tiles   animals   plants   struct   empty   animal%
+      0      96      72.0      0.0      0.0     0.0      75%
+      1     288     192.0     24.0      0.0     0.0      67%
+      2     480     120.0    239.0      0.0     1.0      25%
+      3     672      48.0    431.0      0.0     3.0       7%
+      4     864      48.0    594.0      0.0     6.0       6%
+
+  --- board composition at day 29 (mean tiles per game) ---
+   band   tiles   animals   plants   struct   empty   animal%
+      0      96      48.0      0.0     24.0     0.0      50%
+      1     288     144.0      6.0     24.0    34.0      50%
+      2     480      96.0     52.0      0.0   183.0      20%
+      3     672      48.0     81.0      0.0   344.0       7%
+      4     864      24.0     79.0      0.0   491.0       3%
+
+  --- claim order (median first day a band sees one) ---
+   band   first ANIMAL   first PLANT
+      0              0            23
+      1              0             0
+      2              0             0
+      3              0             0
+      4              3             0
+
+  animals at d29: ring(0-2) 288.0 / total 360.0 = 80% of the herd inside radius 2

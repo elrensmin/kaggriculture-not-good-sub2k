@@ -1,6 +1,9 @@
 
 === AGGREGATE over 96 games ===
-  movement_needed: 74832  (780/game)
-  per_tile_WATER: 20655  (215/game)
-  truly_idle_no_work: 7680  (80/game)
-  per_tile_HARVEST: 2432  (25/game)
+  movement_needed: 27635  (288/game)
+  per_tile_WATER: 3245  (34/game)
+  per_tile_CARE: 2184  (23/game)
+  truly_idle_no_work: 1116  (12/game)
+  per_tile_FEED_COND: 316  (3/game)
+  per_tile_FEED: 193  (2/game)
+  per_tile_HARVEST: 48  (0/game)

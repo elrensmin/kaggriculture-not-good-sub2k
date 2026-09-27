@@ -31,6 +31,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import csv
 import glob as globmod
@@ -58,10 +66,7 @@ _DAY_ESC = tuple(f"animals_escaped_by_{a}" for a in ANIMALS)
 # ---------------------------------------------------------------------------
 def _dsm_seat(rep):
     names = (rep.get("info") or {}).get("TeamNames") or ["", ""]
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return i
-    return 1
+    return team_mod.seat_of_names(names, fallback=1)
 
 
 def _herd_one(arg):
@@ -224,7 +229,8 @@ def print_carry(label, curve, day):
 
 def _bundle(which, args):
     if which == "dsm":
-        label, rglob, dglob, match = "DSM", f"{args.dsm_dir}/*.json", f"{args.dsm_dir}/days_seed*.csv", "DSM"
+        label = match = team_mod.get()
+        rglob, dglob = f"{args.dsm_dir}/*.json", f"{args.dsm_dir}/days_seed*.csv"
     else:
         label, rglob, dglob, match = "ours", f"{args.run_dir}/*_vs_*.json", f"{args.run_dir}/days_seed*.csv", "old"
     n, acc, px = herd_curve(rglob, which, args.max_games, args.workers)
@@ -254,7 +260,10 @@ def main():
     ap.add_argument("--max-games", type=int, default=40, help="replays sampled per profile (0=all)")
     ap.add_argument("--workers", type=int, default=0, help="0 = all cores")
     ap.add_argument("--compare", action="store_true", help="print DSM and ours side by side")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     want = ("dsm", "ours") if args.compare else (args.profile,)
     data = {w: _bundle(w, args) for w in want}

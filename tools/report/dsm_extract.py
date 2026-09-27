@@ -30,6 +30,14 @@ Usage::
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob
 import json
@@ -47,8 +55,7 @@ TURNS_PER_DAY = 24
 
 def _dsm_seats(rep):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    out = [i for i, n in enumerate(names) if "DSM" in (n or "").upper()]
-    return out or [0]
+    return team_mod.seats_of_names(names) or [0]
 
 
 def _tile_animals(tiles):
@@ -310,7 +317,10 @@ def main():
     ap.add_argument("--dump", default="dsm_cache.json")
     ap.add_argument("--max-games", type=int, default=0)
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     files = sorted(glob.glob(args.glob or os.path.join(args.dir, "*.json")))
     if args.max_games:

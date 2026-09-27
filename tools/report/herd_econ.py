@@ -36,6 +36,14 @@ Usage
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import collections
 import glob
@@ -54,8 +62,7 @@ MOVE = ("NORTH", "SOUTH", "EAST", "WEST")
 
 def _dsm_seats(rep):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    out = [i for i, n in enumerate(names) if "DSM" in (n or "").upper()]
-    return out or [0]
+    return team_mod.seats_of_names(names) or [0]
 
 
 def scan_steps(steps, seat):
@@ -319,7 +326,10 @@ def main():
     ap.add_argument("--daily", action="store_true",
                     help="print the per-day series instead of the summary")
     ap.add_argument("--label", default=None)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     a = ap.parse_args()
+    team_mod.set_team(a.team)
 
     if a.agent:
         import sys

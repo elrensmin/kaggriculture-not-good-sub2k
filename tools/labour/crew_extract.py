@@ -37,6 +37,14 @@ Then read them with ``tools/report/crew_patterns.py``.
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob
 import json
@@ -62,8 +70,7 @@ OPN = {v: k for k, v in OPC.items()}
 
 def _dsm_seats(rep):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    out = [i for i, n in enumerate(names) if "DSM" in (n or "").upper()]
-    return out or [0]
+    return team_mod.seats_of_names(names) or [0]
 
 
 # The shed is NOT a board tile — it is the fixed central 2x2 access set. Verified
@@ -217,7 +224,10 @@ def main():
     ap.add_argument("--pa", default="1-12")
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--seed", type=int, default=4362837462)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     a = ap.parse_args()
+    team_mod.set_team(a.team)
 
     if a.agent:
         from tools.diagnose.window import parse_days  # noqa: F401  (import check)

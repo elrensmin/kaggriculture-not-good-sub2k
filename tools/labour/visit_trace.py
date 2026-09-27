@@ -36,6 +36,8 @@ Usage
 """
 from __future__ import annotations
 
+from tools import team as team_mod
+
 import argparse
 import collections
 import glob
@@ -177,16 +179,18 @@ def main():
     ap.add_argument("--us", default=None)
     ap.add_argument("--phase", type=int, default=2)
     ap.add_argument("--cap", type=int, default=0)
+    ap.add_argument("--label", default=None, help="reference arm label (default: $KAGG_OPPONENT / DSM)")
     a = ap.parse_args()
+    a.label = a.label or team_mod.get()
 
     dsm, us = load(a.dsm, a.cap), (load(a.us, a.cap) if a.us else [])
     if not dsm and not us:
         print("no cached games — run tools.labour.crew_extract first")
         return
     print(f"\n{'='*88}\n  TILE VISITS — phase {a.phase}   "
-          f"(DSM {len(dsm)} games, US {len(us)} games)\n{'='*88}")
+          f"({a.label} {len(dsm)} games, US {len(us)} games)\n{'='*88}")
     if dsm:
-        show(analyse(dsm, a.phase), "DSM (#1)")
+        show(analyse(dsm, a.phase), f"{a.label} (#1)")
     if us:
         show(analyse(us, a.phase), "US")
 

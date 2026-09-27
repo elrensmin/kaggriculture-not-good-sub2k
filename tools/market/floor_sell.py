@@ -24,6 +24,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob as globmod
 import json
@@ -66,10 +74,7 @@ def _seat_of(rep, seat):
     if seat is not None:
         return seat
     names = (rep.get("info") or {}).get("TeamNames") or []
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return i
-    return 1
+    return team_mod.seat_of_names(names, fallback=1)
 
 
 def analyse(path, seat=None):
@@ -221,7 +226,10 @@ def main():
     ap.add_argument("--product", default=None, help="focus one product (e.g. WOOL)")
     ap.add_argument("--workers", type=int, default=0, help="0 = all cores")
     ap.add_argument("--summary", action="store_true", help="one compact line per game instead of a block")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     global _WINDOW
     _WINDOW = parse_days(args.days)

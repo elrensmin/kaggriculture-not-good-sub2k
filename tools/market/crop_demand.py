@@ -26,6 +26,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 from tools.diagnose.window import parse_days, in_window, describe
 import glob
@@ -57,9 +65,9 @@ TURNS_PER_DAY = 24
 
 def _seat(rep, which):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return i if which == "dsm" else 1 - i
+    hits = team_mod.seats_of_names(names)
+    if hits:
+        return hits[0] if which == "dsm" else (1 - hits[0] if len(names) > 1 else 1)
     return 0 if which == "dsm" else 1
 
 
@@ -142,7 +150,10 @@ def main():
     ap.add_argument("--dsm-max", type=int, default=30)
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
     global _WINDOW
     _WINDOW = parse_days(args.days)
     if _WINDOW:

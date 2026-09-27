@@ -151,6 +151,9 @@ def main(argv=None):
     ap.add_argument("dirs", nargs="+", help="run dir(s) or games.csv path(s)")
     ap.add_argument("--vs", default=None,
                     help="pair every arm against this run dir (same seed+opponent)")
+    ap.add_argument("--team", default=None,
+                    help="score only rows whose `agent` is this team (required for a "
+                         "leaderboard games.csv, which carries BOTH seats of every episode)")
     ap.add_argument("--split", action="store_true",
                     help="also split each arm into YARN / no-YARN games when the "
                          "yarn signal is available in the CSV")
@@ -159,6 +162,15 @@ def main(argv=None):
     arms = []
     for d in args.dirs:
         rows, path = load(d)
+        if args.team:
+            keep = [r for r in rows if (r.get("agent") or "") == args.team]
+            if not keep:
+                print(f"   ! {path}: no rows with agent={args.team!r}; agents="
+                      f"{sorted({(r.get('agent') or '') for r in rows})}")
+            rows = keep or rows
+        elif len({(r.get('agent') or '') for r in rows}) > 2:
+            print(f"   ! {path}: rows span many agents — leaderboard CSV. Pass "
+                  f"--team <name> to score one arm instead of both seats of every episode.")
         arms.append((os.path.basename(os.path.dirname(path)) or d, rows, path))
 
     results = []

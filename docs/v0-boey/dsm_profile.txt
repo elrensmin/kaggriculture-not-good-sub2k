@@ -1,0 +1,450 @@
+
+############ ours  (replay games=96) ############
+-- POOL (what this arm is a sample OF) --
+   replay JSONs 96   games.csv rows 96   episodes 96   opponents 12
+   frame: 12 matchups, games each min 8 / max 8  -> BALANCED
+   episodes 0W 96L 0T   win% 0.0  (self-play excluded)
+   shop mix: YARN_STORE present in 95/96 games
+-- structures per game (endgame mean) --
+   COOP~1.8  PASTURE~6.6
+-- herd per game (day10 / day16 / day29; ladder p10       p25       p50       p75       p90) --
+   d10 COW          2.0       3.0       3.0       4.0       4.0
+   d10 SHEEP        2.0       2.0       3.0       3.0       3.0
+   d10 GOOSE        1.0       1.0       1.0       2.0       2.0
+   d16 COW          4.0       4.0       4.0       5.0       5.0
+   d16 SHEEP        3.0       4.0       4.0       4.0       4.0
+   d16 GOOSE        2.0       2.0       2.0       4.0       4.0
+   d29 COW          4.0       4.0       4.0       5.0       5.0
+   d29 SHEEP        3.0       4.0       4.0       4.0       4.0
+   d29 GOOSE        2.0       2.0       2.0       4.0       4.0
+-- coop builds / land buys by day --
+   coop: {9: 192, 10: 24, 11: 24, 13: 17}
+   land: {8: 96, 11: 60, 12: 12, 13: 120}
+-- quadrant unlock day (median, games with it / total) --
+   NE=8 (96/96)  NW=0 (96/96)  SE=13 (96/96)  SW=11 (96/96)
+-- unit op mix (share) --
+   WEST=20%  EAST=20%  NORTH=13%  SOUTH=10%  WATER=9%  PASS=6%  HARVEST=4%  DROP=3%  FEED=3%  PLANT=3%  CARE=3%  COLLECT_FERTILIZER=3%
+-- selling per game (src=audit): units / px@sell / %at$1 floor --
+                              p10       p25       p50       p75       p90
+   WHEAT       units        114.0     128.0     128.0     145.0     146.0
+               px@sell       39.9      41.2      42.2      42.8      44.5
+               floor%         0.0       0.0       0.0       0.0       0.0
+   CARROT      units         12.0      16.0      20.0      36.0      36.0
+               px@sell       38.8      39.6      49.2      51.6      64.9
+               floor%         0.0       0.0       0.0       0.0       0.0
+   TOMATO      units         48.0      50.0      50.0      52.0      59.0
+               px@sell       68.7      77.2      82.7      89.2     108.4
+               floor%         0.0       0.0       0.0       0.0       0.0
+   STRAWBERRY  units         86.0      90.0      94.0      94.0     100.0
+               px@sell        9.6      53.8     171.5     201.1     224.4
+               floor%         0.0       0.0       0.0      10.6      53.2
+   MELON       units         28.0      28.0      28.0      35.0      36.0
+               px@sell      191.7     192.3     198.0     198.0     198.0
+               floor%         0.0       0.0       0.0       0.0       0.0
+   EGG         units         41.0      52.0      52.0      79.0      83.0
+               px@sell       52.1      52.6      54.4      55.0      56.3
+               floor%         0.0       0.0       0.0       0.0       0.0
+   MILK        units         95.0     100.0     107.0     107.0     108.0
+               px@sell       72.5     117.2     202.3     220.8     233.6
+               floor%         0.0       0.0       0.0       0.0       0.0
+   WOOL        units         75.0      88.0      88.0      94.0      98.0
+               px@sell      124.3     204.5     228.9     230.8     235.4
+               floor%         0.0       0.0       0.0       0.0       9.0
+   FERTILIZER  units        181.0     191.0     192.0     203.0     211.0
+               px@sell       49.9      51.2      52.3      52.7      53.2
+               floor%         0.0       0.0       0.0       0.0       0.0
+-- CROPS per game (mean tiles by day) + max single-crop share --
+   day |    WHEAT  CARROT  TOMATO  STRAWB   MELON   maxshare
+     6 |      0.0     0.0     0.0     6.1     6.0    50.5%
+     9 |     12.2     0.0     0.0    14.0     6.0    43.4%
+    12 |     25.8     0.0     4.0    14.4     5.4    52.0%
+    15 |     31.1     0.0     9.1    25.7     0.0    47.2%
+    18 |     26.6     0.0    12.8    29.2     0.0    42.5%
+    21 |     22.7     3.2    14.4    29.0     0.0    41.8%
+    24 |     24.0     3.6    12.1    23.6     0.0    37.9%
+    27 |     13.0    11.1     5.5    16.8     0.0    36.2%
+-- SHED + CARRIED by day (mean shed end / shed peak / carried end / system peak) --
+   day |   end  peak | carry |  SYSTEM | top items at day end
+     6 |  10.1  16.0 |   1.8 |    16.0 | WHEAT=91%  FERTILIZER=9%
+     9 |   6.6  18.1 |   1.1 |    18.1 | WHEAT=60%  GOOSE=13%  COW=13%
+    12 |  15.5  19.4 |  63.4 |    80.3 | WHEAT=82%  MELON=10%  MILK=5%
+    15 |  14.5  34.5 |  28.4 |    45.1 | WHEAT=99%  FERTILIZER=1%
+    18 |  17.9  61.3 |  29.2 |    61.8 | WHEAT=70%  MILK=21%  FERTILIZER=7%
+    21 |  17.1  72.1 |  40.6 |    75.8 | WHEAT=81%  FERTILIZER=10%  STRAWBERRY=4%
+    24 |  15.4  47.0 |  60.7 |    81.5 | WHEAT=89%  FERTILIZER=6%  MILK=3%
+    27 |  17.6  47.8 |   9.4 |    47.8 | WHEAT=85%  MILK=6%  TOMATO=4%
+                                p10       p25       p50       p75       p90
+   end-of-day SHED             12.1      12.4      13.3      13.3      13.3
+   peak SHED                   76.0      76.0      79.0      88.0      88.0
+   end-of-day CARRIED          20.7      21.7      22.1      24.8      25.5
+   peak SYSTEM                 76.0      79.0      79.0      91.0      91.0
+   NOTE: shed alone understates stock -- the market can only SELL from the
+   shed, so units carried in hands are unsellable until dropped.
+-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --
+   product      <I0   I0..+50  +50..+100   >I0+100 |  END>+100
+   WHEAT           131.8       0.0       0.0       0.0 |       0.0
+   CARROT           24.6       0.0       0.0       0.0 |       0.0
+   TOMATO           51.5       0.0       0.0       0.0 |       0.0
+   STRAWBERRY       57.7      14.9      19.9       0.0 |       0.0
+   MELON             0.0       0.0      30.3       0.0 |       0.0
+   EGG              61.1       0.2       0.0       0.0 |       0.0
+   MILK             75.7      21.9       6.7       0.0 |       0.0
+   WOOL             64.4      21.4       1.4       0.0 |       0.0
+   FERTILIZER        0.0      20.9      20.2     155.6 |     158.9
+-- REVENUE MIX (median per-game share) --
+   MILK=27.7%  WOOL=25.0%  STRAWBERRY=20.5%  FERTILIZER=13.1%  MELON=7.4%  WHEAT=6.9%  TOMATO=5.3%  EGG=3.9%  CARROT=1.4%
+-- WHEAT per game: bought 130  fed 229  sold 132   buy/feed=0.57
+-- GUARDS from games.csv (n=96 episodes; ladder p10       p25       p50       p75       p90; norm = per-opponent median) --
+   idle_units_ready_total           0.0       0.0       0.0       0.0       4.0  |       0.0
+   locked_steps                    78.0      78.0      78.0      88.0      88.0  |      78.0
+   idle_share_pct                   4.7       4.7       4.9       5.1       5.4  |       4.9
+   discarded_units_total            0.0       0.0       0.0       0.0       0.0  |       0.0
+   shed_overflow_days               0.0       0.0       0.0       0.0       0.0  |       0.0
+   stranded_at_bell              1002.0    1052.0    1100.0    1152.0    1170.0  |    1104.0
+   floor_sales                      0.0       0.0       0.0      12.0      50.0  |       7.0
+   animal_escapes                   0.0       0.0       0.0       0.0       0.0  |       0.0
+   at_risk_of_escape                0.0       0.0       0.0       0.0       0.0  |       0.0
+   feed_surplus                  -163.0    -149.0    -126.0    -125.0     -96.0  |    -125.0
+   harvests                       259.0     273.0     279.0     286.0     286.0  |     283.0
+   missed_harvest_eod               7.0       7.0      12.0      13.0      17.0  |      12.0
+   plants_died                     54.0      61.0      65.0      69.0      71.0  |      65.0
+   unwatered_eod                  583.0     590.0     624.0     634.0     635.0  |     634.0
+   unfed_signals                   12.0      12.0      13.0      15.0      15.0  |      13.0
+   weeds_peak                      35.0      39.0      41.0      41.0      52.0  |      41.0
+   sell_revenue_total           70565.0   71941.0   77475.0   91290.0   92895.0  |   77896.0
+-- LEDGER (investment per game; ladder p10       p25       p50       p75       p90; norm = per-opponent median) --
+   seed_cost_total                 7600      7730      7880      8380      8390  |      8380
+   animal_cost_total               4200      4200      4200      4700      4700  |      4200
+   product_cost_total              3924      3995      4432      6267      6633  |      4491
+   hire_cost_total                 7186      7186      7186      7186      7186  |      7186
+   land_cost_total                10000     10000     10000     10000     10000  |     10000
+   input spend (excl. land)       23105     23757     24378     25753     26249
+-- MARGIN (final_money - opponent_final; n=96; ladder p10       p25       p50       p75       p90) --
+   all games                    -120675   -108795   -104670    -89589    -85776
+   losses                       -120675   -108795   -104670    -89589    -85776
+   TARGET READ p10 -120675   max loss -126334   losing < -$4k: 100.0%
+   TARGET READ median win 0   wins > $30k: 0.0%   win% 0.0
+   NORMALISED margin = median of the 12 per-opponent medians: -98759   (best -87395 / worst -104996)
+-- DISTRIBUTIONS across games (ladder p10       p25       p50       p75       p90) --
+   4 quadrants (% of games)             100.0%
+   wheat bought / fed                    0.50      0.50      0.53      0.62      0.66
+   SHEEP max, YARN worlds                 3.0       4.0       4.0       4.0       4.0
+-- structural per day (day CSV MEDIAN [p10-p90]) --
+   day | shed_max(med[p10-p90])  shed_end  weeds   fert   watered  idle%
+     6 |          16.0 [16.0-16.0]   10.0 [10.0-11.0]  1.00 [0.00-2.00]     0.0 [0.0-0.0]     7.0 [7.0-10.0]  34.00 [30.90-36.40]
+     9 |          18.0 [18.0-19.0]      7.0 [5.0-8.0]  3.00 [1.00-3.00]     0.0 [0.0-0.0]   14.0 [11.0-15.0]  6.00 [6.00-16.30]
+    12 |          16.0 [16.0-28.0]   11.0 [10.0-28.0]  7.00 [0.00-7.00]     0.0 [0.0-0.0]   25.0 [24.0-43.0]  0.00 [0.00-0.00]
+    15 |          37.0 [28.0-39.0]    15.0 [9.0-15.0]  8.00 [5.00-11.00]     0.0 [0.0-0.0]   43.0 [37.0-46.0]  0.00 [0.00-0.00]
+    18 |          53.0 [47.0-83.0]   18.0 [11.0-23.0]  11.00 [8.00-20.00]     0.0 [0.0-0.0]   35.0 [27.0-48.0]  0.00 [0.00-0.00]
+    21 |          74.0 [60.0-75.0]   19.0 [11.0-24.0]  14.00 [12.00-23.00]     0.0 [0.0-0.0]   43.0 [33.0-48.0]  0.00 [0.00-0.00]
+    24 |          41.0 [39.0-63.0]   17.0 [10.0-18.0]  21.00 [18.00-32.00]     0.0 [0.0-0.0]   27.0 [24.0-40.0]  0.00 [0.00-0.00]
+    27 |          46.0 [44.0-55.0]   18.0 [15.0-20.0]  27.00 [26.00-38.00]     0.0 [0.0-0.0]   19.0 [14.0-21.0]  0.00 [0.00-0.00]
+-- PER-OPPONENT (12 opponents) --
+   opponent                          idx   n   W   L   T    p10mgn    p50mgn    p90mgn     worst
+   kaggriculture-cloning-agent         1   8   0   8   0   -126334   -104996    -85817   -126334
+   kaggriculture-master-engine-v3      2   8   0   8   0   -120641    -98494    -86287   -120641
+   kaggriculture-one-more-wheat        3   8   0   8   0   -120699    -98555    -86341   -120699
+   kaggriculture-pipe16-idle-worker    4   8   0   8   0   -120675    -98527    -86312   -120675
+   kaggriculture-pipe7-wheat-micros    5   8   0   8   0   -126334   -104996    -85817   -126334
+   kaggriculture-public-state-route    6   8   0   8   0   -125175    -88045    -71376   -125175
+   kaggriculture-reactive-router       7   8   0   8   0   -112268    -87395    -76535   -112268
+   kaggriculture-top-2-master-engin    8   8   0   8   0   -126276   -104670    -85776   -126276
+   kaggriculture-v38-smarter-feed-s    9   8   0   8   0   -125973   -104832    -83848   -125973
+   kaggriculture-v47-reactive-marke   10   8   0   8   0   -126276   -104670    -85776   -126276
+   kaggriculture-v53-opening-signat   11   8   0   8   0   -121078    -98759    -86655   -121078
+   market-smart-farming-kaggricultu   12   8   0   8   0   -126334   -104996    -85817   -126334
+   MEDIAN-OF-PER-OPPONENT-MEDIANS -98759   (best -87395 / worst -104996 over 12 opponents)
+   (aggregate per opponent, THEN average -- a pooled median would fold
+    between-opponent spread into the same number)
+
+############ dsm  (replay games=359) ############
+-- POOL (what this arm is a sample OF) --
+   replay JSONs 359   games.csv rows 361   episodes 359   opponents 148  (+1 self-play)
+   frame: 148 matchups, games each min 1 / max 53  -> UNBALANCED -- read the `norm` column
+   episodes 303W 54L 0T   win% 84.9  (self-play excluded)
+   ! 2 duplicate/self-play row(s) beyond the episode count -- a mirror episode contributes a guaranteed W AND a guaranteed L
+   shop mix: YARN_STORE present in 238/359 games
+-- structures per game (endgame mean) --
+   COOP~5.1  PASTURE~11.2
+-- herd per game (day10 / day16 / day29; ladder p10       p25       p50       p75       p90) --
+   d10 COW          4.0       5.0       7.0      10.0      11.0
+   d10 SHEEP        2.0       3.0       3.0       8.0      12.0
+   d10 GOOSE        3.0       4.0       6.0       9.0      10.0
+   d16 COW          4.0       5.0       7.0      10.0      11.0
+   d16 SHEEP        3.0       3.0       4.0      10.0      13.0
+   d16 GOOSE        3.0       5.0       6.0       9.0      10.0
+   d29 COW          3.0       4.0       6.0       8.0      11.0
+   d29 SHEEP        0.0       0.0       1.0       3.0       5.0
+   d29 GOOSE        3.0       5.0       6.0       9.0      10.0
+-- coop builds / land buys by day --
+   coop: {0: 4, 2: 774, 3: 18, 4: 137, 5: 4, 6: 635, 7: 136, 8: 53, 9: 735, 10: 31, 11: 4, 12: 1, 13: 1, 15: 1, 23: 2, 24: 7, 25: 8}
+   land: {5: 2, 6: 362, 8: 561, 9: 86, 10: 11, 11: 1, 12: 2, 17: 1, 18: 1}
+-- quadrant unlock day (median, games with it / total) --
+   NE=6 (359/359)  NW=0 (359/359)  SE=12 (7/359)  SW=8 (359/359)
+-- unit op mix (share) --
+   WATER=15%  WEST=14%  NORTH=13%  EAST=8%  SOUTH=8%  HARVEST=7%  COLLECT_FERTILIZER=7%  CARE=6%  FEED=6%  PLANT=4%  PASS=3%  FERTILIZE=3%
+-- selling per game (src=action): units / px@sell / %at$1 floor --
+                              p10       p25       p50       p75       p90
+   WHEAT       units       5176.0    5726.0    6786.0    7752.0    8588.0
+               px@sell       30.0      32.9      35.3      37.4      39.2
+               floor%         0.0       0.0       0.0       0.0       0.0
+   CARROT      units        295.0     542.0     968.0    1555.0    2423.0
+               px@sell       31.0      35.7      42.0      49.0      55.0
+               floor%         0.0       0.0       0.0       0.0       0.0
+   STRAWBERRY  units        163.0     257.0     358.0     473.0     563.0
+               px@sell       96.3     131.2     157.7     182.6     201.3
+               floor%         0.0       0.0       0.0       0.0       2.1
+   MELON       units        264.0     293.0     337.0     387.0     448.0
+               px@sell      176.0     185.5     194.6     204.2     212.4
+               floor%         0.0       0.0       0.0       0.0       0.0
+   EGG         units        823.0    1390.0    2025.0    2653.0    3171.0
+               px@sell       41.9      42.7      44.1      46.3      50.9
+               floor%         0.0       0.0       0.0       0.0       0.0
+   MILK        units        351.0     491.0     720.0     990.0    1231.0
+               px@sell       50.0      64.3      87.3     115.3     154.4
+               floor%         0.0       0.0       0.0       2.4       9.9
+   WOOL        units         86.0      97.0     161.0     392.0     627.0
+               px@sell       62.7      71.8     106.8     146.1     189.7
+               floor%         0.0       0.4      10.2      40.5      51.0
+   FERTILIZER  units       4123.0    4355.0    4622.0    4963.0    5245.0
+               px@sell       31.2      34.9      38.3      42.5      46.4
+               floor%         0.0       0.0       0.0       1.0       5.0
+-- CROPS per game (mean tiles by day) + max single-crop share --
+   day |    WHEAT  CARROT  TOMATO  STRAWB   MELON   maxshare
+     6 |      1.2     1.0     0.0     4.3    10.2    61.2%
+     9 |     13.1     6.8     0.0    19.3    11.9    37.8%
+    12 |     26.2     5.9     0.0    22.7     5.0    43.8%
+    15 |     24.3     6.4     0.0    25.9     2.2    44.0%
+    18 |     22.1     9.0     0.0    26.5     1.8    44.5%
+    21 |     23.4    11.8     0.0    22.1     1.1    40.0%
+    24 |     31.2    15.5     0.0     8.8     1.0    55.2%
+    27 |     25.2    22.1     0.0     4.5     1.0    47.7%
+-- SHED + CARRIED by day (mean shed end / shed peak / carried end / system peak) --
+   day |   end  peak | carry |  SYSTEM | top items at day end
+     6 |   2.1  24.3 |   4.1 |    35.9 | WHEAT=96%  FERTILIZER=3%  GOOSE=1%
+     9 |  16.0  44.5 |  29.8 |    58.3 | WHEAT=97%  FERTILIZER=1%  WOOL=1%
+    12 |   8.8  61.4 |  74.3 |    97.7 | WHEAT=87%  WOOL=5%  FERTILIZER=5%
+    15 |   7.1  77.9 |  73.1 |    95.7 | WHEAT=59%  WOOL=31%  STRAWBERRY=5%
+    18 |   8.7  81.8 |  76.7 |   104.3 | WOOL=56%  WHEAT=30%  STRAWBERRY=11%
+    21 |  16.0  86.4 |  73.1 |   107.0 | STRAWBERRY=63%  WOOL=31%  WHEAT=6%
+    24 |  24.1  92.4 |  72.2 |   114.2 | STRAWBERRY=87%  WOOL=11%  WHEAT=2%
+    27 |  17.0  90.9 |  70.6 |   107.2 | STRAWBERRY=78%  WOOL=17%  WHEAT=2%
+                                p10       p25       p50       p75       p90
+   end-of-day SHED              5.6       8.0      10.2      13.1      15.8
+   peak SHED                   95.0      97.0     100.0     100.0     100.0
+   end-of-day CARRIED          43.3      45.6      48.6      51.4      53.9
+   peak SYSTEM                120.0     127.0     138.0     148.0     157.0
+   NOTE: shed alone understates stock -- the market can only SELL from the
+   shed, so units carried in hands are unsellable until dropped.
+-- MARKET INVENTORY AT SELL (units by START bucket; END=-of-order >I0+100) --
+   product      <I0   I0..+50  +50..+100   >I0+100 |  END>+100
+   WHEAT          6002.3     291.7     193.8     340.7 |       0.0
+   CARROT         1000.5     103.3      54.1      15.1 |       0.0
+   STRAWBERRY      294.0      63.1      12.6       0.0 |       0.0
+   MELON            39.3      97.6     111.6      99.6 |       0.0
+   EGG             432.8     513.8     316.4     766.4 |       0.0
+   MILK            202.7     325.2     243.1       0.0 |       0.0
+   WOOL            105.1     107.4      69.7       0.0 |       0.0
+   FERTILIZER        7.5     125.2     164.0    4363.5 |       0.0
+-- REVENUE MIX -- unavailable: leaderboard replays carry no market audit, so
+   every per-day revenue_<product> column is 0. Use
+   `python -m tools.report.dsm_flows --summary` for DSM's mix (modelled).
+-- WHEAT per game: bought 3520  fed 421  sold 6829   buy/feed=8.36
+-- GUARDS from games.csv (n=357 episodes; ladder p10       p25       p50       p75       p90; norm = per-opponent median) --
+   idle_units_ready_total           2.0       4.0       7.0      10.0      15.0  |       8.0
+   locked_steps                   172.0     179.0     188.0     198.0     208.0  |     190.0
+   idle_share_pct                   2.0       2.2       2.5       2.9       3.2  |       2.6
+   discarded_units_total            0.0       0.0       0.0       0.0       0.0  |       0.0
+   shed_overflow_days               0.0       0.0       1.0       2.0       4.0  |       1.0
+   stranded_at_bell                 0.0       0.0       0.0       0.0      15.0  |       0.0
+   floor_sales                     10.0      29.0      58.0     112.0     281.0  |      80.0
+   animal_escapes                   2.0       3.0       6.0       8.0      11.0  |       6.0
+   at_risk_of_escape                0.0       0.0       0.0       0.0       0.0  |       0.0
+   feed_surplus                  1491.0    2093.0    3021.0    4158.0    4776.0  |    2474.0
+   harvests                       497.0     510.0     529.0     549.0     566.0  |     537.0
+   missed_harvest_eod               0.0       1.0       2.0       4.0       6.0  |       2.0
+   plants_died                      4.0       6.0       9.0      14.0      19.0  |      11.0
+   unwatered_eod                  439.0     460.0     481.0     503.0     520.0  |     479.0
+   unfed_signals                   39.0      49.0      61.0      76.0      86.0  |      63.0
+   weeds_peak                       2.0       3.0       4.0       6.0       8.0  |       5.0
+   sell_revenue_total               0.0       0.0       0.0       0.0       0.0  | no market audit on these replays
+-- LEDGER (investment per game; ladder p10       p25       p50       p75       p90; norm = per-opponent median) --
+   seed_cost_total                 7460      8220      9320     10500     11440  |      9300
+   animal_cost_total               9100     10300     11900     15200     19700  |     12000
+   product_cost_total            107226    132299    153863    179275    207495  |    149271
+   hire_cost_total                 4318      4564      4844      5284      5763  |      4905
+   input spend (excl. land)      135799    161243    180711    206207    236064
+-- MARGIN (final_money - opponent_final; n=357; ladder p10       p25       p50       p75       p90) --
+   all games                      -1860      2543      9867     21916     31521
+   wins                            2242      5234     13663     23366     32875
+   losses                        -11826     -5557     -2954     -1528      -359
+   TARGET READ p10 -1860   max loss -21468   losing < -$4k: 6.4%
+   TARGET READ median win 13663   wins > $30k: 12.9%   win% 84.9
+   NORMALISED margin = median of the 148 per-opponent medians: 23101   (best 132815 / worst -8375)
+-- DISTRIBUTIONS across games (ladder p10       p25       p50       p75       p90) --
+   4 quadrants (% of games)             1.9%
+   wheat bought / fed                    5.64      6.85      8.40     10.08     11.89
+   SHEEP max, YARN worlds                 3.0       5.0      10.0      12.0      15.0
+-- structural per day (day CSV MEDIAN [p10-p90]) --
+   day | shed_max(med[p10-p90])  shed_end  weeds   fert   watered  idle%
+     6 |          24.0 [17.0-32.0]      1.0 [0.0-6.0]  0.00 [0.00-0.00]     0.0 [0.0-0.0]   30.0 [27.0-33.0]  3.90 [1.70-6.50]
+     9 |          44.0 [30.0-61.0]    13.0 [2.0-35.0]  0.00 [0.00-0.00]     0.0 [0.0-0.0]   32.0 [28.0-36.0]  3.50 [0.80-6.90]
+    12 |          60.0 [47.0-76.0]     5.0 [0.0-23.0]  0.00 [0.00-0.00]     7.0 [4.0-9.0]   49.0 [43.0-55.0]  1.50 [0.40-3.60]
+    15 |          78.0 [65.0-91.0]     4.0 [0.0-18.0]  0.00 [0.00-1.00]  19.0 [12.0-23.0]   47.0 [41.0-51.0]  0.80 [0.00-2.20]
+    18 |          82.0 [68.0-94.0]     7.0 [0.0-19.0]  0.00 [0.00-1.00]   10.0 [6.0-14.0]   34.0 [24.0-44.0]  0.70 [0.00-2.20]
+    21 |          88.0 [74.0-97.0]    14.0 [2.0-33.0]  0.00 [0.00-2.00]   12.0 [8.0-15.0]   48.0 [41.0-54.0]  0.70 [0.00-2.00]
+    24 |         94.0 [82.0-100.0]    23.0 [6.0-41.0]  0.00 [0.00-2.00]  15.0 [11.0-19.0]   49.0 [43.0-55.0]  0.70 [0.00-1.60]
+    27 |         93.0 [80.0-100.0]    14.0 [2.0-36.0]  0.00 [0.00-2.00]  15.0 [12.0-19.0]   37.0 [32.0-41.0]  0.90 [0.00-2.40]
+-- PER-OPPONENT (149 opponents) --
+   opponent                          idx   n   W   L   T    p10mgn    p50mgn    p90mgn     worst
+   DSM                                    53  34  19   0     -4681      1537      6002    -12637
+   M & M & P & Q                          31  20  11   0     -2401      2926      6194    -21468
+   DECEM                                  24  17   7   0    -11826      3593      8639    -17223
+   Unknown Mother-Goose                   24  20   4   0     -1250      5499     13184     -2392
+   Vadim Vasilenko                        13  12   1   0      3815      7781     12872     -4732
+   Kaggledew Valley 🏆                     12  12   0   0      2793     11401     16509      1719
+   吃白饭的大肥鱼                                12   8   4   0     -6981      5587     15284    -14666
+   Fourth Quadrant                         8   3   5   0     -8071      -310      3836     -8071
+   Majkel1337                              5   5   0   0      3268      8532     15074      3268
+   THIRD FARM CLUB                         5   5   0   0       251     14128     19995       251
+   mtmr_s1                                 5   5   0   0      1339      6280     19419      1339
+   Azat Akhtyamov                          4   4   0   0      4824     12115     12818      4824
+   Navier-stokes                           4   4   0   0      8058     17383     30135      8058
+   ymg_aq                                  4   4   0   0      6892     13605     14516      6892
+   HowardLeeTW                             3   3   0   0     11077     14731     21076     11077
+   ShunkiKyoya                             3   3   0   0     20145     20674     43341     20145
+   midnq                                   3   2   1   0     -9073     20947     24733     -9073
+   AI是我的豆包                                 2   2   0   0     15279     18432     18432     15279
+   Densike                                 2   2   0   0     16736     18527     18527     16736
+   Otter Vibe                              2   2   0   0     13143     21599     21599     13143
+   QQ农场                                    2   2   0   0     20675     26125     26125     20675
+   Sida Zuo                                2   2   0   0     13459     22644     22644     13459
+   Smackaveli                              2   2   0   0     10414     18768     18768     10414
+   TheEggman                               2   2   0   0      7496     19415     19415      7496
+   Yannik Schiffner                        2   2   0   0      5408     15324     15324      5408
+   feles99                                 2   2   0   0     19437     20492     20492     19437
+   marwar22                                2   2   0   0     16488     26259     26259     16488
+   tetsuya & yuanzhe & guoqin              2   2   0   0      9346     10401     10401      9346
+   tw1nstar                                2   2   0   0     19651     34805     34805     19651
+   yomogii                                 2   2   0   0     25804     26670     26670     25804
+   Abdoul Ahad Diop                        1   1   0   0     36315     36315     36315     36315
+   Alan T. Andrea                          1   1   0   0     74224     74224     74224     74224
+   Ange Adantchede                         1   1   0   0    124172    124172    124172    124172
+   Artem The Farmer 🍅                      1   1   0   0     20935     20935     20935     20935
+   Asterios Terzis                         1   1   0   0     21466     21466     21466     21466
+   Batuhan Ustun                           1   1   0   0     24724     24724     24724     24724
+   Berat Erol ÇELİK                        1   1   0   0     12378     12378     12378     12378
+   Bob Gerry                               1   1   0   0     62851     62851     62851     62851
+   Brian Chua                              1   1   0   0     16816     16816     16816     16816
+   Civitasmass                             1   1   0   0     23101     23101     23101     23101
+   DL                                      1   1   0   0     22185     22185     22185     22185
+   DeeSaa                                  1   1   0   0     32232     32232     32232     32232
+   DeeperNet                               1   1   0   0     16775     16775     16775     16775
+   Dom Bavuso                              1   1   0   0     20810     20810     20810     20810
+   Dote                                    1   1   0   0    132815    132815    132815    132815
+   Ender                                   1   1   0   0     31632     31632     31632     31632
+   Evil Mango                              1   1   0   0     30131     30131     30131     30131
+   FinalSunFlower                          1   1   0   0     19767     19767     19767     19767
+   Freddy                                  1   1   0   0     20760     20760     20760     20760
+   FrederikZ                               1   1   0   0     76303     76303     76303     76303
+   GanadorPlusUltra                        1   1   0   0     21916     21916     21916     21916
+   Gappy                                   1   1   0   0     22879     22879     22879     22879
+   Han Chen                                1   1   0   0     32875     32875     32875     32875
+   Hangyu Yu                               1   1   0   0     29468     29468     29468     29468
+   Hello San Francisco                     1   1   0   0     19080     19080     19080     19080
+   Hengxiang Yu                            1   1   0   0     72356     72356     72356     72356
+   Iskander Yusupov                        1   1   0   0     25484     25484     25484     25484
+   Iswar Patra                             1   1   0   0     23366     23366     23366     23366
+   JALKARNA GAUTAM                         1   1   0   0     31521     31521     31521     31521
+   JAZ COLD HORN                           1   1   0   0     33927     33927     33927     33927
+   James Holland                           1   1   0   0     82233     82233     82233     82233
+   Jeel Gajera                             1   1   0   0     77251     77251     77251     77251
+   Jiang                                   1   1   0   0     51575     51575     51575     51575
+   Juan David Bolanos                      1   1   0   0     62626     62626     62626     62626
+   Kaggriculture Agent                     1   1   0   0     25595     25595     25595     25595
+   KawattaTaido                            1   1   0   0     13663     13663     13663     13663
+   Kenan Zhang9                            1   1   0   0     23470     23470     23470     23470
+   Knight of Favonius                      1   1   0   0     32457     32457     32457     32457
+   Korokke3                                1   1   0   0     24429     24429     24429     24429
+   Kurokawa                                1   0   1   0     -5215     -5215     -5215     -5215
+   Lazyman                                 1   1   0   0     22982     22982     22982     22982
+   Less                                    1   1   0   0     11011     11011     11011     11011
+   Maciek Kiryla                           1   1   0   0      8848      8848      8848      8848
+   Manish Kumar Maurya                     1   1   0   0     17641     17641     17641     17641
+   Mohamed Salah                           1   1   0   0     23611     23611     23611     23611
+   Muhammed selim Bilic                    1   1   0   0     54659     54659     54659     54659
+   Một hai ba bốn 5 sáu bảy tám 9          1   1   0   0     21394     21394     21394     21394
+   Nguyễn Công Tuấn                        1   1   0   0     29487     29487     29487     29487
+   OceanMix                                1   1   0   0     23836     23836     23836     23836
+   Orbital Terraformer                     1   1   0   0     19478     19478     19478     19478
+   Planned Economy                         1   1   0   0     29943     29943     29943     29943
+   RS Turley                               1   1   0   0     16146     16146     16146     16146
+   RYUSHI                                  1   1   0   0     23954     23954     23954     23954
+   Ramazan Turan                           1   1   0   0     33177     33177     33177     33177
+   RangerSnow                              1   1   0   0     24282     24282     24282     24282
+   Rishabh Roy                             1   1   0   0     45278     45278     45278     45278
+   Romuald Delene                          1   1   0   0     19242     19242     19242     19242
+   Ryutaro Tsujii                          1   1   0   0     38532     38532     38532     38532
+   Rômulo Siqueira                         1   1   0   0     34099     34099     34099     34099
+   ScotLee08                               1   1   0   0     11204     11204     11204     11204
+   Scott Willis                            1   1   0   0     28066     28066     28066     28066
+   Seva Gusev                              1   1   0   0     10732     10732     10732     10732
+   Shawn404                                1   1   0   0     23077     23077     23077     23077
+   Sirui Zeng                              1   1   0   0     21364     21364     21364     21364
+   Snorlax                                 1   1   0   0     24782     24782     24782     24782
+   SpaTaro                                 1   1   0   0     28971     28971     28971     28971
+   Subramanya N                            1   1   0   0     15875     15875     15875     15875
+   Suda                                    1   1   0   0     30032     30032     30032     30032
+   ToastUz                                 1   1   0   0     24115     24115     24115     24115
+   Yagawa                                  1   1   0   0     33455     33455     33455     33455
+   Yizhou                                  1   1   0   0     17578     17578     17578     17578
+   YumeNeko                                1   1   0   0     26194     26194     26194     26194
+   Zhiqi Liu                               1   1   0   0     53181     53181     53181     53181
+   amosokello451                           1   1   0   0     27117     27117     27117     27117
+   arutyunoff                              1   1   0   0     20966     20966     20966     20966
+   azamat1ch                               1   1   0   0     23039     23039     23039     23039
+   cjc0013                                 1   1   0   0     40298     40298     40298     40298
+   crasal                                  1   1   0   0     17826     17826     17826     17826
+   delai50                                 1   1   0   0     17644     17644     17644     17644
+   dodsters                                1   1   0   0     23260     23260     23260     23260
+   dreamcxy                                1   1   0   0    100494    100494    100494    100494
+   easygame                                1   1   0   0     24493     24493     24493     24493
+   hank0123                                1   1   0   0     24966     24966     24966     24966
+   haseryooooo                             1   1   0   0     26174     26174     26174     26174
+   high frequency farming                  1   1   0   0     42457     42457     42457     42457
+   hiroshi murakami                        1   1   0   0     20626     20626     20626     20626
+   in blue                                 1   1   0   0     32925     32925     32925     32925
+   iring58                                 1   1   0   0     20049     20049     20049     20049
+   koren sabag                             1   1   0   0     21677     21677     21677     21677
+   kuro0315                                1   1   0   0     23927     23927     23927     23927
+   kwa                                     1   1   0   0     17052     17052     17052     17052
+   kwon yong deuk                          1   1   0   0     36537     36537     36537     36537
+   maverick_ss_26                          1   1   0   0     32111     32111     32111     32111
+   mogura2.0                               1   1   0   0     26972     26972     26972     26972
+   motemen                                 1   1   0   0      2525      2525      2525      2525
+   orangeaugust                            1   1   0   0     38606     38606     38606     38606
+   pig7selene                              1   1   0   0     21055     21055     21055     21055
+   qorlin                                  1   1   0   0     19776     19776     19776     19776
+   quantara.cv                             1   1   0   0     29119     29119     29119     29119
+   rhythm master                           1   1   0   0     22688     22688     22688     22688
+   rkd                                     1   1   0   0     23074     23074     23074     23074
+   sdy623                                  1   1   0   0     23797     23797     23797     23797
+   shakedamo0w0                            1   1   0   0     22895     22895     22895     22895
+   shiiin9                                 1   1   0   0      7956      7956      7956      7956
+   shin0000                                1   0   1   0     -8375     -8375     -8375     -8375
+   shyjin                                  1   1   0   0     25597     25597     25597     25597
+   spark328                                1   1   0   0     13526     13526     13526     13526
+   sssskilo                                1   1   0   0     37771     37771     37771     37771
+   takemo                                  1   1   0   0     20012     20012     20012     20012
+   tangaii                                 1   1   0   0     26920     26920     26920     26920
+   tyz123456                               1   1   0   0     22991     22991     22991     22991
+   wiki Alexander                          1   1   0   0     34334     34334     34334     34334
+   zero waste                              1   1   0   0     25064     25064     25064     25064
+   アメリカ農業研究会                               1   1   0   0     27674     27674     27674     27674
+   加油                                      1   1   0   0     42646     42646     42646     42646
+   寒月千逸                                    1   1   0   0     23340     23340     23340     23340
+   闰土和‌猹‌                                  1   1   0   0     15644     15644     15644     15644
+   𝕯𝖊𝖔𝖉𝖎𝖒𝖘 & 𝕮𝖔                            1   1   0   0     26580     26580     26580     26580
+   MEDIAN-OF-PER-OPPONENT-MEDIANS 23101   (best 132815 / worst -8375 over 148 opponents)
+   (aggregate per opponent, THEN average -- a pooled median would fold
+    between-opponent spread into the same number)

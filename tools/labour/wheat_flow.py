@@ -22,6 +22,14 @@ Usage
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import collections
 import glob as globmod
@@ -155,7 +163,10 @@ def main(argv=None):
     ap.add_argument("--dsm-dir", default="replays/DSM/v1")
     ap.add_argument("--dsm-max", type=int, default=4)
     ap.add_argument("--compare", action="store_true")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     ns = ap.parse_args(argv)
+    team_mod.set_team(ns.team)
 
     global _WINDOW
     _WINDOW = parse_days(ns.days)

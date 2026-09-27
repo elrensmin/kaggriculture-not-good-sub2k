@@ -1,293 +1,293 @@
-scratch_vs_kaggriculture-cloning-agent_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837468.json: idle-hand events=1107  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1107}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-cloning-agent_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837468.json: idle-hand events=1124  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1124}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-master-engine-v3_seed4362837469.json: idle-hand events=1039  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1039}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837463.json: idle-hand events=1044  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1044}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837464.json: idle-hand events=1105  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1105}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837468.json: idle-hand events=1113  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1113}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-one-more-wheat_seed4362837469.json: idle-hand events=1098  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1098}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837463.json: idle-hand events=1204  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1204}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837468.json: idle-hand events=1280  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1280}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837469.json: idle-hand events=976  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 976}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837468.json: idle-hand events=1107  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1107}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837462.json: idle-hand events=1132  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1132}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837464.json: idle-hand events=1092  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1092}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837465.json: idle-hand events=1099  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1099}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837468.json: idle-hand events=1057  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1057}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837469.json: idle-hand events=1100  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1100}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837463.json: idle-hand events=1288  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1288}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837464.json: idle-hand events=1097  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1097}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837465.json: idle-hand events=1099  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1099}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837468.json: idle-hand events=1001  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1001}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-reactive-router_seed4362837469.json: idle-hand events=1080  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1080}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837468.json: idle-hand events=1107  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1107}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837463.json: idle-hand events=1288  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1288}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837464.json: idle-hand events=1097  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1097}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837468.json: idle-hand events=1070  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1070}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837469.json: idle-hand events=1064  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1064}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837468.json: idle-hand events=1107  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1107}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837468.json: idle-hand events=1030  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1030}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_kaggriculture-v53-opening-signature_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837462.json: idle-hand events=1134  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1134}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837463.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837464.json: idle-hand events=1109  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1109}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837465.json: idle-hand events=1139  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1139}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837466.json: idle-hand events=1130  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1130}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837467.json: idle-hand events=1075  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1075}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837468.json: idle-hand events=1107  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1107}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-scratch_vs_market-smart-farming-kaggriculture_seed4362837469.json: idle-hand events=1153  {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 1153}
-    e.g. hand4 day0 step16 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
-    e.g. hand4 day0 step17 @(0, 3) forfeit=0 next=['PASS', 'PASS', 'PASS', 'PASS', 'PASS', 'PASS']
+scratch_vs_kaggriculture-cloning-agent_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-cloning-agent_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837462.json: idle-hand events=393  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 391}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837463.json: idle-hand events=378  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 376}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-master-engine-v3_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837462.json: idle-hand events=393  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 391}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837463.json: idle-hand events=378  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 376}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-one-more-wheat_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837462.json: idle-hand events=393  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 391}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837463.json: idle-hand events=378  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 376}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe16-idle-workers_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837464.json: idle-hand events=430  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 428}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-public-state-router-74-5-win-rate_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837462.json: idle-hand events=393  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 391}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837463.json: idle-hand events=378  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 376}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837464.json: idle-hand events=434  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 432}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837467.json: idle-hand events=408  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 406}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837468.json: idle-hand events=409  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 407}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-reactive-router_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-top-2-master-engine-v4_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v38-smarter-feed-stronger-margins_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v47-reactive-market-coordination_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837462.json: idle-hand events=393  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 391}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837463.json: idle-hand events=378  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 376}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_kaggriculture-v53-opening-signature_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837462.json: idle-hand events=405  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 403}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837463.json: idle-hand events=376  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 374}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837464.json: idle-hand events=444  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 442}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837465.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837466.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837467.json: idle-hand events=410  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 408}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837468.json: idle-hand events=396  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 394}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
+scratch_vs_market-smart-farming-kaggriculture_seed4362837469.json: idle-hand events=375  {'HIGH_LEVERAGE(>=50)': 2, 'MID(15-49)': 0, 'LOW(<15)': 373}
+    e.g. hand4 day1 step31 @(4, 2) forfeit=209 next=['PASS', 'CARE', 'PASS', 'PASS', 'PASS', 'PASS']
+    e.g. hand3 day1 step25 @(5, 5) forfeit=172 next=['PASS', 'WEST', 'NORTH', 'NORTH', 'COLLECT_FERTILIZER', 'SOUTH']
 
 === AGGREGATE over 96 games, horizon=8 ===
-  idle-hand events total: 107338
-  buckets: {'HIGH_LEVERAGE(>=50)': 0, 'MID(15-49)': 0, 'LOW(<15)': 107338}
-  -> 0% of idle hands are about to do HIGH-leverage work (rerouting them is destructive); 100% are LOW/MID (potentially free to reroute).
+  idle-hand events total: 37809
+  buckets: {'HIGH_LEVERAGE(>=50)': 192, 'MID(15-49)': 0, 'LOW(<15)': 37617}
+  -> 1% of idle hands are about to do HIGH-leverage work (rerouting them is destructive); 99% are LOW/MID (potentially free to reroute).

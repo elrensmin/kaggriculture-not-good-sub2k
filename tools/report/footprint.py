@@ -27,6 +27,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import csv
 import glob as globmod
@@ -63,9 +71,9 @@ def _csv_perday(paths, agent):
 
 def _dsm_seat(rep):
     names = (rep.get("info") or {}).get("TeamNames") or ["", ""]
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return i
+    hits = team_mod.seats_of_names(names)
+    if hits:
+        return hits[0]
     steps = rep["steps"]
     for i in range(len(steps) - 1, -1, -1):
         si = steps[i]
@@ -270,7 +278,10 @@ def main():
                     help="print per-day COW/SHEEP/GOOSE over ALL replays (parallel)")
     ap.add_argument("--animal-rev", action="store_true",
                     help="print animal-product units/revenue/avg_price per game")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
     dsm = _dsm_dir(args.dsm_dir)
 
     if args.animal_rev:
@@ -305,7 +316,7 @@ def main():
     if "dsm" in want:
         profiles.append(profile(
             "dsm", f"{dsm}/days_seed*.csv", f"{dsm}/*.json",
-            "DSM", _dsm_seat, args.max_games))
+            team_mod.get(), _dsm_seat, args.max_games))
     for p in profiles:
         print_profile(p)
 

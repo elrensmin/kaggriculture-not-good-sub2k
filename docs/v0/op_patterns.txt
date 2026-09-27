@@ -1,90 +1,101 @@
 op_patterns — act-run structure and per-op chaining, ours vs DSM
-ours: diag-replays/v0-us  (96 games)
-dsm : replays/DSM/v1  (12 games, capped 12)
+ours: diag-replays/v1-us  (96 games)
+dsm : replays/DSM/v1  (123 games, capped 123)
 
-############ ours  (unit-turns 669,342) ############
-  acts 148,764  moves 404,855  PASS 115,723   -> moves/act 2.72
-  runs (consecutive acts with no MOVE between): 112,801   mean run length 1.32
+############ ours  (unit-turns 711,972) ############
+  acts 221,763  moves 450,995  PASS 39,214   -> moves/act 2.03
+  runs (consecutive acts with no MOVE between): 156,703   mean run length 1.42
   -- run-length distribution --
       len      runs  acts in them  % of acts
-        1    88,316        88,316      59.4%
-        2    17,031        34,062      22.9%
-        3     3,540        10,620       7.1%
-        4     3,804        15,216      10.2%
-        5       110           550       0.4%
-     acts sitting in a run of >=2:  40.6%
-     acts sitting in a run of >=3:  17.7%
-     acts sitting in a run of >=4:  10.6%
+        1   109,426       109,426      49.3%
+        2    32,652        65,304      29.4%
+        3    12,906        38,718      17.5%
+        4       986         3,944       1.8%
+        5       419         2,095       0.9%
+        6       119           714       0.3%
+        7        43           301       0.1%
+        8       137         1,096       0.5%
+       8+       152         1,261       0.6%
+     acts sitting in a run of >=2:  50.7%
+     acts sitting in a run of >=3:  21.2%
+     acts sitting in a run of >=4:   3.7%
   -- what immediately follows a productive act --
-     ACT      35,963  ( 24.2%)
-     MOVE    105,066  ( 70.6%)
-     PASS      3,816  (  2.6%)
-     END       3,919  (  2.6%)
+     ACT      65,060  ( 29.3%)
+     MOVE    145,832  ( 65.8%)
+     PASS      3,313  (  1.5%)
+     END       7,558  (  3.4%)
   -- per-act-type: share immediately followed by another ACT --
-     PLANT                   23,945  chained  75.3%
-     HARVEST                 14,520  chained  41.9%
-     DIG                     12,601  chained  30.7%
-     WATER                   93,445  chained   8.2%
-     DROP                     4,253  chained   7.6%
+     PLANT                   20,075  chained  88.5%
+     PLACE                    1,030  chained  59.9%
+     CARE                    19,186  chained  59.7%
+     PICKUP                  16,926  chained  59.3%
+     HARVEST                 26,574  chained  51.9%
+     COLLECT_FERTILIZER      18,887  chained  22.2%
+     DROP                    23,272  chained  20.3%
+     DIG                      6,758  chained  19.9%
+     FEED                    21,956  chained   5.0%
+     WATER                   66,069  chained   0.0%
+     BUILD_PASTURE              773  chained   0.0%
+     BUILD_COOP                 257  chained   0.0%
 
-############ dsm  (unit-turns 89,671) ############
-  acts 48,733  moves 37,536  PASS 3,402   -> moves/act 0.77
-  runs (consecutive acts with no MOVE between): 25,125   mean run length 1.94
+############ dsm  (unit-turns 914,964) ############
+  acts 501,925  moves 380,119  PASS 32,920   -> moves/act 0.76
+  runs (consecutive acts with no MOVE between): 257,856   mean run length 1.95
   -- run-length distribution --
       len      runs  acts in them  % of acts
-        1    11,477        11,477      23.6%
-        2     7,424        14,848      30.5%
-        3     2,942         8,826      18.1%
-        4     3,005        12,020      24.7%
-        5       121           605       1.2%
-        6       139           834       1.7%
-        7        15           105       0.2%
-        8         1             8       0.0%
-       8+         2            18       0.0%
-     acts sitting in a run of >=2:  76.4%
-     acts sitting in a run of >=3:  46.0%
-     acts sitting in a run of >=4:  27.9%
+        1   116,276       116,276      23.2%
+        2    77,584       155,168      30.9%
+        3    30,052        90,156      18.0%
+        4    31,051       124,204      24.7%
+        5     1,452         7,260       1.4%
+        6     1,250         7,500       1.5%
+        7       169         1,183       0.2%
+        8        21           168       0.0%
+       8+        22           178       0.0%
+     acts sitting in a run of >=2:  76.8%
+     acts sitting in a run of >=3:  45.9%
+     acts sitting in a run of >=4:  28.0%
   -- what immediately follows a productive act --
-     ACT      23,608  ( 48.4%)
-     MOVE     23,019  ( 47.2%)
-     PASS        391  (  0.8%)
-     END       1,715  (  3.5%)
+     ACT     244,069  ( 48.6%)
+     MOVE    236,113  ( 47.0%)
+     PASS      3,959  (  0.8%)
+     END      17,784  (  3.5%)
   -- per-act-type: share immediately followed by another ACT --
-     BUILD_COOP                  96  chained 100.0%
-     PLANT                    3,491  chained  99.3%
-     BUILD_PASTURE              194  chained  94.8%
-     FEED                     4,637  chained  89.6%
-     FERTILIZE                2,683  chained  86.1%
-     DIG                        531  chained  81.7%
-     CARE                     4,671  chained  63.2%
-     HARVEST                  7,103  chained  53.1%
-     PLACE                    1,110  chained  50.9%
-     DROP                       818  chained  49.8%
-     PICKUP                   2,292  chained  39.5%
-     WATER                   15,445  chained  20.8%
-     COLLECT_FERTILIZER       5,662  chained  20.4%
+     PLANT                   36,626  chained  99.4%
+     BUILD_COOP                 808  chained  99.0%
+     BUILD_PASTURE            2,077  chained  96.1%
+     FEED                    46,720  chained  89.4%
+     FERTILIZE               29,123  chained  86.7%
+     DIG                      5,268  chained  82.0%
+     CARE                    47,131  chained  63.2%
+     HARVEST                 72,805  chained  52.7%
+     PLACE                   11,437  chained  50.3%
+     DROP                     8,019  chained  47.1%
+     PICKUP                  23,512  chained  39.9%
+     WATER                  160,599  chained  21.8%
+     COLLECT_FERTILIZER      57,800  chained  19.7%
 
 ---- raw op trace: ours, day 12 ----
-     unit 5  (23 turns; 9 acts)
-       h01@5,4:WEST  h02@4,4:WEST  h03@3,4:WATER:TOMATO  h04@3,4:WEST
-       h05@2,4:WATER:WHEAT  h06@2,4:HARVEST:WHEAT  h07@2,4:PLANT:WHEAT  h08@2,4:WATER:WHEAT
-       h09@2,4:WEST  h10@1,4:WATER:WHEAT  h11@1,4:HARVEST:WHEAT  h12@1,4:PLANT:TOMATO
-       h13@1,4:EAST  h14@2,4:EAST  h15@3,4:EAST  h16@4,4:DROP
-       h17@4,4:EAST  h18@5,4:EAST  h19@6,4:PASS  h20@6,4:PASS
-       h21@6,4:PASS  h22@6,4:PASS  h23@6,4:PASS
+     unit 0  (24 turns; 11 acts)
+       h00@4,4:PICKUP:WHEAT  h01@4,4:FEED  h02@4,4:NORTH  h03@4,3:FEED
+       h04@4,3:NORTH  h05@4,2:FEED  h06@4,2:EAST  h07@5,2:FEED
+       h08@5,2:EAST  h09@6,2:SOUTH  h10@6,3:FEED  h11@6,3:WEST
+       h12@5,3:WEST  h13@4,3:WEST  h14@3,3:WEST  h15@2,3:NORTH
+       h16@2,2:NORTH  h17@2,1:NORTH  h18@2,0:HARVEST:MELON  h19@2,0:PLANT:STRAWBERRY
+       h20@2,0:WATER:STRAWBERRY  h21@2,0:WEST  h22@1,0:DIG  h23@1,0:PLANT:STRAWBERRY
 
 ---- raw op trace: dsm, day 12 ----
-     unit 8  (23 turns; 16 acts)
-       h01@5,5:EAST  h02@6,5:WATER  h03@6,5:EAST  h04@7,5:WATER
-       h05@7,5:NORTH  h06@7,4:COLLECT_FERTILIZER  h07@7,4:NORTH  h08@7,3:COLLECT_FERTILIZER
-       h09@7,3:NORTH  h10@7,2:WATER  h11@7,2:HARVEST  h12@7,2:PLANT:WHEAT
-       h13@7,2:WATER  h14@7,2:EAST  h15@8,2:WATER  h16@8,2:HARVEST
-       h17@8,2:PLANT:WHEAT  h18@8,2:WATER  h19@8,2:NORTH  h20@8,1:WATER
-       h21@8,1:HARVEST  h22@8,1:PLANT:STRAWBERRY  h23@8,1:WATER
+     unit 0  (24 turns; 16 acts)
+       h00@4,4:NORTH  h01@4,3:HARVEST  h02@4,3:SOUTH  h03@4,4:DROP
+       h04@4,4:PICKUP:WHEAT  h05@4,4:FEED  h06@4,4:CARE  h07@4,4:WEST
+       h08@3,4:FEED  h09@3,4:CARE  h10@3,4:COLLECT_FERTILIZER  h11@3,4:SOUTH
+       h12@3,5:SOUTH  h13@3,6:WATER  h14@3,6:HARVEST  h15@3,6:PLANT:CARROT
+       h16@3,6:WATER  h17@3,6:SOUTH  h18@3,7:WATER  h19@3,7:WEST
+       h20@2,7:FERTILIZE  h21@2,7:WATER  h22@2,7:WEST  h23@1,7:WATER
 
 ############ side by side ############
    metric                          ours         dsm
-   unit-turns / game           6,972.31    7,472.58
-   moves/act                       2.72        0.77
-   mean act-run length             1.32        1.94
-   act -> ACT next %              24.17       48.44
+   unit-turns / game           7,416.38    7,438.73
+   moves/act                       2.03        0.76
+   mean act-run length             1.42        1.95
+   act -> ACT next %              29.34       48.63

@@ -31,6 +31,8 @@ Usage
 """
 from __future__ import annotations
 
+from tools import team as team_mod
+
 import argparse
 import collections
 import glob
@@ -190,7 +192,9 @@ def main():
     ap.add_argument("--cap", type=int, default=0)
     ap.add_argument("--chains", action="store_true",
                     help="print the consecutive-op transition matrix instead")
+    ap.add_argument("--label", default=None, help="reference arm label (default: $KAGG_OPPONENT / DSM)")
     a = ap.parse_args()
+    a.label = a.label or team_mod.get()
 
     phases = [p for p in PHASES if not a.phase or p[0] == a.phase]
     dsm = load(a.dsm, a.cap)
@@ -198,7 +202,7 @@ def main():
     if not dsm:
         print(f"no cached games in {a.dsm} — run tools.labour.crew_extract first")
         return
-    print(f"DSM games: {len(dsm)}   US games: {len(us)}")
+    print(f"{a.label} games: {len(dsm)}   US games: {len(us)}")
 
     # metric order
     order = ["hands", "hires", "unit_turns", "work_share", "move_share",
@@ -219,14 +223,14 @@ def main():
         return st.median(v) if v else float("nan")
 
     if a.chains:
-        for label, games in (("DSM (#1)", dsm), ("US", us)):
+        for label, games in ((f"{a.label} (#1)", dsm), ("US", us)):
             if games:
                 print(f"\n##### {label} #####")
                 for p in phases:
                     chains(games, p[0])
         return
 
-    for label, games in (("DSM (#1)", dsm), ("US", us)):
+    for label, games in ((f"{a.label} (#1)", dsm), ("US", us)):
         if not games:
             continue
         per = [metrics(games, p[0]) for p in phases]
@@ -234,7 +238,7 @@ def main():
         _fmt(rows, f"{label}  —  per-phase medians over {len(games)} games", phases)
 
     if us and dsm:
-        print(f"\n{'='*92}\n  DELTA (US - DSM), positive = we have MORE of it\n{'='*92}")
+        print(f"\n{'='*92}\n  DELTA (US - reference), positive = we have MORE of it\n{'='*92}")
         dper = [metrics(dsm, p[0]) for p in phases]
         uper = [metrics(us, p[0]) for p in phases]
         hdr = "  " + f"{'metric':26}" + "".join(f"{'p'+str(p):>21}" for p, _, _ in phases)

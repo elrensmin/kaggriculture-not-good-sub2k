@@ -25,6 +25,14 @@ Run with ``PYTHONPATH=.``.
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import glob
 import json
@@ -45,8 +53,7 @@ _CROP_OF_ITEM = {"WHEAT": "WHEAT", "CARROT": "CARROT", "TOMATO": "TOMATO",
 
 def _dsm_seats(rep):
     names = (rep.get("info") or {}).get("TeamNames") or []
-    out = [i for i, n in enumerate(names) if "DSM" in (n or "").upper()]
-    return out or [1]
+    return team_mod.seats_of_names(names) or [1]
 
 
 def _tiles(o, seat):
@@ -305,7 +312,10 @@ def main():
     ap.add_argument("--daily", default=None, metavar="EPISODE", help="per-day series")
     ap.add_argument("--max-games", type=int, default=0)
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
 
     pattern = args.glob or os.path.join(args.dir, "*.json")
     games = load_games(pattern, seat=args.seat, workers=args.workers, limit=args.max_games)

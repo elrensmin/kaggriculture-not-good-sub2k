@@ -1,0 +1,47 @@
+
+############ ours (diag-replays/v1-us)  (d0-d29, 12 games) ############
+   wheat units:  fed 218   bought 112   sold 128   feed_surplus(produced-fed) = 234 if nothing is held
+   wheat tiles that DIED unharvested: 20
+   PLANT  wheat  1577   HARVEST wheat  1294   DIG wheat     0   FEED  2728
+   HARVEST/PLANT on wheat = 0.82   (a tile that is planted but never harvested was wasted)
+   -- per-hire work split (median-ish totals across games) --
+      u0   FEED  1472   FIELD    841   CARE   302
+      u1   FEED   596   FIELD   1192   CARE   172
+      u2   FEED   439   FIELD   1183   CARE   268
+      u3   FEED   200   FIELD   1068   CARE   142
+      u4   FEED    21   FIELD   1276   CARE   197
+      u5   FEED     0   FIELD   1259   CARE   229
+      u6   FEED     0   FIELD   1312   CARE   207
+      u7   FEED     0   FIELD   1204   CARE   182
+      u8   FEED     0   FIELD   1307   CARE   153
+      u9   FEED     0   FIELD   1220   CARE   196
+      u10  FEED     0   FIELD   1156   CARE    88
+      u11  FEED     0   FIELD   1124   CARE   123
+      u12  FEED     0   FIELD    783   CARE   142
+   -- wheat tiles at start of day --
+      d0:0  d1:7  d2:7  d3:7  d4:7  d5:0  d6:0  d7:0  d8:0  d9:12  d10:13  d11:16  d12:30  d13:29  d14:31  d15:31  d16:30  d17:29  d18:26  d19:28  d20:23  d21:21  d22:23  d23:24  d24:23  d25:23  d26:18  d27:15  d28:10  d29:0
+
+############ DSM (the #1's replays)  (d0-d29, 123 games) ############
+   wheat units:  fed 372   bought 183   sold 562   feed_surplus(produced-fed) = 751 if nothing is held
+   wheat tiles that DIED unharvested: 5
+   PLANT  wheat 22178   HARVEST wheat     0   DIG wheat     0   FEED 46720
+   HARVEST/PLANT on wheat = 0.00   (a tile that is planted but never harvested was wasted)
+   -- per-hire work split (median-ish totals across games) --
+      u0   FEED  8517   FIELD  18509   CARE  7127
+      u1   FEED  6563   FIELD  16695   CARE  6912
+      u2   FEED  5794   FIELD  19098   CARE  6448
+      u3   FEED  4595   FIELD  23227   CARE  4924
+      u4   FEED  5084   FIELD  19838   CARE  5712
+      u5   FEED  2418   FIELD  26111   CARE  2435
+      u6   FEED   921   FIELD  31261   CARE   893
+      u7   FEED  2058   FIELD  27663   CARE  1955
+      u8   FEED  2243   FIELD  25001   CARE  2289
+      u9   FEED  1813   FIELD  20482   CARE  1735
+      u10  FEED  2096   FIELD  19712   CARE  2090
+      u11  FEED  3426   FIELD  16206   CARE  3398
+      u12  FEED  1098   FIELD  10787   CARE  1113
+      u13  FEED    88   FIELD    532   CARE    80
+      u14  FEED     4   FIELD    168   CARE    19
+      u15  FEED     2   FIELD      8   CARE     1
+   -- wheat tiles at start of day --
+      d0:0  d1:9  d2:10  d3:4  d4:0  d5:0  d6:0  d7:7  d8:11  d9:10  d10:21  d11:29  d12:32  d13:29  d14:27  d15:25  d16:22  d17:21  d18:20  d19:21  d20:24  d21:26  d22:25  d23:29  d24:31  d25:33  d26:31  d27:28  d28:27  d29:15

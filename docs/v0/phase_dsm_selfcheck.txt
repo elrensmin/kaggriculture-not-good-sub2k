@@ -1,0 +1,129 @@
+phase_map — structural phase audit (REPLAY mode)
+   replays  : replays/DSM/v1
+   seat     : auto   analysed: 123
+   truncated at: phase1=d5(144 steps), phase2=d17(432 steps), phase3=d29(720 steps)
+   reference : the #1's per-day table — docs/dsm_v1.md §3 (all 30 days; median per game) + dsm_profile's per-day idle%/crop tiles
+
+############ phase1 (opening, d0-d5) — 123 games (123 replays, seat=auto) ############
+   did we commit the land, the crew and the first production?
+   reference: the #1's per-day table — docs/dsm_v1.md §3 (all 30 days; median per game) + dsm_profile's per-day idle%/crop tiles
+   both arms reduced over d0-d5 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   opening cash committed           1.00    -      -  ·    src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
+   empty owned tiles                0.00    -      -  ·    src/crop_plan.py::plant_queue
+   d5 distance from the #1's script   0.00    -      -  ·    the opening as a whole (all layers)
+   PLANT ops                        30.0    -      -  ·    src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   shops unlocked                   1.00    -      -  ·    -  LATENT (RNG-revealed)
+   YARN_STORE unlocked              0.00    -      -  ·    -  LATENT (RNG-revealed)
+   animals on board                 5.00   5.00   1.00x  ok   src/herd_plan.py::market_intents
+   CARE ops                         34.0   35.0   0.97x  ok   src/herd_plan.py::jobs
+   FEED ops                         27.0   27.0   1.00x  ok   src/herd_plan.py::jobs
+   hands                            6.00   6.00   1.00x  ok   src/budget.py::market_intents (target_hands, TILES_PER_HAND)
+   idle share %                     26.2   24.0   1.09x  ok   src/scheduler.py::plan
+   MELON tiles                      10.0   10.0   1.00x  ok   src/params.py::CROP_PLAN
+   owned tiles                      25.0   25.0   1.00x  ok   src/budget.py::market_intents
+   quadrants unlocked               1.00   1.00   1.00x  ok   src/budget.py::market_intents
+   STRAWBERRY tiles                 10.0   10.0   1.00x  ok   src/params.py::CROP_PLAN
+   animal structures                5.00   5.00   1.00x  ok   src/herd_plan.py::jobs
+   WATER ops                        74.0   74.0   1.00x  ok   src/crop_plan.py::jobs
+
+############ causal trace (phase1) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+ no roots: no metric is deficient with a healthy upstream chain.
+
+
+############ phase2 (midgame, d6-d17) — 123 games (123 replays, seat=auto) ############
+   is the farm big, watered, fed and harvested?
+   reference: the #1's per-day table — docs/dsm_v1.md §3 (all 30 days; median per game) + dsm_profile's per-day idle%/crop tiles
+   both arms reduced over d6-d17 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   shed peak                        28.0   93.0   0.30x  BAD  src/sell_policy.py + src/scheduler.py (DROP)
+   COLLECT_FERTILIZER ops            215    -      -  ·    src/herd_plan.py::jobs
+   HARVEST ops                       182    -      -  ·    src/scheduler.py::_pick
+   plants died                      2.00    -      -  ·    src/scheduler.py::_pick (water prioritisation)
+   animals on board                 22.0   19.0   1.16x  ok   src/herd_plan.py::market_intents
+   FEED ops                          197    199   0.99x  ok   src/herd_plan.py::jobs
+   FERTILIZE ops                    76.0   75.0   1.01x  ok   src/crop_plan.py::jobs + src/herd_plan.py::jobs
+   hands                            12.0   12.0   1.00x  ok   src/budget.py::market_intents
+   idle share %                     0.00   0.40   0.00x  ok   src/scheduler.py::plan
+   owned tiles                       100    100   1.00x  ok   src/budget.py::market_intents
+   planted tiles                    72.0   64.0   1.12x  ok   src/crop_plan.py::plant_queue
+   quadrants unlocked               4.00   4.00   1.00x  ok   src/budget.py::market_intents
+   STRAWBERRY tiles                 30.0   30.0   1.00x  ok   src/params.py::CROP_PLAN
+   animal structures                22.0   19.0   1.16x  ok   src/herd_plan.py::jobs
+   TOMATO tiles                     12.0   12.0   1.00x  ok   src/params.py::CROP_PLAN
+   WATER ops                         585    577   1.01x  ok   src/crop_plan.py::jobs
+   WATER ops per planted tile       0.83   0.88   0.95x  ok   src/scheduler.py::_pick
+   weeds                            1.00   0.00      -  ok   src/crop_plan.py::jobs (DIG)
+   WHEAT tiles                      34.0   32.0   1.06x  ok   src/params.py::CROP_PLAN + src/crop_plan.py::plant_queue
+
+############ causal trace (phase2) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   shed peak = 28.00 vs 93.00   [ BAD ]
+      <- animals on board               [OK]  milk/wool/egg/fertilizer also land in the shed (C1)
+      <- HARVEST ops                    [-]  harvests land in the shed
+         <- animals on board               [phase1]  phase 1's herd is the floor for phase 2's herd
+         <- FERTILIZE ops                  [OK]  fertilizer doubles one-shot yield and ongoing fruit
+         <- owned tiles                    [OK]  the herd is tile-blocked: an animal tile is a crop tile
+         <- plants died                    [-]  a dead plant is a harvest that never happens
+         <- weeds                          [OK]  weed tiles have to be dug before they can be replanted
+            <- animals on board               [OK]  fertilizer supply gates FERTILIZE
+            <- opening cash committed         [phase1]  the same bank buys the opening herd -- you cannot fund both fully
+            <- COLLECT_FERTILIZER ops         [-]  the pickup -> fertilize chain
+      ... 73 more ancestor nodes
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. shed peak  (28.00 vs 93.00)
+    The shed is a transit buffer: the #1 pins it at 100.
+    owner: src/sell_policy.py + src/scheduler.py (DROP)
+    downstream mechanisms:
+      -> idle share %: a full shed turns harvest into DROP/PICKUP walking
+
+
+############ phase3 (endgame, d18-d29) — 123 games (123 replays, seat=auto) ############
+   did we convert the farm into sold goods and release the herd?
+   reference: the #1's per-day table — docs/dsm_v1.md §3 (all 30 days; median per game) + dsm_profile's per-day idle%/crop tiles
+   both arms reduced over d18-d29 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   shed at the bell                 1.00   85.0   0.01x  BAD  src/sell_policy.py
+   HARVEST per planted tile         0.78    -      -  ·    src/scheduler.py::_pick
+   HARVEST ops                       394    -      -  ·    src/scheduler.py::_pick
+   animals at the bell              12.0   11.0   1.09x  ok   src/herd_plan.py (release) + src/endgame.py
+   FERTILIZE ops                     162    162   1.00x  ok   src/crop_plan.py::jobs
+   idle share %                     0.00   0.00      -  ok   src/scheduler.py::plan
+   WATER ops                         662    667   0.99x  ok   src/crop_plan.py::jobs
+   weeds                            10.0   10.0   1.00x  ok   src/endgame.py (RETIRE_DAY)
+
+############ causal trace (phase3) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   shed at the bell = 1.00 vs 85.00   [ BAD ]
+      <- HARVEST per planted tile       [-]  harvests that cannot be sold accumulate in the shed
+         <- HARVEST ops                    [-]  throughput against what was standing
+            <- HARVEST ops                    [phase2]  standing crops at d18 are what d18-29 can harvest
+            <- weeds                          [OK]  a weeded tile cannot be harvested
+               <- FERTILIZE ops                  [phase2]  fertilizer doubles one-shot yield and ongoing fruit
+               <- plants died                    [phase2]  a dead plant is a harvest that never happens
+               <- WATER ops                      [OK]  retiring a tile means it weeds -- deliberately (rule #4)
+               <- weeds                          [phase2]  weed tiles have to be dug before they can be replanted
+               <- weeds                          [phase2]  weeds only accumulate
+                  <- animals on board               [phase2]  fertilizer supply gates FERTILIZE
+      ... 111 more ancestor nodes
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. shed at the bell  (1.00 vs 85.00)
+    End-of-day shed is ~4-8 for the #1: full and ROTATING, not stored.
+    owner: src/sell_policy.py
+    downstream mechanisms:
+      -> idle share %: carrying to a full shed costs turns
+

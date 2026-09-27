@@ -52,6 +52,14 @@ Usage:
 """
 from __future__ import annotations
 
+try:
+    from tools import team as team_mod
+except ImportError:  # bare-script execution: add the repo root to sys.path
+    import pathlib as _pl
+    import sys as _sys
+    _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[2]))
+    from tools import team as team_mod
+
 import argparse
 import csv
 import glob as globmod
@@ -88,9 +96,9 @@ I0 = 10000
 
 def _seat_dsm(rep):
     names = (rep.get("info") or {}).get("TeamNames") or ["", ""]
-    for i, nm in enumerate(names):
-        if nm and "DSM" in str(nm).upper():
-            return i
+    hits = team_mod.seats_of_names(names)
+    if hits:
+        return hits[0]
     steps = rep["steps"]
     for i in range(len(steps) - 1, -1, -1):
         si = steps[i]
@@ -833,7 +841,10 @@ def main():
                          "own rows are selected so the opponent's seat is never pooled in")
     ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--compare", action="store_true")
+    ap.add_argument("--team", default=None,
+                    help="leaderboard team to analyse (default: DSM / $KAGG_OPPONENT)")
     args = ap.parse_args()
+    team_mod.set_team(args.team)
     want = ("ours", "dsm") if args.compare else (args.profile,)
     profs = []
     if "ours" in want:
@@ -844,7 +855,7 @@ def main():
         # run_dir is passed for the DSM arm too: replays/DSM/v1/games.csv holds
         # both seats of every episode, and the `agent == "DSM"` filter in
         # _games_rows is what keeps it to DSM's own 124 rows / 123 episodes.
-        profs.append(profile("dsm", f"{d}/*.json", f"{d}/days_seed*.csv", "DSM",
+        profs.append(profile("dsm", f"{d}/*.json", f"{d}/days_seed*.csv", team_mod.get(),
                              args.workers, run_dir=d))
     for p in profs:
         show(p)
