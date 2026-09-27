@@ -46,6 +46,7 @@ from tools.diagnose.runbook import _make_seeds, _parse_pa_arg
 
 from .dag import DSM_DAILY, DSM_DAILY_SOURCE, EDGES, METRICS, PHASES
 from tools.diagnose.window import parse_days, describe
+from src import params as agent_params
 
 DAY = 24
 
@@ -123,6 +124,63 @@ def _steps_of(obj):
     return obj.steps if hasattr(obj, "steps") else obj.get("steps", [])
 
 
+def _owned_animals(obs, seat):
+    from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
+    c = Counter()
+    for row in obs["farms"][seat]["tiles"]:
+        for t in row:
+            if isinstance(t, dict) and "animal" in t:
+                c[t["animal"]] += 1
+    priv = obs.get("private") or {}
+    for a, n in (priv.get("shed") or {}).items():
+        if a in ANIMALS:
+            c[a] += int(n)
+    for inv in (priv.get("inventories") or []):
+        for a, n in inv.items():
+            if a in ANIMALS:
+                c[a] += int(n)
+    return c
+
+
+def _fib(n):
+    a, b = 1, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a
+
+
+def _fixed_costs(prev, cur, seat):
+    """The money the step spent on things with a FIXED unit price: seed, animals,
+    hires, land. Reads ownership DELTAS, so a re-issued or failed order costs nothing.
+
+    Used to recover the product-trade P&L from the money ledger:
+        d_money = sells - product_buys - fixed, so
+        product_net = d_money + fixed.
+    """
+    from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS, CROPS
+    seed = animal = hire = land = 0.0
+    ps = (prev.get("private") or {}).get("seeds") or {}
+    cs = (cur.get("private") or {}).get("seeds") or {}
+    for c in CROPS:
+        d = int(cs.get(c, 0)) - int(ps.get(c, 0))
+        if d > 0:
+            seed += d * CROPS[c]["seed"]
+    pa, ca = _owned_animals(prev, seat), _owned_animals(cur, seat)
+    for a in ANIMALS:
+        d = ca[a] - pa[a]
+        if d > 0:
+            animal += d * ANIMALS[a]["cost"]
+    ph = int(prev["farms"][seat].get("hires_today", 0))
+    ch = int(cur["farms"][seat].get("hires_today", 0))
+    for k in range(ph, ch):
+        hire += _fib(k)
+    pl = len(prev["farms"][seat].get("unlocked_quadrants") or [])
+    cl = len(cur["farms"][seat].get("unlocked_quadrants") or [])
+    if cl > pl:
+        land += [0, 1000, 2000, 4000][min(cl, 3)]
+    return seed, animal, hire, land
+
+
 def extract(env, seat):
     """{day: {stock:..., flow:Counter, unit_turns, pass}} for one game."""
     steps = _steps_of(env)
@@ -147,6 +205,35 @@ def extract(env, seat):
                 rec["unit_turns"] += 1
                 if op == "PASS":
                     rec["pass"] += 1
+            # Sell revenue, for BOTH arms from the same estimator: each SELL order
+            # valued at this step's OBSERVED quote, capped by what the shed can actually
+            # deliver and by the engine's per-turn order limit. Leaderboard replays
+            # (Boey/DSM) carry no market audit, so the harness's `revenue_<p>` columns are
+            # 0 for them -- which is why the Phase-1 table had no reference revenue.
+            # Uncapped, this over-counted our own arm 1.63x vs the audit-backed number.
+            prices = (obs.get("market") or {}).get("prices") or {}
+            shed = dict((obs.get("private") or {}).get("shed") or {})
+            for o in (act.get("market") or [])[:agent_params.MAX_ORDERS]:
+                if not o or o[0] != "SELL":
+                    continue
+                item = o[1]
+                qty = min(float(o[2]) if len(o) > 2 else 1.0, shed.get(item, 0.0))
+                if qty <= 0:
+                    continue
+                shed[item] = shed.get(item, 0.0) - qty
+                rec["flow"]["REVENUE"] += qty * float(prices.get(item, 0) or 0)
+            # NET product-trade P&L, EXACT from the money ledger: the step's cash delta
+            # plus the fixed-price spend (seed/animals/hire/land) is by definition
+            # sells - product buys. This is the node that can actually be optimised --
+            # gross REVENUE rewards churn (Boey's is 4x ours while his NET is the same
+            # sign, and his animal spend is what the net funds).
+            if t + 1 < len(steps) and len(steps[t + 1]) > seat:
+                nxt = steps[t + 1][seat].get("observation")
+                if nxt:
+                    dm = (float(nxt["farms"][seat].get("money") or 0)
+                          - float(obs["farms"][seat].get("money") or 0))
+                    fseed, fanimal, fhire, fland = _fixed_costs(obs, nxt, seat)
+                    rec["flow"]["TRADE_NET"] += dm + fseed + fanimal + fhire + fland
         tiles = obs["farms"][seat]["tiles"]
         if prev_tiles is not None:
             rec["flow"]["__died"] += _plant_to_weed(prev_tiles, tiles)
@@ -454,7 +541,10 @@ def analyse(phase, per_game, ref_game=None):
         else:
             series = _dsm_series(m, *PHASES[phase]["days"])
             target = _agg(series, m["agg"]) if series else None
-        status, gap = _status(m, ours, target)
+        if m.get("descriptive"):
+            status, gap = "-", 0.0        # report the number, never judge it
+        else:
+            status, gap = _status(m, ours, target)
         # keep the raw per-game vector: a median over a bimodal population hides the
         # very thing we are hunting (some games the calendar fills, some it does not).
         rvals = None

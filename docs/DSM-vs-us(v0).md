@@ -61,104 +61,85 @@ d0–d5 audits of the shipped tree with the opening tape on and the water cluste
 
 | metric | us | DSM | Boey | DAG |
 |---|---|---|---|---|
-| opening cash committed | **1.00** | 1.00 | 0.99 | closed |
-| PLANT ops | **30** | 30 | 30 | **met** |
+| opening cash committed | **1.00** | 1.00 | 0.99 | met |
+| PLANT ops | 29 | 30 | 30 | ok |
 | MELON tiles | 9 | 10 | 10 | ok |
 | STRAWBERRY tiles | 4 | 10 | 4 | **ROOT vs DSM** — Boey-match by choice |
-| WATER ops | 66 | 74 | **76** | WARN (was BAD at 53) |
-| CARE ops | 35 | 34 | **40** | WARN (was BAD) |
-| FEED ops | 33 | 27 | **38** | WARN (was BAD) |
-| animals | 8 | 5 | **10** | **BAD** (was 7) |
+| WATER ops | 68 | 74 | **76** | WARN (was BAD at 53) |
+| CARE ops | 34 | 34 | **40** | WARN |
+| FEED ops | 32 | 27 | **38** | WARN |
+| animals | 8 | 5 | **10** | **BAD — the last node (§2.4)** |
 | — COW / SHEEP / GOOSE | 4 / 2 / 2 | 2 / 3 / 0 | **4 / 3 / 2** | COW + GOOSE **met**, SHEEP 1 short |
-| idle share % | **5.08** | 26.2 | 6.62 | ok — *below* Boey |
+| **d0–5 trade net $** | **2,368** | 1,836 | **2,438** | **ok — 0.97× Boey, 1.33× DSM** |
+| d0–5 sell revenue | 5,023 | 2,743 | 11,624 | *descriptive* — turnover, not profit |
+| idle share % | 8.66 | 26.2 | 6.62 | ok |
 | owned / quadrants / hands | 25 / 1 / 5 | 25 / 1 / 6 | 25 / 1 / 5 | met |
 | empty owned tiles | 3.0 | 0 | 0 | ok (was 4) |
 | animal structures | 8 | 5 | 10 | ok (was 5) |
-| d0–5 sell revenue (us only) | **$2,921** | — | — | median/game, 96 games |
 
-The `d0–5 revenue` row is ours only: leaderboard replays carry no market audit and no day CSVs, so no
-reference number is comparable. `$2,921` is the median per-game sum of `revenue_<p>` over d0–d5 in
-`diag-replays/step-water` (96 games).
+### The market/trade layer
 
-**The Phase-1 scoreboard is 18 of 19 metrics non-BAD.** The single remaining BAD is `animals`
-(8 vs 10, one SHEEP plus its structure short); `CARE`, `FEED` and `WATER` are WARN. `open_dist`-style
-shape matching is **not** used: the two references disagree by construction (DSM runs 10 STRAWBERRY and
-5 animals; Boey runs 4 and 10), so each row is judged against its own reference and the archetype rows
-are allowed to differ.
+| | Boey | us (before) | us (now) |
+|---|---|---|---|
+| gross sell revenue | $11,624 | $2,834 | $5,023 |
+| **product trade net** | **$2,438** | **$1,753** | **$2,368** |
+| animal spend | $4,000 | $3,200 | $3,200 |
+| net cash (bank 3,000 →) | −$2,974 | −$2,876 | — |
 
-### 2.1 The water cluster (this is what moved Phase 1)
+### The gross-revenue question, settled with numbers
 
-Two changes, measured together and separately on the 16-game Boey screen:
+The table shows `sell revenue` 0.43× Boey's, which invites the reading that the opening's market engine
+is underbuilt. Four measurements say otherwise:
 
-| config | WATER | animals | CARE | FEED | PLANT | idle |
-|---|---|---|---|---|---|---|
-| neither | 53 | 7 | 33 | 27 | 27 | 0.78 |
-| `P_WATER_BONUS=120` only | 58 | 7 | — | — | 28 | 0.79 |
-| `SAME_TILE_FIRST=1` only | 62 | 7 | 34 | 32 | 30 | 9.78 |
-| **both (shipped)** | **66** | **8** | **35** | **33** | **30** | **5.08** |
+1. **It is inventory-limited, not tuned.** `TRADE_CASH_FLOOR` 150/50/0 and `TRADE_CHUNK` 25/10/50 all
+   produce **byte-identical** d0–d5 metrics — the binding constraint is the wheat we hold, not the
+   order size or the float rule.
+2. **Raising turnover costs the herd and the net.** Selling deeper into the feed reserve
+   (`TRADE_FEED_RESERVE=2`) takes gross **$5,023 → $6,401 (0.55×)** but drops trade net to **0.76×**
+   and the herd to 7 animals with GOOSE 2 → 1 and MELON 9 → 7. Rejected.
+3. **The net rate is already Boey's.** $2,368 over d0–d5 against his $2,438 (0.97×), i.e. ~$395/day
+   against his ~$406/day. We are not slower at the trade; we run it on a smaller float.
+4. **Over a season the "revenue gap" is PRODUCTION, not trading.** `--days 0-29` against 60 Boey
+   replays: trade net **$64,970 vs $131,508 (0.49×)** — but the same screen shows `HARVEST ops`
+   **245 vs 540**, `HARVEST per planted tile` **0.36 vs 0.70**, `plants died` **61 vs 11** and
+   `weeds` **56.5 vs 3**. Most of a season's wheat sales are *own harvest*, so a 2× harvest gap
+   produces a 2× revenue gap with no market-making involved.
 
-The two are **synergistic, not additive**: the priority makes watering worth doing, and the chaining
-(§3.1) is what makes it reachable, because a unit that just planted is standing on the tile that needs
-the water.
+So the opening's revenue node is **resolved on the measure that is profit** (`trade net`, exact from
+the ledger), and the season revenue gap is Phase-2 agronomy — the same root already listed as
+`WATER per planted tile` → `plants died` → `weeds` → `HARVEST`. Building more turnover in d0–d5 would
+buy gross and sell the herd.
 
-Two defects made this invisible until now:
+### Front-loading the herd's cash (the carry now funds the buying window)
 
-1. **`P_WATER_BONUS` was a phantom knob.** Window watering is the +1/+2-yield water at ages 2–4 (wheat)
-   / 6–12 (melon); it is emitted at `P_WATER_BONUS`, which was a bare constant `50` in `src/job.py`
-   with **no entry in `params.py`**. Every A/B of `SCRATCH_PARAMS='P_WATER_BONUS=...'` therefore
-   silently measured nothing (four values, byte-identical output). 50 sits *below* `P_CARE` (70),
-   `P_PLANT` (85) and `P_PICKUP` (88), so yield-watering was the first field job dropped: wheat got
-   only the survival water (`P_WATER_SURVIVAL=90`, which fires when the plant is about to die) and
-   yielded 1 unit instead of 3. It is now a real param; **120** measures best and saturates (140/160
-   identical).
-2. **The chaining threshold is the whole story.** The old CHAIN arm used
-   `SAME_TILE_MIN_PRIORITY=0`, which lets a unit standing on *any* local job chain instead of walking
-   to a `PLANT` — that is what produced the recorded regression (MELON 9 → 7, empty 3.5 → 5,
-   idle 0.78 → 11.0, `docs/v0/sc-p1-chain.txt`). At the default **70** the chain is limited to urgent
-   local work and the trade disappears: PLANT 27 → 30, empty → 3.0, cash 0.97 → 1.00.
+The carry's profit used to land d3–d5, after the herd buys d0–d4. The fix exploits a property of the
+engine that the DAG does not show: **the market list is funded positionally**, so a SELL emitted before
+the animal order makes its cash spendable by the herd *in the same turn*. `src/trade.py` therefore grew
+a liquidation mode, and the opening now calls it on the last two days:
 
-`SAME_TILE_ORDER` and `EXACT_ASSIGN` were both measured and are **harmful** (CARE 70 → 8 / 0,
-`docs/v0/sc-chain-order.txt`, `sc-chain-exact.txt`); `ON_TILE_BONUS=20` is also negative (WATER → 49).
-None are shipped.
+- `OPENING_HERD_LIQUIDATE_DAY=4` — from d4, if the day's animal target is unmet and unaffordable, the
+  carry's entire wheat position is sold (down to **zero**, at any price above base), instead of only
+  the surplus above a multi-day feed reserve.
+- `OPENING_HERD_COVER_BUFFER=0` — the feed cover in `_buy_herd` becomes `herd x feed_days` units rather
+  than `(herd+2) x feed_days`, releasing ~$60 of the ~$240–300 that stood between liquid cash and a
+  ninth animal.
 
-### 2.2 A wiring bug this exposed (d6+, not Phase 1)
+| | before | after |
+|---|---|---|
+| d0–5 sell revenue | $5,023 (0.43×) | **$7,086 (0.61×)** |
+| d0–5 trade net | $2,368 (0.97×) | **$2,443 (1.00×)** |
+| animals / SHEEP | 8 / 2 | 8 / 2 |
 
-`src/scheduler.py`'s market branch was `if params.OPENING_TAPE:` with **no day test**, unlike the jobs
-branch. So from d6 to the bell the market list was the tape's — which meant `sell_policy` ran only
-through the tape's internal call and **`herd_plan.market_intents` and `crop_plan.market_intents` never
-ran at all**: no midgame seed rebuy, no midgame herd buying. The day that was made visible was the day
-the tape's sell block became the single owner and the agent finished 96 games at **$0 with a full shed**
-(discards 140). The branch is now day-gated like the jobs branch. Measured: full-season `idle_share_pct`
-**25.8 % → 1.3 %**, paired margin **+$14k to +$18k** over 16 games (`step-water` vs `sc-fix-*`).
-Phase-1 numbers are unaffected (d0–d5 already used the tape branch).
+Day matters: liquidating from **d3** costs net (0.97× → 0.78×) with no animal gained; **d4** is the win,
+and it is also where an escape risk is cheapest. Season A/B (16 games, `arm_diff`): median margin
+**+$5,730** (11/16), `animal_escapes` **0 (0/16 worse)**, `idle_units_total` **−1,471 (0/16 worse)**.
 
-### 2.3 What is left, and why
-
-`animals` 8 vs 10 is the only BAD node. The composition is right — COW 4/4 and GOOSE 2/2 are **met**,
-SHEEP is 2 of 3 — and the d0 basket is fully funded ($690 seed + $2,200 herd inside the $3,000 bank).
-The last SHEEP ($500) is a **liquidity** gap, not a plan gap:
-
-```
-animals (8 vs 10)   the d0-d5 ledger ends ~$380 short of the 9th animal
-  feed      $1,327 bought over d0-d5 (53 wheat units) even though 13 own tiles stand
-  cash      peaks at ~$226 (d3); money is consumed as it arrives
-  levers tested: OPENING_WHEAT_KEEP_DAYS=1 raises WATER to 68 and idle to 1.16 but turns
-                 FEED BAD (31) -- rejected; OPENING_OWNS_SELLS=1 measured slightly worse
-                 (0 in 12/16 paired games, -$1.1k mean over the 4 decided) -- rejected.
-```
-
-Closing it needs the opening **market/trade leg** (Boey funds his herd with a wheat carry: 3,497
-bought / 6,786 sold per game), which is a new layer, not a tape knob — the tape's own trade leg is
-inert because the shared wheat inventory never trades above `I0+50` during d0–d5.
-
-**Verdict.** Phase 1 is structurally closed against Boey: cash 1.00, PLANT 30, MELON 9, STRAWBERRY 4,
-hands 5, empty 3.0, **idle 5.08 % (below Boey's 6.62)**, opening revenue $2,921/game, and 18 of 19
-metrics non-BAD. The residual is the herd's last SHEEP, and it is a liquidity problem that needs the
-market layer, not more script.
-
-**Closing the opening is not free.** Matching a *shape* by moving the land schedule cost
-**−$15,452 (0/8, p=0.005)** with `WHEAT_LANDS_DAY=2`; `P_BUILD` 45→95 and `BUILD_PER_TURN` 2→3 likewise
-cost margin. Ship opening changes only with a paired `dterm`.
+**`animals` is still 8 and the gap is now quantified to ~$50–100.** At d4 the opening holds ~$450 of
+liquid cash after liquidation; the 3rd SHEEP costs $500 *and* the cover holds ~$240 back, so the buy
+needs ~$740. That residue is not reachable by any further lever inside the opening — every one measured
+either costs the net (`TRADE_FEED_RESERVE=2`: net 0.76×, herd 7) or the crop (`OPENING_WHEAT_KEEP_DAYS=1`:
+FEED turns BAD). It needs either a cheaper 9th animal (a 3rd GOOSE at $300 would fit, but that breaks the
+4/3/2 combination) or income that lands before d4.
 
 ---
 
@@ -474,13 +455,18 @@ symptoms moved with it; `arm_diff` median margin is not negative; the DSM self-c
 herd buying). Now day-gated. Measured: full-season idle **25.8 % → 1.3 %**, paired margin **+$14k to
 +$18k** over 16 games. Phase-1 unaffected.
 
-**Step 5 — Herd liquidity: the last SHEEP. Depends on the market layer.**
-- **DAG node:** `animals` 8 vs 10 (COW 4/4 and GOOSE 2/2 met; SHEEP 2 of 3) — the only BAD Phase-1 node.
-- **Evidence:** the d0–d5 ledger ends ~$380 short; feed $1,327 bought while 13 own wheat tiles stand;
-  cash peaks at ~$226.
-- **What it needs:** the opening **market/trade leg** (Boey funds his herd with a wheat carry, 3,497
-  bought / 6,786 sold per game). The tape's own trade leg is inert because shared wheat inventory never
-  exceeds `I0+50` in d0–d5. This is a new layer, not a knob.
+**Step 5 — Market/trade layer: DONE (`src/trade.py`). The herd is now a TIMING problem.**
+- **Built:** `src/trade.py` — a price-threshold wheat carry (`sell_intents` / `buy_intents(state, reserve)`),
+  wired into the opening tape. Params: `TRADE_BUY_MARGIN`/`TRADE_SELL_MARGIN` (4/4), `TRADE_CHUNK`,
+  `TRADE_FEED_RESERVE`, `TRADE_CASH_FLOOR`, `TRADE_FROM_DAY=1`.
+- **Measured:** `d0–5 trade net` **$1,753 → $2,368** (0.72× → **0.97× Boey**, **1.33× DSM**), WATER 66 → 68,
+  herd composition intact (COW 4/4, GOOSE 2/2). Cost: `idle` 5.08 → 8.66, PLANT/CARE/FEED −1 op each.
+- **Infrastructure shipped with it:** `flow:TRADE_NET` in `phase_map.extract` — the exact ledger identity
+  `d_money + fixed spend = sells − product buys`; a **descriptive** DAG flag (`M(..., descriptive=True)`)
+  so gross revenue is reported beside the net but never judged; `revenue_per_item` populated on the
+  non-audit path in `tools/diagnose/analysis.py`, so leaderboard replays have revenue at all.
+- **Left:** the carry's +$615 lands d3–d5, after the herd buys. `animals` 8 vs 10 needs the herd's cash
+  **earlier** (front-load the carry, or extend it to d0 behind a protected animal budget).
 - **Gate:** phase1 `animals` ≥ 9.
 
 **Step 6 — Wheat / feed self-sufficiency. Depends on Step 5.**

@@ -7,7 +7,7 @@ Every file here is raw tool output for the **current** agent (`src/`, tree defau
 | field | value |
 |---|---|
 | **ours** | `diag-replays/v1-us` — `python -m tools.diagnose --scratch --pa 1-12 --batch 8 --seed 4362837462` = **96 games**, 12 public opponents × 8 seeds, `agent=scratch` |
-| **config** | current tree defaults, **no `SCRATCH_PARAMS`**: `MOVE_WEIGHT=20`, `DIST_CAP=1`, `HERD_ENABLED=True`, `HERD_BUY_UNTIL=12`, `HERD_BUY_FROM_DAY=0`, `OPENING_SCRIPT=True`, **`OPENING_TAPE=True`** (the d0–d5 opening tape is the shipping default), **`OPENING_TAPER_BOEY=True`** + **`OPENING_HERD_BOEY=True`** (the measured Boey script), **`SAME_TILE_FIRST=True`** at `SAME_TILE_MIN_PRIORITY=70`, **`P_WATER_BONUS=120`** (now a real param; was a bare 50 in `job.py`), **`MAX_HIRE_PER_TURN=1`**, **opening crew 5**, `OPENING_WHEAT_KEEP_DAYS=2`, `OPENING_OWNS_SELLS=False`, `STRUCTURE_HOLDBACK=12`, `PLANT_RAMP=True`, `FERTILIZE_FROM_DAY=99`, `CROP_SCALE=1.0`. Snapshot in `config.txt`/`HEAD.txt`. |
+| **config** | current tree defaults, **no `SCRATCH_PARAMS`**: `MOVE_WEIGHT=20`, `DIST_CAP=1`, `HERD_ENABLED=True`, `HERD_BUY_UNTIL=12`, `HERD_BUY_FROM_DAY=0`, `OPENING_SCRIPT=True`, **`OPENING_TAPE=True`** (the d0–d5 opening tape is the shipping default), **`OPENING_TAPER_BOEY=True`** + **`OPENING_HERD_BOEY=True`** (the measured Boey script), **`SAME_TILE_FIRST=True`** at `SAME_TILE_MIN_PRIORITY=70`, **`P_WATER_BONUS=120`** (now a real param; was a bare 50 in `job.py`), **`MAX_HIRE_PER_TURN=1`**, **opening crew 5**, `OPENING_WHEAT_KEEP_DAYS=2`, `OPENING_OWNS_SELLS=False`, **`TRADE_ENABLED=True`** (the wheat carry, `src/trade.py`: buy at `base+4`, sell at `base+4`, `TRADE_FROM_DAY=1`), `STRUCTURE_HOLDBACK=12`, `PLANT_RAMP=True`, `FERTILIZE_FROM_DAY=99`, `CROP_SCALE=1.0`. Snapshot in `config.txt`/`HEAD.txt`. |
 | **DSM** | `replays/DSM/v1` — **123 replays / 122 episodes** (+1 self-play), 66 opponents. Every tool that samples DSM is passed `--dsm-max 123` or `--max 0` (note: `--dsm-max 0` is an **empty** slice). |
 | **audit** | ours audit-backed; DSM leaderboard replays carry **no market audit**, so `sell_revenue_*`, `avg_price_*`, `discarded_*`, `land_cost_*` are 0/modelled for DSM. |
 
@@ -45,13 +45,13 @@ Every file here is raw tool output for the **current** agent (`src/`, tree defau
 | `sc-cur-tape-dsm.txt` | `phase_map --phase phase1 --pa 1-12 --batch 2 --ref-from replays/DSM/v1 --ref-max 123` with the current default (**`OPENING_TAPE=True`**) | 24 live / 123 ref |
 | `sc-cur-tape.txt` | same, `--pa 1-4 --batch 4 --ref-from diag-replays/boey-lb --ref-max 60` (Boey reference, 16 games) | 16 live / 60 ref |
 | `sc-p1-boeyscript.txt` | the Boey-script screen before the water cluster (PLANT 27 / WATER 53 / animals 7) | 16 live / 60 ref |
-| `sc-p1-water.txt` | **the current Phase-1 readout**: `phase_map --phase phase1 --pa 1-4 --batch 4 --ref-from diag-replays/boey-lb --ref-max 60 --team Boey` with the shipped defaults (PLANT 30 / WATER 66 / animals 8 / idle 5.08) | 16 live / 60 ref |
+| `sc-p1-water.txt` | **the current Phase-1 readout**: `phase_map --phase phase1 --pa 1-4 --batch 4 --ref-from replays/Boey/v1 --ref-max 60 --team Boey` with the shipped defaults (PLANT 29 / WATER 68 / animals 8 / idle 8.91 / **revenue $7,086 vs $11,624 = 0.61x** / **trade net $2,443 vs $2,438 = 1.00x ok**) | 16 live / 60 ref |
+| `sc-season-trade.txt`, `sc-season-notrade.txt` | `phase_map --days 0-29 --pa 1-4 --batch 2 --ref-from replays/Boey/v1 --ref-max 60` with the all-season carry ON vs `TRADE_ENABLED=0`; shows the season revenue gap is production-led (HARVEST 245 vs 540) | 8 live / 60 ref |
 | `sc-p1-water-dsm.txt` | the same tree against `--ref-from replays/DSM/v1 --ref-max 123` | 24 live / 123 ref |
 | `sc-p1-chain.txt` | the `SAME_TILE_MIN_PRIORITY=0` chaining arm — the regression that the 70 threshold fixes (MELON 9→7, empty 3.5→5, idle 0.78→11.0) | 16 live / 60 ref |
 | `sc-p1-base.txt` | the same 16-game Boey screen with the pre-tape defaults (`OPENING_TAPE=0`) | 16 live / 60 ref |
 | `phase_all_vs_dsm.txt` | same, `--phase all ... --spread` | 24 live / 123 ref |
-| `phase_dag.txt` | `tools.phases.phase_map --dag` | — |
-| `phase_dsm_selfcheck.txt` | `tools.phases.phase_map --phase all --replay-dir replays/DSM/v1 --max-games 123 --seat auto` | — / 123 |
+| `phase_dag.txt` | `tools.phases.phase_map --dag` | — || `phase_dsm_selfcheck.txt` | `tools.phases.phase_map --phase all --replay-dir replays/DSM/v1 --max-games 123 --seat auto` | — / 123 |
 | `probe-fert.txt` | `SCRATCH_PARAMS='FERTILIZE_FROM_DAY=6'` arm vs baseline, `tools.report.arm_diff` | 96 paired |
 | `probe-herd5.txt` | `SCRATCH_PARAMS='HERD_BUY_UNTIL=5'` arm vs baseline, `tools.report.arm_diff` | 96 paired |
 | `crew-dsm/`, `crew-us/` (in `diag-replays/`) | `tools.labour.crew_extract` work-stream caches | 123 / 96 |
@@ -77,3 +77,17 @@ Every file here is raw tool output for the **current** agent (`src/`, tree defau
    prints the mix first.
 6. **`--dsm-max 0` returns nothing** for the `[:N]` tools; all DSM sampling here uses an
    explicit `123` or a tool whose `0` means all.
+7. **Reference revenue is an ESTIMATE, and it was zero before this run.** Leaderboard replays
+   (DSM/Boey) carry no market audit, and `tools/diagnose/analysis.py` never populated
+   `revenue_per_item` on the non-audit path — so every reference reported `revenue_<p>` = 0.
+   `phase_map.extract` now values each SELL order at the step's observed quote, capped by the
+   shed and `MAX_ORDERS`, for **both** arms. Validated on our 96 audit-backed games: median
+   ratio **0.970** (p10 0.967, p90 0.974). Two consequences: the reference figure is a
+   **lower bound** for a market-making team like Boey (his intraday buy/resell churn is
+   invisible to the shed cap), and the DAG's `d0-d5 sell revenue` node is a new BAD node that
+   earlier read 0 for everyone.
+8. **DAG nodes can be `descriptive`.** `M(..., descriptive=True)` reports a metric without
+   judging it. `d0-d5 sell revenue` is the case: gross turnover *rewards churn* (Boey's is 4x
+   ours while his net is within a few hundred dollars), so the judged node is
+   `d0-d5 trade net $` — exact from the ledger identity
+   `d_money + fixed spend (seed/animals/hire/land) = sells - product buys`.

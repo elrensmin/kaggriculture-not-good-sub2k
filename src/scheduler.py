@@ -14,7 +14,7 @@ import collections
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 
 from . import (budget, crop_plan, emit, endgame, herd_plan, layout, opening, roots,
-               routing, sell_policy)
+               routing, sell_policy, trade)
 from . import params
 from .job import Job, P_PLANT
 
@@ -430,6 +430,12 @@ def plan(state):
         market += budget.market_intents(state)
     else:
         market = list(sell_policy.market_intents(state))
+        # THE CARRY RUNS ALL SEASON, not just the opening. It was wired only into the
+        # tape (d0-d5), so 24 of 30 days had no market engine: `sell_policy` sold WHEAT
+        # at TRICKLE and nothing ever bought it back. Boey's 6,786 wheat sales a season
+        # are the same carry, run continuously. Its sell half sits with the other
+        # inflows; its buy half is emitted last, with the herd's feed reserved.
+        market += trade.sell_intents(state) if params.TRADE_MIDGAME else []
         if params.WINDOW_SEED_FIRST:
             market += _urgent_window_seeds(state)
         market += budget.market_intents(state)
@@ -438,5 +444,8 @@ def plan(state):
         market += crop_plan.market_intents(state)
     market += crop_plan.fertilizer_buy_intent(state)
     market += endgame.market_intents(state)
+    if params.TRADE_MIDGAME and not (params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY):
+        feed_cash = params.FEED_PRICE_GUESS * max(0, state.herd_count()) * params.TRADE_MIDGAME_FEED_DAYS
+        market += trade.buy_intents(state, reserve=feed_cash)
     ops = [o if o is not None else ['PASS'] for o in ops]
     return emit.assemble(state, ops, market)

@@ -120,9 +120,18 @@ DSM_DAILY_SOURCE = ("docs/dsm_v1.md §3 (all 30 days; median per game) + "
 #   tol    how far off target still counts as OK. Convention: a value >= 1 is an
 #          ABSOLUTE allowance (counts); a value < 1 is a FRACTION of the target.
 # ---------------------------------------------------------------------------
-def M(label, phase, src, agg, target_key, better, tol, owner, desc):
+def M(label, phase, src, agg, target_key, better, tol, owner, desc, descriptive=False):
+    """One DAG node.
+
+    ``descriptive=True`` means REPORT the number but never judge it. It exists for
+    metrics that are diagnostic readouts of a mechanism rather than objectives --
+    gross sell revenue is the case in point: it rewards churn (Boey's is 4x ours while
+    his NET is within a few hundred dollars), so it must be visible beside `trade_net`
+    without ever being a target.
+    """
     return dict(label=label, phase=phase, src=src, agg=agg, target_key=target_key,
-                better=better, tol=tol, owner=owner, desc=desc)
+                better=better, tol=tol, owner=owner, desc=desc,
+                descriptive=descriptive)
 
 
 METRICS = {
@@ -181,6 +190,18 @@ METRICS = {
     "empty_tiles": M("empty owned tiles", 1, "stock:empty", "median", "none",
                      "lower", 8, "src/crop_plan.py::plant_queue",
                      "Land doing nothing. High early = the ramp is throttling the tiles."),
+    # Revenue is gross CHURN and must be read beside its net: Boey's d0-d5 gross sales are
+    # 4x ours while his product-trade NET is within a few hundred dollars of ours, because
+    # he recycles the same float ~4x. `TRADE_NET` is the exact ledger quantity
+    # (d_money + fixed spend = sells - product buys), so that is the node to optimise.
+    "revenue": M("sell revenue", 1, "flow:REVENUE", "sum", "none",
+                 "higher", 0.25, "src/market.py (quote) + src/sell_policy.py",
+                 "GROSS opening sales. DESCRIPTIVE: it measures turnover, not profit -- "
+                 "read it beside trade_net, never as a target.", descriptive=True),
+    "trade_net": M("trade net $", 1, "flow:TRADE_NET", "sum", "none",
+                   "higher", 0.30, "src/trade.py + src/sell_policy.py",
+                   "Sells minus product buys, exact from the money ledger. This is what "
+                   "funds the herd; gross revenue above is only the turnover."),
 
     # ---- phase 2: midgame ---------------------------------------------------
     "quadrants2": M("quadrants unlocked", 2, "stock:quadrants", "last", "quad",

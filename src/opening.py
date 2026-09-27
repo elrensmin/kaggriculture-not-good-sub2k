@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS, CROPS
 
-from . import herd_plan, params, sell_policy
+from . import herd_plan, params, sell_policy, trade
 from .job import P_HARVEST, P_PLANT, Job
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ def _buy_herd(state, feed_days):
         wheat_now = int(state.shed.get("WHEAT", 0)) + sum(int(i.get("WHEAT", 0))
                                                           for i in state.inventories)
         herd_now = sum(counts.values())
-        missing = max(0, (herd_now + 2) * feed_days - wheat_now)
+        missing = max(0, (herd_now + int(params.OPENING_HERD_COVER_BUFFER)) * feed_days - wheat_now)
         cover = params.FEED_PRICE_GUESS * missing
         afford = int((money - cover) // max(1, cost))
         n = max(0, min(need, afford))
@@ -296,16 +296,25 @@ def market_intents(state):
             # while the herd stalled.
             out.append(["SELL", item, min(have - keep, params.OPENING_SELL_CHUNK)])
 
-    # TRADE LEG: buy wheat when the SHARED market inventory is above I0, i.e. the price
-    # is below base; the sell path sells it back into scarcity. Boey funds its whole herd
-    # this way (3,497 bought / 6,786 sold per game); our production-only opening cannot
-    # reach 8 animals on 25 tiles (docs/v0/sc-p1-tape21.txt).
-    inv_w = int(state.inventory.get("WHEAT", params.I0))
-    spare = state.money - params.OPENING_TRADE_CASH_FLOOR
-    if inv_w > params.I0 + 50 and spare > 0:
-        qty = min(params.OPENING_TRADE_CHUNK, int(spare // max(1, params.MARKET_PARAMS["WHEAT"]["base"])))
-        if qty > 0:
-            out.append(["BUY_PRODUCT", "WHEAT", qty])
+    # THE CARRY (src/trade.py): the old leg here bought only when the shared wheat
+    # inventory ran 50 units into a glut, which never happens in d0-d5 -- measured
+    # inert. The carry now gates on PRICE and its sell half is emitted HERE, with the
+    # other inflows and BEFORE the animal order, because the engine funds the market list
+    # positionally: cash raised by the sell is spendable by the herd in the SAME turn.
+    #
+    # FRONT-LOAD: the carry exists to fund the herd, so when this day's animal target is
+    # unmet and unaffordable, the position is LIQUIDATED -- down to the unfed count, at any
+    # price above base. A few dollars a unit is worth it against a $500 SHEEP that returns
+    # ~$1,600 of wool. Without this the carry's +$615 arrived d3-d5, after the buying window.
+    counts_now = _animal_counts(state)
+    tgt_now = _herd_target(state.day)
+    still_needed = [a for a in tgt_now
+                    if int(tgt_now.get(a, 0)) - counts_now.get(a, 0) > 0]
+    if (still_needed and state.day >= int(params.OPENING_HERD_LIQUIDATE_DAY)
+            and state.money < min(ANIMALS[a]["cost"] for a in still_needed)):
+        out += trade.sell_intents(state, keep_extra=0, floor_margin=1.0, keep_none=True)
+    else:
+        out += trade.sell_intents(state)
 
     # feed top-up first, covering unfed + a small buffer
     unfed = _unfed(state)
@@ -356,6 +365,12 @@ def market_intents(state):
             out.append(["HIRE"])
     if state.day >= 2:
         out += seed_orders
+    # the carry's BUY half last, and only with cash the rest of the opening does not
+    # need: the day's un-bought herd plus its feed are reserved before it may cycle.
+    unfed_end = _unfed(state)
+    wheat_end = int(state.shed.get("WHEAT", 0))
+    feed_cash = params.FEED_PRICE_GUESS * max(0, unfed_end * feed_days - wheat_end)
+    out += trade.buy_intents(state, reserve=_animal_budget(state) + feed_cash)
     return out
 
 

@@ -515,6 +515,14 @@ def build_days(frames: List[Dict[str, Any]], audit: Optional[Dict[int, Dict[int,
                         day["floor_sales"][item] += qty
                     if price < MARKET_PARAMS[item]["base"]:
                         day["below_base_sales"][item] += qty
+                    # Leaderboard replays carry no market audit, so this branch never
+                    # populated revenue and `revenue_<p>` / `sell_revenue_total` read 0
+                    # for every reference team. Value the sell at the step's OBSERVED
+                    # quote -- the same convention the BUY_PRODUCT branch below already
+                    # uses for `product_cost`. It is the step's opening quote, so a
+                    # multi-unit order that moves the book is approximate; validated
+                    # against our own audit-backed arm in docs/DSM-vs-us(v0).md §2.
+                    day["revenue_per_item"][item] += qty * price
 
         # BUY orders and atomic orders (raw qty is still informative)
         for o in f["market_orders"]:

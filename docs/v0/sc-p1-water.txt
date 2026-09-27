@@ -1,33 +1,35 @@
 phase_map — structural phase audit (LIVE mode)
    opponents: 1-4  seeds: 4  games/phase: 16
    truncated at: phase1=d5(144 steps)
-   reference : 60 replays from diag-replays/boey-lb (seat=auto), reduced identically
+   reference : 60 replays from replays/Boey/v1 (seat=auto), reduced identically
 
 ############ phase1 (opening, d0-d5) — 16 games (live, 4 opponents x 4 seeds) ############
    did we commit the land, the crew and the first production?
-   reference: 60 replays from diag-replays/boey-lb (seat=auto), reduced identically
+   reference: 60 replays from replays/Boey/v1 (seat=auto), reduced identically
    both arms reduced over d0-d5 with the SAME aggregation
 
    metric                            ours      #1   ratio       owner
    ------------------------------------------------------------------------------------------------------------
    animals on board                 8.00   10.0   0.80x  BAD  src/herd_plan.py::market_intents
-   CARE ops                         35.0   40.0   0.88x  WARN src/herd_plan.py::jobs
-   FEED ops                         33.0   38.0   0.87x  WARN src/herd_plan.py::jobs
-   WATER ops                        66.0   76.0   0.87x  WARN src/crop_plan.py::jobs
+   CARE ops                         34.0   40.0   0.85x  WARN src/herd_plan.py::jobs
+   FEED ops                         32.0   38.0   0.84x  WARN src/herd_plan.py::jobs
+   WATER ops                        68.0   76.0   0.89x  WARN src/crop_plan.py::jobs
+   sell revenue                     7086  11624   0.61x  ·    src/market.py (quote) + src/sell_policy.py
    opening cash committed           1.00   0.99   1.00x  ok   src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
    COW on board                     4.00   4.00   1.00x  ok   src/opening.py::_herd_target
    empty owned tiles                3.00   0.00      -  ok   src/crop_plan.py::plant_queue
    GOOSE on board                   2.00   2.00   1.00x  ok   src/opening.py::_herd_target
    hands                            5.00   5.00   1.00x  ok   src/budget.py::market_intents (target_hands, TILES_PER_HAND)
-   idle share %                     5.08   6.62   0.77x  ok   src/scheduler.py::plan
+   idle share %                     8.91   6.62   1.35x  ok   src/scheduler.py::plan
    MELON tiles                      9.00   10.0   0.90x  ok   src/params.py::CROP_PLAN
    owned tiles                      25.0   25.0   1.00x  ok   src/budget.py::market_intents
-   PLANT ops                        30.0   30.0   1.00x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   PLANT ops                        29.0   30.0   0.97x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
    quadrants unlocked               1.00   1.00   1.00x  ok   src/budget.py::market_intents
    SHEEP on board                   2.00   3.00   0.67x  ok   src/opening.py::_herd_target
    shops unlocked                   1.00   1.00   1.00x  ok   -  LATENT (RNG-revealed)
    STRAWBERRY tiles                 4.00   4.00   1.00x  ok   src/params.py::CROP_PLAN
    animal structures                8.00   10.0   0.80x  ok   src/herd_plan.py::jobs
+   trade net $                      2443   2438   1.00x  ok   src/trade.py + src/sell_policy.py
    YARN_STORE unlocked              0.00   0.00      -  ok   -  LATENT (RNG-revealed)
 
 ############ causal trace (phase1) ############

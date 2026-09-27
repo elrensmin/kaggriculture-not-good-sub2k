@@ -450,6 +450,45 @@ OPENING_OWNS_SELLS = False
 # difference between funding the last SHEEP ($500) and not: on d3 we hold 48 wheat and
 # still end the opening ~$380 short of the 9-animal target.
 OPENING_WHEAT_KEEP_DAYS = 2
+# ---- the wheat carry (src/trade.py) -----------------------------------------
+# Boey's opening recycles the bank through wheat ~4x and nets +$2,438 over d0-d5
+# against our +$1,753; that $685 is exactly the extra animal spend ($4,000 vs $3,200)
+# that buys his 9th-10th animal. The shared stock sits in a ~25-unit band around I0,
+# which the wheat curve prices at $28-$30, so the edge is ~$2/unit cycled many times.
+# Thresholds are PRICE-based so the leg cannot be inert the way the old
+# `inventory > I0 + 50` gate was.
+TRADE_ENABLED = True
+TRADE_BUY_MARGIN = 4.0      # buy at or below base + this ($29); measured best
+TRADE_SELL_MARGIN = 4.0     # sell at or above base + this ($29); measured best
+TRADE_CHUNK = 25            # units per order (10/50 measure identical: not the binding cap)
+TRADE_FEED_RESERVE = 4      # extra units of feed held back beyond the unfed count (8 kills the carry)
+TRADE_CASH_FLOOR = 150.0    # never let the carry spend the opening below this
+# d0 is the herd's and the seed basket's: the carry buys nothing until it is over.
+# Measured -- a carry allowed on d0 spent the bank at step 0, so the step-1 animal order
+# shrank and `animals` fell 8 -> 7 with GOOSE 2 -> 0.5, even though the buy is emitted
+# after the animals in the same list (the cash it took was needed on the NEXT turn).
+TRADE_FROM_DAY = 1
+# Days of the MIDGAME herd's feed to reserve before the carry may buy.
+TRADE_MIDGAME_FEED_DAYS = 3
+# Run the carry d6-29 as well as d0-d5. MEASURED over the full season (`phase_map
+# --days 0-29`, 8 games vs 60 Boey replays) ON vs OFF:
+#   trade net   $64,970 vs $61,980   (+$2,990)   plants died 61 vs 64   weeds 56.5 vs 60
+#   animals      12.0  vs  13.5      (-1.5)      <- the carry outbids herd EXPANSION
+# Midgame herd expansion is itself measured positive (`HERD_BUY_UNTIL=12` +$3,013,
+# 23/24), so the carry's net gain does not clearly pay for the herd it costs. The layer
+# is built and callable for d6-29; it ships OFF until that trade-off is settled.
+TRADE_MIDGAME = False
+# Front-load the herd: from this day, if the day's animal target is unmet and
+# unaffordable, LIQUIDATE the carry's wheat position to cash (down to the unfed count,
+# at any price above base). The sell sits before the animal order, so the engine funds
+# the herd from it the same turn. MEASURED: liquidating from d0 raises gross
+# 5,023 -> 5,654 but costs net 0.97x -> 0.78x and buys no animal (our shed holds ~0
+# wheat at d4 -- the herd eats it as it arrives), so it ships OFF.
+OPENING_HERD_LIQUIDATE_DAY = 4
+# Buffer animals in _buy_herd's feed cover. The cover is `(herd + buffer) * feed_days`
+# units of cash held back so a new mouth can be fed; at d4-d5 that $240-$300 is what
+# stands between $400 of liquid cash and the 9th animal.
+OPENING_HERD_COVER_BUFFER = 0
 # CLOSING-WINDOW PRIORITY. A crop whose planting window shuts soon (MELON ends d2) must
 # have its seed bought and its tile planted before discretionary spend, or the crop is
 # lost for the season -- the market list is ordered sells -> hires -> herd -> seeds and

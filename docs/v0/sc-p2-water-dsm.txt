@@ -1,0 +1,4 @@
+phase_map — structural phase audit (LIVE mode)
+   opponents: 1-12  seeds: 2  games/phase: 24
+   truncated at: phase2=d17(432 steps)
+   reference : 123 replays from replays/DSM/v1 (seat=auto), reduced identically
