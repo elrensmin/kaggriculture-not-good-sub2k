@@ -29,6 +29,10 @@ _CROP_VISIT_OPS = ("FERTILIZE",)
 # Same-tile jobs that are never worth chaining: clearing a weed buys no output this turn.
 # See params.COMPLETE_TILE.
 _BUSYWORK_OPS = ("DIG",)
+# Ops whose value is a pure BONUS, so the walk to them is priced linearly and uncapped --
+# see params.BONUS_WALK_WEIGHT. FERTILIZE is the measured one: we spend 9.2 % of all our
+# moves on it at 2.36 moves/op against the reference's 0.13.
+_BONUS_OPS = ("FERTILIZE",)
 
 
 def _move_or_act(state, pos, job, cost):
@@ -228,13 +232,21 @@ _ANIMAL_OPS = ("FEED", "CARE", "COLLECT_FERTILIZER")
 
 
 def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
-          owner=None, me=None, day=0):
+          owner=None, me=None, day=0, deliver_margin=None, horizon=None):
     """Choose the best job for a unit: minimise ``walk_cost - priority``.
 
     Distance is priced (``MOVE_WEIGHT`` per tile) rather than used as a tie-break,
     so a unit finishes the ops on its own tile/neighbour before crossing the farm
     (DSM's ~0.76 moves/act). ``claimed`` stops two units walking to the same tile
     for two different ops, which would burn one of the two turns.
+
+    ``only_delivery`` restricts the candidate set to delivery ops. With
+    ``deliver_margin`` it stops being a wall and becomes a penalty on everything else
+    -- see params.CARRY_DELIVERY_MARGIN for the measurement.
+
+    ``horizon`` = the moves left before the day ends. A job farther than that is
+    unreachable (hands are wiped at `_end_of_day`), so it is dropped from the choice --
+    see params.HORIZON_FILTER.
     """
     band_ops = (_FIELD_OPS + _ANIMAL_OPS
                 if params.at("BAND_ANIMALS", day) else _FIELD_OPS)
@@ -260,6 +272,14 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
     # `USE_SLICES_P2=0` (drop the band entirely) is NOT the fix: measured moves/act
     # 1.81 -> 2.35, because priority (not distance) then decides across the whole farm.
     tol = params.at("BAND_LOSS_TOL", day)
+    # BAND_CRITICAL_BYPASS: a job that stops an irreversible loss is visible farm-wide.
+    # Without this the band wall (the `continue` below) runs BEFORE the `j.critical` cost
+    # waiver a few lines down, so an in-band DIG 8 tiles away beat a survival WATER 1 tile
+    # away. See params.BAND_CRITICAL_BYPASS for the measurement.
+    crit_bypass = bool(params.at("BAND_CRITICAL_BYPASS", day))
+    # FERT_DELIVER_RADIUS: a bonus delivery op is not worth a commute. See the param.
+    _fr = params.at("FERT_DELIVER_RADIUS", day)
+    fert_radius = None if _fr is None else int(_fr)
     for restrict in (True, False):
         best, best_key = None, None
         alt, alt_key = None, None          # nearest out-of-band, same priority class
@@ -267,22 +287,32 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             if assigned[jidx] or j.tile is None:
                 continue
             if only_delivery and j.op not in _DELIVER_OPS:
-                continue
+                if deliver_margin is None:
+                    continue
+                dmargin = deliver_margin
+            else:
+                dmargin = 0
             if not _eligible(inv, j, day):
                 continue
             in_band = not (prefer is not None and j.op in band_ops
                            and j.tile not in prefer)
-            if restrict and not in_band and tol is None:
+            if restrict and not in_band and tol is None and not (crit_bypass and j.critical):
                 continue
             if not restrict and owner_water and j.op == "WATER" and not j.critical:
                 continue      # no global fallback for a bonus water: its band owner waters it
             d = routing.manhattan(pos, j.tile)
+            if (only_delivery and j.op == "FERTILIZE"
+                    and fert_radius is not None and d > fert_radius):
+                continue      # never commute to spend a fertilizer -- FERT_DELIVER_RADIUS
+            if horizon is not None and d > horizon:
+                continue      # unreachable before the day ends -- see HORIZON_FILTER
             if claimed is not None and d > 0 and j.tile in claimed:
                 continue
             if (params.OWNER_FIRST and owner is not None and d > 0
                     and owner.get(j.tile) not in (None, me)):
                 continue      # the unit standing there gets first refusal
-            if restrict and not in_band:
+            if (restrict and not in_band and tol is None
+                    and not (crit_bypass and j.critical)):
                 k2 = (-j.priority, d)
                 if alt_key is None or k2 < alt_key:
                     alt_key, alt = k2, (jidx, j, d)
@@ -290,7 +320,11 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             # Distance prices the tile cluster but is capped so local busywork can
             # never starve a far high-value job; a job that stops an irreversible
             # loss (tonight's weed/escape) pays no walk cost at all.
-            dcost = params.at("MOVE_WEIGHT", day) * min(d, params.at("DIST_CAP", day))
+            bw = params.at("BONUS_WALK_WEIGHT", day)
+            if bw and j.op in _BONUS_OPS and not j.critical:
+                dcost = bw * d          # a bonus op must be walked to at its true cost
+            else:
+                dcost = params.at("MOVE_WEIGHT", day) * min(d, params.at("DIST_CAP", day))
             if j.critical:
                 dcost *= params.CRITICAL_FREE_WALK_FRAC
             # Finishing the visit: a job on the tile the unit already occupies costs no
@@ -299,7 +333,7 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             # priority points higher (a distant PICKUP_WHEAT 101 beats the CARE 70 underfoot).
             # See params.ON_TILE_BONUS for the measured visit trace. 0 = off.
             on_tile = params.at("ON_TILE_BONUS", day) if d == 0 else 0
-            key = (dcost - j.priority - on_tile, d, -j.priority)
+            key = (dcost - j.priority - on_tile + dmargin, d, -j.priority)
             if best_key is None or key < best_key:
                 best_key, best = key, (jidx, j, d)
         if best is not None:
@@ -463,6 +497,24 @@ def plan(state):
                 keys = (-j.priority,)
                 if best_key is None or keys < best_key:
                     best_key, best = keys, (jidx, j)
+            if (best is not None
+                    and params.at("SAME_TILE_CRITICAL_BREAK", state.day)
+                    and not best[1].critical):
+                cand = _pick(jobs, assigned, pos, inv, only_delivery=False,
+                             prefer=pref[i], claimed=claimed, owner=occupied,
+                             me=i, day=state.day)
+                if cand is not None and cand[1].critical and cand[1].tile != pos:
+                    best = None
+            if best is not None and params.at("SAME_TILE_COMPARE", state.day):
+                # SAME_TILE_COMPARE -- the reservation must WIN the comparison, not veto it.
+                # See params.SAME_TILE_COMPARE: the pre-pass scores ON-TILE jobs only, so a
+                # unit standing on an animal tile chained FEED(100)/CARE(70) while a
+                # survival WATER(90) two tiles away was never considered.
+                cand = _pick(jobs, assigned, pos, inv, only_delivery=False,
+                             prefer=pref[i], claimed=claimed, owner=occupied,
+                             me=i, day=state.day)
+                if cand is not None and cand[1].tile != pos:
+                    best = None
             if best is not None:
                 jidx, j = best
                 assigned[jidx] = True
@@ -523,6 +575,9 @@ def plan(state):
     for i in range(n):
         occupied.setdefault(tuple(state.positions[i]), i)
 
+    # HORIZON: moves left before the day ends. See params.HORIZON_FILTER.
+    hzn = max(0, 24 - state.hour) if params.at("HORIZON_FILTER", state.day) else None
+
     for i in order:
         pos = state.positions[i]
         inv = state.unit_inv(i)
@@ -556,7 +611,11 @@ def plan(state):
             # 1. deliver a deliverable (feed/place/fertilize) if carrying one.
             if _carrying_deliverable(inv):
                 best = _pick(jobs, assigned, pos, inv, only_delivery=True,
-                             claimed=claimed, owner=occupied, me=i, day=state.day)
+                             prefer=(pref[i] if params.at("CARRY_BAND_LOCAL", state.day)
+                                     else None),
+                             claimed=claimed, owner=occupied, me=i, day=state.day,
+                             deliver_margin=params.at("CARRY_DELIVERY_MARGIN", state.day),
+                             horizon=hzn)
                 if best is not None:
                     op = _take(best)
             # 2. deposit when shed-adjacent (free), or during the endgame so
@@ -570,7 +629,7 @@ def plan(state):
             if op is None:
                 best = _pick(jobs, assigned, pos, inv, only_delivery=False,
                              prefer=pref[i], claimed=claimed, owner=occupied, me=i,
-                             day=state.day)
+                             day=state.day, horizon=hzn)
                 if best is not None:
                     op = _take(best)
             # 4. nothing to do -> HOLD POSITION, not a shed trip.
@@ -589,7 +648,7 @@ def plan(state):
         else:
             best = _pick(jobs, assigned, pos, inv, only_delivery=False,
                          prefer=pref[i], claimed=claimed, owner=occupied, me=i,
-                         day=state.day)
+                         day=state.day, horizon=hzn)
             if best is not None:
                 op = _take(best)
             else:

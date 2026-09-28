@@ -935,9 +935,178 @@ USE_SLICES = True
 # band entirely (`USE_SLICES_P2=0`) is measured WORSE (moves/act 1.81 -> 2.35), because
 # priority then decides across the whole farm and distance is capped at DIST_CAP=1.
 # This keeps the band a preference and lets nearness break it.
+# CARRY_BAND_LOCAL -- the only_delivery `_pick` is called WITHOUT `prefer`, so a unit
+# carrying fertilizer/feed/fruit re-picks GLOBALLY and walks out of its band to deliver.
+# MEASURED on the transplant (d11-17, 4 games, Boey's own farm): COLLECT_FERTILIZER costs
+# us **2.35 moves/op against his 0.78** (32 % of all our moves) and FERTILIZE **2.40 vs
+# 0.03**. Same layout, same ops (154 vs 156 collects) -- so it is the ASSIGNMENT, not the
+# geometry. This makes the delivery pass band-local with the usual global fallback.
+CARRY_BAND_LOCAL = False
+CARRY_BAND_LOCAL_P2 = None
+CARRY_BAND_LOCAL_P3 = None
 BAND_LOSS_TOL = None
 BAND_LOSS_TOL_P2 = None
 BAND_LOSS_TOL_P3 = None
+
+# BAND_CRITICAL_BYPASS -- let a `critical` job (tonight's weed / tonight's escape) be# seen by a unit whose band does not contain it.
+#
+# THE BAND WALL WAS EATING THE RESCUES. `_pick` pass 1 skips every out-of-band job with
+# `if restrict and not in_band and tol is None: continue` -- and that test runs BEFORE the
+# `j.critical` test that zeroes the walk cost. So the promise in `job.py` ("the assignment
+# kernel lets a critical job beat any walk cost, so a local low-value job can never starve
+# a tile that is about to die") held only WITHIN a band: a survival WATER one tile away,
+# out of band, lost to an in-band DIG (20) eight tiles away.
+#
+# MEASURED (`/tmp/pickwhy2`, d12 only, one transplant episode, every `_pick` call logged):
+#   free (non-carrying) calls                              60
+#   calls with an ELIGIBLE WATER candidate                 60   (100 %)
+#   ... that actually chose WATER                          44
+#   the other 16 chose BUILD_COOP 95 @ d=11, HARVEST 100, PICKUP 101, PLANT 85
+# and the water candidates in those 16 were ALL critical survival jobs at d=1-5.
+# Consequence on the transplant (d11-29, 4 games, Boey's own farm):
+#   WATER **279 vs his 784**, `plants_died` **50 vs 9**, MOVE 3,135 vs 2,164,
+#   final money $33-56k against his $85-145k with the SAME farm at d10.
+# The farm at d12 has 42 unwatered tiles, all of them inside some band, and a stock of
+# ~26 water jobs every turn that the crew simply walks past.
+# ON: critical jobs ignore the band wall in pass 1 (they still pay the distance price
+# unless `critical`, which zeroes it -- that is the pre-existing rule).
+BAND_CRITICAL_BYPASS = False
+BAND_CRITICAL_BYPASS_P2 = None
+BAND_CRITICAL_BYPASS_P3 = None
+
+# CARRY_DELIVERY_MARGIN -- soften `only_delivery` from a WALL into a PREFERENCE.
+#
+# THE WALL THAT STARVES THE FARM. In `scheduler.plan` a unit carrying a deliverable
+# (WHEAT / FERTILIZER / an animal) is offered ONLY `_DELIVER_OPS` (FEED / PLACE /
+# FERTILIZE) in step 1, and step 1 returns as soon as ANY such job exists -- general work
+# is not looked at until step 3, which is therefore almost never reached.
+# MEASURED (`/tmp/pickwhy2`, d12, one transplant episode, every `_pick` call logged):
+#   `_pick` calls                                          201
+#   ... with `only_delivery=True`                          141  (70 %)
+#   ... with an ELIGIBLE WATER job                          60  (only the free calls)
+#   water was the chosen op in                             44 of those 60
+# and on the same turn the farm had **~26 WATER jobs outstanding** at the top of the
+# priority table (WATER_BONUS 120 / WATER_SURVIVAL 90-critical) against a FERTILIZE pool
+# of ~13 that `crop_plan` re-emits every turn at priority **54**. So a unit holding a
+# strawberry and a spare fertilizer spent its day applying fertilizer five tiles away
+# while the crop that pays for everything stood unwatered.
+#
+# CONSEQUENCE on the transplant (Boey's own farm at d10, 4 games, d11-19):
+#   planted  ours 52.5 -> 25.5   his 53.0 -> 52.0      <-- we lose HALF the farm
+#   WATER    ours 279            his 832
+#   died     ours 50             his 9
+#   money    ours $10.4k -> $30.8k (d11 -> d17)   his $10.5k -> $49.9k
+# We are at exact parity at d11 ($10,405 vs $10,534) and diverge from d12 onward.
+#
+# Value = the priority penalty applied to a NON-delivery job inside the `only_delivery`
+# pass, so the pass becomes "best job overall, with delivery preferred". `None` = the old
+# hard wall (only delivery jobs considered). 40 keeps FEED/PLACE above a bonus water while
+# letting a survival water beat a FERTILIZE five tiles away.
+CARRY_DELIVERY_MARGIN = None
+CARRY_DELIVERY_MARGIN_P2 = None
+CARRY_DELIVERY_MARGIN_P3 = None
+
+# HORIZON_FILTER -- never assign a job the unit cannot REACH before the day ends.
+#
+# The deadline is not a preference, it is a fact: hands are wiped at `_end_of_day` and
+# re-hired at the shed, so a walk that does not arrive today is thrown away. `_pick`
+# prices distance at `MOVE_WEIGHT * min(d, DIST_CAP)` with DIST_CAP=1, so at hour 22 a
+# 6-tile walk costs the same 20 points as a 1-tile walk and gets chosen.
+#
+# MEASURED (4 transplant games, d11-29, "moves after the LAST act of a unit-day"):
+#     HIS   mean 0.98 tiles,  13 unit-days with a 6+ walk
+#     OURS  mean 2.17 tiles, **114 unit-days with a 6+ walk**
+# i.e. 12 % of our unit-days end in a long walk that never reaches an act. That is
+# ~2,100 of our 12,384 moves -- 17 % of ALL our walking, and his equivalent is 10 %.
+# A unit that cannot arrive should take the best job it CAN reach (or hold), which is
+# exactly what this rule does: `d > 24 - hour` candidates are dropped from the choice.
+HORIZON_FILTER = False
+HORIZON_FILTER_P2 = None
+HORIZON_FILTER_P3 = None
+
+# BONUS_WALK_WEIGHT -- price the walk to a BONUS op at its true marginal value.
+#
+# FERTILIZE is worth about one extra yield unit (~$25-140) and is never urgent: the tile
+# lives without it. But it is scored like any other op -- `MOVE_WEIGHT * min(d, DIST_CAP)`
+# with DIST_CAP=1, so a fertilize 5 tiles away costs the same 20 points as one underfoot
+# and the crew commutes for it.
+# MEASURED (crew_audit, d11-17, 4 transplant games):
+#     FERTILIZE   ours 178 ops @ **2.36 moves/op** (9.2 % of all our moves)
+#                 his  262 ops @ **0.13 moves/op**
+#     conversion  FERTILIZE 818 intents, only 168 landed (21 %), 550 DIVERTED,
+#                 **tiles/land 1.41** -- we walk 1.4 tiles per fertilize we actually apply
+#     COLLECT_FERTILIZER is then **31.6 % of ALL our moves at 2.39 moves/op** (his 0.85),
+#     because the unit collects the fertilizer and then commutes to spend it.
+# With this set, `dcost = BONUS_WALK_WEIGHT * d` (LINEAR, uncapped) for the ops in
+# `_BONUS_OPS`, so a fertilize 3 tiles away loses to any other job of similar priority
+# and the application only happens when the unit is already there. 0/None = today's rule.
+BONUS_WALK_WEIGHT = None
+BONUS_WALK_WEIGHT_P2 = None
+BONUS_WALK_WEIGHT_P3 = None
+
+# SAME_TILE_COMPARE -- the underfoot reservation must WIN the comparison, not veto it.
+#
+# The pre-pass reserves the job on the tile a unit already occupies before any distant
+# unit can claim it (see params.SAME_TILE_FIRST). It picks that job by `(-priority,)`
+# among the ON-TILE jobs only -- it never compares against the best job elsewhere. So a
+# unit standing on an animal tile chains FEED (100) / CARE (70) / COLLECT (55) while a
+# survival WATER (90) or a bonus WATER (120) two tiles away is never considered, and the
+# crop does not get watered. Measured as the `ON_TILE` diverts below.
+# With this ON, the reservation is granted only when `_pick` would ALSO have chosen a job
+# on the current tile; otherwise the unit is left to the ordinary kernel, which prices the
+# underfoot job at d=0 (dcost 0) and lets it win on merit.
+#
+# WHY IT IS NEEDED -- MEASURED (`tools/labour/conversion.py`, d11-17, 4 transplant games):
+#   40.6 % of all assigned intents are DIVERTED before they land, and of those
+#     49 % are `ON_TILE` (the unit is pulled to work underfoot mid-walk)
+#     45 % are `TAKEN_BY_OTHER` (two units on the same tile)
+#   WATER   646 intents / 341 landed (53 %) / **tiles walked per landed water 0.72**
+#   FEED   1279 intents / 157 landed (12 %) / 655 diverted
+# Against the reference's own play on the SAME farm the water counts are 866 / 643 (74 %)
+# at 0.02 tiles per landed water, and `P_WATER_SURVIVAL=P_WATER_BONUS` sweeps (110/130/140)
+# change the delivered water count by <4 %, which is the proof that PRIORITY is not the
+# binding constraint -- the reservation is.
+SAME_TILE_COMPARE = False
+SAME_TILE_COMPARE_P2 = None
+SAME_TILE_COMPARE_P3 = None
+
+# SAME_TILE_CRITICAL_BREAK -- the NARROW form of the above. `SAME_TILE_COMPARE` compared
+# the underfoot job against the whole job list, so the reservation was granted only when
+# `_pick` also chose an on-tile job -- which is almost never, and the arm collapsed
+# (transplant median **-$106,370** against the -$53,402 baseline, i.e. identical to
+# switching the pre-pass off altogether). The reservation is load-bearing for LOCALITY;
+# what it costs is the rescue. This breaks it for exactly one case: an off-tile
+# `critical` job (a tile that becomes a WEED or an animal that escapes tonight) that
+# `_pick` would have chosen. Everything else keeps its reservation.
+SAME_TILE_CRITICAL_BREAK = False
+SAME_TILE_CRITICAL_BREAK_P2 = None
+SAME_TILE_CRITICAL_BREAK_P3 = None
+
+# FERT_DELIVER_RADIUS -- never COMMUTE to spend a fertilizer. Apply it where you stand.
+#
+# The `only_delivery` wall in `scheduler.plan` shows a carrying unit ONLY FEED/PLACE/
+# FERTILIZE -- so the moment a unit does COLLECT_FERTILIZER it is committed to walking to
+# a FERTILIZE tile, however far, and no other cost term can stop it (`BONUS_WALK_WEIGHT`
+# measured byte-identical for exactly this reason: the competition is excluded, not
+# outscored).
+# MEASURED (`crew_audit`, d11-17, 4 transplant games, Boey's own farm):
+#     COLLECT_FERTILIZER  **2.39 moves/op = 31.6 % of ALL our moves**   (his 0.85)
+#     FERTILIZE           2.36 moves/op                                 (his 0.13)
+#     FERTILIZE conversion: 818 intents, 168 landed (21 %), 550 DIVERTED, tiles/land 1.41
+# and the crew's position histogram over d11-29 --
+#     standing on an ANIMAL tile:  ours 67.4 %   his 48.8 %
+#     standing on a THIRSTY CROP:  ours 12.1 %   his 25.6 %
+# -- so the crew is trapped in the animal ring by a bonus errand, while water delivery is
+# proportional to time spent on thirsty tiles (4.3 unit-turns per water, identical for
+# both). With this set, a FERTILIZE job farther than the radius is not offered to the
+# delivery pass; the fertilizer stays in hand and is spent opportunistically, only when the
+# unit is already there. `None` = today's wall.
+# NOTE: fertilizer has no other exit -- `_drop_inventories_to_shed` banks it at day end and
+# `FERTILIZE_SHED_PICKUP` (ON) will re-fetch it. Keep the radius >= 1 so a unit on an
+# animal tile can still serve the crop tile beside it, which is the reference's pattern.
+FERT_DELIVER_RADIUS = None
+FERT_DELIVER_RADIUS_P2 = None
+FERT_DELIVER_RADIUS_P3 = None
 
 BAND_MONOCROP = True
 

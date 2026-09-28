@@ -843,6 +843,89 @@ Both fixed (count carried wheat; fold the feed stock into the sell reserve). Sam
 separable: the herd gate + stock **alone** is −$5,448 without `STRAWBERRY_PEAK=11` — the herd
 eats feed that only the earlier strawberry ramp pays for. Shipped as one 4-part bundle.
 
+#### Revenue variance and the wheat/strawberry mix — both reduce to the fill
+
+**Revenue variance is not a sell-policy problem.** Across 48 public games at d10 our cash is
+`median 31, p10 3, p90 369` (CoV **149 %**, p10–p90 spread **1,181 %**) against his 9,653.
+The drivers, measured on the same 48 games:
+
+| correlation with d10 cash | |
+|---|---|
+| planted tiles | **−0.85** |
+| STRAWBERRY / WHEAT tiles | −0.60 / −0.54 |
+| animals | **+0.49** |
+| structs | +0.30 |
+
+Cash at d10 is a **residual — income minus investment** — and we convert it into crops that
+have not yielded yet. The per-opponent medians split 70 vs 6, i.e. the residual swings with
+early allocation, not with the opponent's market play. Two arms confirm it is not the sell
+side: `TRICKLE_P2=20` makes it **worse** (median 6, spread 1,583 %), and
+`SELL_TRICKLE_FRACTION_P2=0.25` is **inert** (byte-identical). Two more confirm it is not the
+melon event: `HARVEST_AGE_MELON` 9 and 8 leave d10 cash at 5 and 8.5.
+
+**The mix is nearly right.** Ours at d10 vs his (357 replays):
+
+| | ours | his |
+|---|---|---|
+| WHEAT tiles | 21 | 26 |
+| STRAWBERRY tiles | **22** | **22** (0 %) |
+| WHEAT/STRAWBERRY ratio | 0.95 | 1.18 |
+| wheat+straw total | 43 | 48 |
+
+Strawberry is exactly at parity and the ratio is only mildly strawberry-heavy: the deficit is
+**5 wheat tiles out of 48 crops**, i.e. a uniform shortfall, not a mix error. `WHEAT_TARGET=36`
+does not bind — the queue already asks for an 11-tile wheat deficit; we plant ~4/day because
+the crew is walking.
+
+**Both questions are the same question.** Revenue variance is the residual of an
+under-producing farm; the mix is 5 tiles short. Both are the **fill**, and the fill is the
+kernel: `moves/act 1.5 vs 0.8`, `WATER` 40 %, `died` 5.8× (§3.8). That is round 5.
+
+---
+
+### 3.11 The kernel, decomposed — it is the DELIVERY decisions, not geometry or layout
+
+`transplant --save-dir` now saves the post-cut env as replays (stamping our seat into
+`info.TeamNames`, because `env.toJSON()` drops it and the analysis tools would otherwise read
+the *opponent*). Running `move_trace` on the d11–17 window of the control (his own play) and
+the treatment (ours, from his d10 state) gives the kernel line by line, per game:
+
+| d11–17 | his ops | his mv/op | our ops | our mv/op |
+|---|---|---|---|---|
+| total moves | **815** | | **1,142** | |
+| **COLLECT_FERTILIZER** | 156 | **0.78** | 154 | **2.35** (32 % of all our moves) |
+| **FERTILIZE** | 67 | **0.03** | 47 | **2.40** |
+| PICKUP | 55 | 0.98 | 84 | 1.27 |
+| DROP | 22 | 0.86 | 26 | 2.08 |
+| WATER | **298** | 1.21 | **147** | 1.74 |
+| CARE | 155 | 0.43 | 154 | 0.69 |
+| FEED | 154 | 0.60 | 154 | 0.38 |
+| HARVEST | 140 | 0.49 | 97 | 0.73 |
+| PLANT | 60 | 0.10 | 36 | 0.19 |
+| moves empty / carrying | | 17 % / 83 % | | 12 % / **88 %** |
+
+**We do the same number of collects (154 vs 156) and walk 240 more tiles doing them.** The
+same layout, the same ops, 3× the travel — so this is the **assignment**, not the geometry.
+The pattern is uniform: our *on-tile* ops are fine or better (FEED 0.38 vs 0.60, PLANT 0.19,
+HARVEST 0.73), while every **carry/delivery** op costs us 2–3× (COLLECT 3×, FERTILIZE 80×,
+DROP 2.4×). And we water **half as often** (147 vs 298) — that is the `died` gap.
+
+Three arms against it, all measured on the transplant (12 episodes, control exact):
+
+| arm | COLLECT mv/op | FERTILIZE mv/op | total moves | final |
+|---|---|---|---|---|
+| baseline | 2.35 | 2.40 | 1,142 | −$53,402 |
+| shed loop (3 knobs) | — | — | 1,142→(PICKUP 280→219) | −$52,878 (but MOVE **rose** to 3,221) |
+| fertilize both crop types | 2.35 | 2.40→(ops 42→72) | 1,136 | −$54,190 |
+| `CARRY_BAND_LOCAL_P2=1` | 2.18 | 2.27 | 1,121 | −$60,791 |
+
+**None closes it, and that is the finding: the delivery policy needs a redesign, not another
+knob.** The mechanism is that after a `COLLECT_FERTILIZER` the unit re-picks delivery
+**globally** (`only_delivery` `_pick` has no `prefer`) and walks ~2.4 tiles; the reference
+delivers to the tile it is standing on or next to (FERTILIZE **0.03 mv/op**). The target is
+explicit: `COLLECT 2.35 → 0.8`, `FERTILIZE 2.40 → 0.1`, total moves `1,142 → 815`, and then
+the freed turns pay for the `WATER 147 → 298` that stops the `died 52 → 9`.
+
 ---
 
 ## 4. Phase 3 — endgame (d18–d29)

@@ -161,7 +161,7 @@ def _post_metrics(env, seat, cut_day):
     return out
 
 
-def run_one(path, cut_day, mode, prefix="recorded"):
+def run_one(path, cut_day, mode, prefix="recorded", save_dir=None):
     """Returns a result dict. `mode` is 'control' or 'treatment'."""
     from tools.diagnose.games import load_replay
     rep = load_replay(Path(path))
@@ -211,6 +211,24 @@ def run_one(path, cut_day, mode, prefix="recorded"):
         post = _post_metrics(env, seat, cut_day)
     except Exception:                             # noqa: BLE001
         post = {}
+    if save_dir:
+        # Save the env so the standard replay tools (move_trace, op_patterns,
+        # unit_trace) can be run on the post-cut divergence.
+        try:
+            d = Path(save_dir)
+            d.mkdir(parents=True, exist_ok=True)
+            tag = f"{mode}_{prefix}_{Path(path).stem}.json"
+            blob = env.toJSON()
+            # `env.toJSON()` drops `info.TeamNames`, so `seat_of_names` falls back to 0 and
+            # the analysis tools read the OPPONENT's actions. Stamp our seat as "Boey" so
+            # `--team Boey --seat auto` resolves the seat these numbers are about.
+            blob.setdefault("info", {})
+            names = ["opponent", "opponent"]
+            names[seat] = "Boey"
+            blob["info"]["TeamNames"] = names
+            (d / tag).write_text(json.dumps(blob, default=str))
+        except Exception:                         # noqa: BLE001
+            pass
     return {
         "file": Path(path).name, "mode": mode, "seat": seat, "seed": seed,
         "cut_day": cut_day, "transplanted": transplanted, "post": post,
@@ -224,9 +242,10 @@ def run_one(path, cut_day, mode, prefix="recorded"):
 
 
 def _worker(task):
-    path, cut_day, mode, prefix = task
+    path, cut_day, mode, prefix = task[:4]
+    save_dir = task[4] if len(task) > 4 else None
     try:
-        return run_one(path, cut_day, mode, prefix)
+        return run_one(path, cut_day, mode, prefix, save_dir)
     except Exception as exc:                      # noqa: BLE001
         return {"file": Path(path).name, "mode": mode, "error": repr(exc)}
 
@@ -411,6 +430,8 @@ def main(argv=None):
     ap.add_argument("--pa", default="2,3", help="public opponents for --public")
     ap.add_argument("--batch", type=int, default=4, help="seeds/opponent for --public")
     ap.add_argument("--seed", type=int, default=4362837462, help="seed for --public")
+    ap.add_argument("--save-dir", default=None,
+                    help="write the post-cut env as replays for the standard analysis tools")
     ap.add_argument("--ref-max", type=int, default=120,
                     help="reference replays to snapshot for the --public comparison")
     a = ap.parse_args(argv)
@@ -460,7 +481,7 @@ def main(argv=None):
           f"mode={a.mode}  prefix={a.prefix}")
 
     modes = ("control", "treatment") if a.mode == "both" else (a.mode,)
-    tasks = [(p, a.cut_day, m, a.prefix) for m in modes for p in paths]
+    tasks = [(p, a.cut_day, m, a.prefix, a.save_dir) for m in modes for p in paths]
     w = int(a.workers or 0)
     if w <= 1 or len(tasks) <= 1:
         rows = [_worker(t) for t in tasks]
