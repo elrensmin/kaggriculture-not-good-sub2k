@@ -108,6 +108,22 @@ def plant_queue(state):
         else:
             rest[crop] = slots
 
+    # FILL THE LAND. The queue above is a deficit against `CROP_PLAN`'s PARAM TARGETS, so it
+    # says "enough" while owned tiles sit bare -- MEASURED: 40 % of the farm empty at d8 and
+    # 35 % at d10 against the reference's 0.0 % every day. An empty owned tile is a RENT (it
+    # spawns weeds, lengthens every trip and earns nothing), so the queue is extended to cover
+    # them with the best recipe crop.
+    if params.at("FILL_LAND", state.day):
+        empty = _free_tiles(state)
+        if empty > 0:
+            try:
+                from . import crew, recipes
+                crop_f, _r = recipes.best_crop_per_tile_day(crew.prices(state), state.day)
+            except Exception:                             # noqa: BLE001
+                crop_f = None
+            if crop_f:
+                rest[crop_f] = rest.get(crop_f, 0) + empty
+
     queue = list(urgent)
     while rest:
         for crop in list(rest):
@@ -163,6 +179,19 @@ def jobs(state):
                                        None, True))
                     elif state.in_water_window(t):
                         out.append(Job(P_WATER_BONUS, pos, "WATER", t["crop"]))
+                    elif (params.at("WATER_ONGOING_SURVIVE", state.day)
+                          and CROPS[t["crop"]]["ongoing"]):
+                        # AN ONGOING CROP NEEDS A WATER JOB TO SURVIVE, NOT ONLY TO PRODUCE.
+                        # MEASURED (`tools/labour/death_cause.py`, 4 games of value-v4):
+                        # 241 deaths, of which **144 (60 %) are STRAWBERRY** and 137 are at
+                        # the day boundary from dryness. The only water job a strawberry
+                        # ever saw was the SURVIVAL one, which fires when
+                        # `consecutive_unwatered >= 1` -- the SECOND consecutive dry day,
+                        # the last moment before it becomes a weed. So the tile had one day
+                        # to be serviced, against ~40 such jobs and 12 units, and the ones
+                        # that lost the race died. Watering on the FIRST dry day survives
+                        # just as well and gives the crew two days of slack.
+                        out.append(Job(P_WATER_BONUS, pos, "WATER", t["crop"]))
                     elif (params.at("WATER_ONGOING_PRODUCE", state.day)
                           and state.ongoing_produces_today(t)):
                         # ONGOING CROPS HAVE NO WATER WINDOW. `state.water_window` returns
@@ -188,7 +217,23 @@ def jobs(state):
                         and (not params.FERTILIZE_ONESHOT_ONLY
                              or not CROPS[t["crop"]]["ongoing"])
                         and state.fert_window_open(t)):
-                    out.append(Job(P_FERTILIZE, pos, "FERTILIZE", None))
+                    # THE VISIT CHAIN. The engine's WATER gives +2 when
+                    # `fertilized_until_day >= day`, so fertilising BEFORE watering the same
+                    # tile is worth an extra unit -- and it is two acts on ONE tile, i.e. two
+                    # acts at zero walking, which is exactly the shape the reference plays
+                    # (measured: 65 of his 67 fertilise events are followed by a WATER on the
+                    # same tile) and exactly what our 60 %-walking crew never does.
+                    #
+                    # The recipe's `fert_urgency` already ranks WHICH tile to fertilise; this
+                    # makes the tile's own fertilise outrank its water for one turn so the
+                    # order lands FERTILIZE -> WATER instead of WATER -> FERTILIZE.
+                    prio = P_FERTILIZE
+                    if params.at("VISIT_RECIPE_CHAIN", state.day):
+                        from . import recipes
+                        if (not t.get("watered_today")
+                                and recipes.recipe_fert_due(state, t)):
+                            prio = P_WATER_BONUS + 5
+                    out.append(Job(prio, pos, "FERTILIZE", None))
             elif state.is_weed(pos) and not retire:
                 out.append(Job(P_DIG, pos, "DIG", None))
 

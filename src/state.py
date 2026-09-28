@@ -164,8 +164,14 @@ class State:
         # a SINGLE window water (MEASURED: water/cycle 1.93 -> 1.00 and wheat yield
         # 4.03 -> 2.53 when the guard was missing). Before the water lands, only the WATER
         # jobs exist and the bonus is banked, then this returns true later the same day.
-        early = {"WHEAT": params.HARVEST_AGE_WHEAT,
-                 "MELON": params.HARVEST_AGE_MELON}.get(plant_tile["crop"], 0)
+        # READ THROUGH `at()`, not the bare attribute. These were read directly, so the
+        # phase-scoped `_P2`/`_P3` overrides were DEAD: an arm setting
+        # `HARVEST_AGE_WHEAT_P2=3` resolved to 3 at the params level and was then ignored
+        # here, and the arm measured byte-identical. Same defect class as the missing `_P2`
+        # declaration -- a knob is only live if BOTH the name exists AND the reader uses it.
+        early = {"WHEAT": params.at("HARVEST_AGE_WHEAT", self.day),
+                 "MELON": params.at("HARVEST_AGE_MELON", self.day)}.get(
+                     plant_tile["crop"], 0)
         if (early and self.crop_age(plant_tile) >= early
                 and plant_tile.get("watered_today")):
             return True

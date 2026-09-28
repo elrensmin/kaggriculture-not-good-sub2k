@@ -108,6 +108,36 @@ def step_toward(pos, target, cost, n=N):
     return best
 
 
+def flood(origin, cost, n=N):
+    """One Dijkstra from `origin`: exact path cost to EVERY tile, plus the back-pointers.
+
+    The scheduler used to route with `step_toward`, a GREEDY one-step rule: it re-decides
+    the direction every turn from the current cell, so a single blocked or LOCKED cell can
+    make a unit oscillate (A->B->A) or detour, and the cost it optimised was not the cost
+    of the path it would actually walk. A flood fill costs one Dijkstra per unit per turn
+    on a 10x10 board and gives the true distance to every job AND the first step of the
+    true shortest path -- so a hand walks the path a planner would have chosen.
+
+    Returns (dist, prev, first) where `first[p]` is the first move FROM `origin` toward p.
+    """
+    dist, prev = dijkstra(origin, cost, n)
+    first = {}
+    for p in dist:
+        cur = p
+        while cur in prev and prev[cur] != origin:
+            cur = prev[cur]
+        if cur != origin:
+            first[p] = cur
+    return dist, prev, first
+
+
+def step_of(origin, nxt):
+    """The move op from `origin` to the adjacent cell `nxt`."""
+    if nxt is None:
+        return None
+    return _MOVE.get((nxt[0] - origin[0], nxt[1] - origin[1]))
+
+
 def default_cost(state):
     """Standard cost model: distance, penalising locked (unowned) tiles."""
     def cost(pos):

@@ -118,7 +118,7 @@ def plant_jobs(state):
     struct = _structure_positions(state)
     order = _owned_shed_order(state)
     empties = [p for p in order if p not in struct and state.is_empty_owned(p)]
-    target = crop_target(state.day)
+    target = capacity_target(state)
     seq = (("WHEAT", "MELON") if state.day <= 1 else ("MELON", "STRAWBERRY", "WHEAT"))
     out, i, avail = [], 0, dict(state.seeds)
     for crop in seq:
@@ -427,3 +427,51 @@ def jobs(state):
         out.append(j)
     early = _early_harvest(state) if params.OPENING_TAPER_BOEY else []
     return out + early + crop_plan.jobs(state) + plant_jobs(state) + endgame.jobs(state)
+
+
+def capacity_target(state):
+    """The crop budget derived from OWNED LAND, not from a table clamped at day 5.
+
+    `crop_target` is CROP_BY_DAY clamped to its last key (d5) and was authored for a
+    25-tile farm. From d6 the farm owns 50/75/100 tiles while the plan still asks for 16
+    plants, so `max(0, target - standing) == 0` and the planting layer emits NO jobs -- the
+    fill leak. Here the budget is closed on land instead: `owned - reserved_ring`, exactly
+    Boey's invariant (crops + ring = owned, empty = 0 at end of day).
+
+    The mix keeps the opening table's ratios for whatever it already asks (the d0-d5 script
+    is correct and must not be disturbed) and fills the remainder by value per tile-day,
+    with a WHEAT floor so the value mix cannot starve the herd's feed.
+    """
+    base = crop_target(state.day)
+    if not params.LAND_SCALED_TARGET:
+        return base
+    owned = sum(1 for y, row in enumerate(state.tiles) for x in range(len(row))
+                if state.owned((x, y)))
+    cap = max(0, owned - len(_structure_positions(state)))
+    if cap <= sum(base.values()):
+        return base
+
+    from . import value
+    try:
+        from . import demand
+        prices = {c: demand.unit_price(c, state.inventories) for c in CROPS}
+    except Exception:
+        prices = {}
+    rank = sorted(CROPS, key=lambda c: value.tile_dollars_per_day(prices, state.day).get(c, 0.0)
+                  if isinstance(value.tile_dollars_per_day(prices, state.day), dict) else 0.0,
+                  reverse=True)
+    open_ = [c for c in rank
+             if params.CROP_PLAN.get(c) is None
+             or params.CROP_PLAN[c]["start"] <= state.day <= params.CROP_PLAN[c]["end"]]
+    out = dict(base)
+    room = cap - sum(out.values())
+    wheat_floor = int(cap * params.LAND_SCALED_WHEAT_FLOOR)
+    out["WHEAT"] = max(out.get("WHEAT", 0), wheat_floor)
+    room = cap - sum(out.values())
+    i = 0
+    while room > 0 and open_:
+        c = open_[i % len(open_)]
+        out[c] = out.get(c, 0) + 1
+        room -= 1
+        i += 1
+    return out

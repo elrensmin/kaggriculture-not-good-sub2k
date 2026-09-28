@@ -725,6 +725,21 @@ OPENING_TRADE_CHUNK = 12
 # `OPENING_TAPER_BOEY` selects the measured per-day crop table and a ring reservation
 # that grows with the herd; OFF reproduces the old 12-crop/8-ring script for A/B.
 OPENING_TAPER_BOEY = True
+
+# --- LAND_SCALED_TARGET ----------------------------------------------------------
+# ROOT CAUSE (measured): `opening.crop_target(day)` is CROP_BY_DAY clamped to d5, and
+# CROP_BY_DAY was authored for a 25-tile farm ("CROP_BY_DAY totals are owned(25) - herd(day)").
+# `plant_jobs` emits only `max(0, target - standing)`, so once standing >= 16 the planting
+# layer emits ZERO jobs and every further owned tile is UNREPRESENTABLE as plantable.
+# Measured on the shipped arm at d12: owned 75, ring 19, capacity 56, standing 36,
+# crop_target 16, plant jobs emitted 0, empty 15. That is the fill leak: not a valve that
+# leaks, but the absence of a valve past 16 plants.
+# ON: the crop target is DERIVED as `owned - reserved_ring`, closing the tile budget the way
+# Boey does (crops + ring = owned, empty = 0), with the mix filled by value per tile-day.
+LAND_SCALED_TARGET = False
+# WHEAT floor as a share of the crop budget: feed must not be displaced by the value mix.
+LAND_SCALED_WHEAT_FLOOR = 0.18
+
 # The herd table: 3 COW + 2 SHEEP on d0 (no GOOSE -- coops arrive with the d2 goose),
 # reaching 4 COW + 3 SHEEP + 2 GOOSE by d4. OFF reproduces the old 4/2/2 ratio ramp that
 # topped out at 8 and bought cheapest-first (GOOSE first), which reached 5.
@@ -864,7 +879,12 @@ ONESHOT_HARVEST_AT_PEAK = True
 # `state.plant_ready` is guarded on `watered_today`: without that guard the harvest fires
 # before the day's window water and the tile turns over on ONE water (measured yield
 # 4.03 -> 2.53, water/cycle 1.93 -> 1.00).
+# PHASE-SCOPED, and it was NOT: `HARVEST_AGE_WHEAT_P2` did not exist, so an arm setting it
+# fell through to the base 0 and measured BYTE-IDENTICAL. That is the exact bug class the
+# params docstring warns about -- check the `_P2` name exists before believing an arm.
 HARVEST_AGE_WHEAT = 0
+HARVEST_AGE_WHEAT_P2 = None
+HARVEST_AGE_WHEAT_P3 = None
 HARVEST_AGE_MELON = 10
 # ^ SHIPPED at the d10 state-clone step. The reference's melon harvest age is 10 (ours was
 # 12); MEASURED on the checkpoint (`transplant --prefix ours --cut-day 10`, 12 eps):
@@ -1024,6 +1044,101 @@ HORIZON_FILTER = False
 HORIZON_FILTER_P2 = None
 HORIZON_FILTER_P3 = None
 
+# VALUE_KERNEL -- rank work by DOLLARS PER UNIT-TURN instead of by a priority constant.
+# Every job is priced once per turn from the engine's own arithmetic (`src/crew.py` reads
+# `src/value.py` for yields and `src/demand.py` for the current price), and the kernel
+# takes the best dollars-per-turn on offer. `VALUE_FLOOR_FRAC` is the per-hand BUDGET: a
+# hand refuses work worth less than that share of the best turn available this turn, so
+# nobody walks six tiles to dig a weed while a crop dies. 0.0 = no floor (rank only).
+# `critical` jobs (a tile that becomes a weed tonight, an animal that escapes) always
+# bypass the floor.
+# WASTE_GATE -- drop every job the engine would silently ignore before assignment.
+# Enumerated in `src/waste.py` (LOCKED_TILE, NO_PLANT, ALREADY_WATER, OUT_OF_WINDOW,
+# NO_GAIN_FERT, NO_SEED, NO_WHEAT, NOT_ADJACENT, NO_STRUCTURE, ...). No wasted turn is the
+# rule; this is where it is enforced.
+WASTE_GATE = False
+WASTE_GATE_P2 = None
+WASTE_GATE_P3 = None
+SHOW_WASTE = False
+# FLOOD_ROUTING -- route with one Dijkstra per unit per turn (the true shortest path and its
+# first step) instead of `step_toward`'s greedy one-step choice, which re-decides every turn
+# and can oscillate or detour around a LOCKED cell.
+FLOOD_ROUTING = True
+FLOOD_ROUTING_P2 = None
+FLOOD_ROUTING_P3 = None
+# BENCH_STEER -- steer job values toward the reference's day-wise surface
+# (`src/benchmark.py`): work that closes a metric we are behind on is scaled up. See
+# `crew.steer`.
+# CRITICAL_VALUE_BOOST -- rank dominance for work that stops an irreversible loss, in the
+# VALUE kernel. A dying tile costs its option value (every cycle it could still run), so it
+# is not merely "worth more dollars" than a harvest -- it is a different kind of loss.
+# Without this a $1,500 melon harvest outranks a $451 tile save and the tile dies.
+CRITICAL_VALUE_BOOST = 3.0
+CRITICAL_VALUE_BOOST_P2 = None
+CRITICAL_VALUE_BOOST_P3 = None
+# STATE_GRAPH -- steer the PRIORITY kernel from the in-state deviation graph
+# (`src/state_graph.py`), whose nodes ARE the benchmark heuristics and whose pressures carry
+# a time dimension (a `tonight` node ramps through the day; the active node set grows and
+# shrinks with the game). Multiplicative on the existing priority, so the plan's shape is
+# unchanged and only the ordering inside a class moves.
+# ALLOC_ACTUATOR -- the graph ALLOCATES hands instead of biasing preference. The scarce
+# resource is unit-turns (60 % of ours are walking, idle is only 2.8 %), so reordering is
+# zero-sum; `plan.allocation` gives each op class a number of hands and the kernel refuses a
+# class whose allocation is spent. See src/plan.py.
+# VISIT_PLANNER -- route each unit over a CLUSTER of deadline-tasks (`src/tasks.py`) instead
+# of letting it pick one job at a time. The trip is the cost: measured, seeding on urgency
+# alone gave 3 waters over 19 turns (6.3 turns/act) while density seeding gave 2.0-2.4, and
+# animal tiles with three ops underfoot cost 1 turn/act.
+# LAND_FILL_CAPITAL -- a land buy must carry the working capital to FILL the quadrant.
+# MEASURED: our empty share was 40 % at d8 and 35 % at d10 against the reference's 0.0 % EVERY
+# DAY; at d8 the bank was $98 having just paid $2,000 for the ground. Land without seed is
+# bought weeds -- `_spawn_weeds` rolls once per `None` tile.
+LAND_FILL_CAPITAL = False
+LAND_FILL_CAPITAL_P2 = None
+LAND_FILL_CAPITAL_P3 = None
+# FILL_LAND -- extend the planting queue to cover every empty owned tile with the best recipe
+# crop, instead of stopping at `CROP_PLAN`'s param targets.
+# HIRE_FROM_WORKLOAD -- hire to the WORKLOAD (ops the farm needs / ops a hand delivers), not to
+# `owned_tiles // TILES_PER_HAND`. MEASURED: that constant gives 6 hands on the opening quadrant
+# while the reference runs 9.6 units (231 unit-turns at d6 against our 162).
+# SEED_FROM_EMPTY -- the seed order is driven by the EMPTY-TILE COUNT and slotted immediately
+# after the sells, ahead of hires/animals/feed. Emitted last it was the first casualty of the
+# MAX_ORDERS=10 cap, which is why quadrants were bought and never sown (empty 35 % vs his 0 %).
+# PLANT_GLOBAL_WHEN_EMPTY -- when the graph reports the `empty` node as a deficient ROOT, lift the
+# per-band restriction on PLANT so any hand can sow any empty owned tile. With `PLANT_GLOBAL=0` a
+# worker may only sow inside its own band, so an empty tile in a band with no spare worker is
+# never sown.
+PLANT_GLOBAL_WHEN_EMPTY = False
+PLANT_GLOBAL_WHEN_EMPTY_P2 = None
+PLANT_GLOBAL_WHEN_EMPTY_P3 = None
+SEED_FROM_EMPTY = False
+SEED_FROM_EMPTY_P2 = None
+SEED_FROM_EMPTY_P3 = None
+HIRE_FROM_WORKLOAD = False
+HIRE_FROM_WORKLOAD_P2 = None
+HIRE_FROM_WORKLOAD_P3 = None
+FILL_LAND = False
+FILL_LAND_P2 = None
+FILL_LAND_P3 = None
+VISIT_PLANNER = False
+VISIT_PLANNER_P2 = None
+VISIT_PLANNER_P3 = None
+ALLOC_ACTUATOR = False
+ALLOC_ACTUATOR_P2 = None
+ALLOC_ACTUATOR_P3 = None
+STATE_GRAPH = False
+STATE_GRAPH_P2 = None
+STATE_GRAPH_P3 = None
+BENCH_STEER = False
+BENCH_STEER_P2 = None
+BENCH_STEER_P3 = None
+VALUE_KERNEL = False
+VALUE_KERNEL_P2 = None
+VALUE_KERNEL_P3 = None
+VALUE_FLOOR_FRAC = 0.0
+VALUE_FLOOR_FRAC_P2 = None
+VALUE_FLOOR_FRAC_P3 = None
+
 # BONUS_WALK_WEIGHT -- price the walk to a BONUS op at its true marginal value.
 #
 # FERTILIZE is worth about one extra yield unit (~$25-140) and is never urgent: the tile
@@ -1160,6 +1275,20 @@ P_WATER_BONUS = 120
 # `P_WATER_PRODUCE` is the band this job is emitted at. It defaults to P_WATER_BONUS (120,
 # above HARVEST) because a missed production-day water loses that day's fruit outright;
 # set it below P_HARVEST to make harvesting win the ordering instead.
+# WATER_ONGOING_SURVIVE -- emit a WATER job for ANY dry ongoing crop, every day.
+# Measured: 144 of 241 deaths are STRAWBERRY, dry at the day boundary, and the only water
+# job such a tile ever received was the SURVIVAL one -- which fires on the SECOND
+# consecutive dry day, i.e. the last moment before it becomes a weed.
+# VISIT_RECIPE_CHAIN -- service a tile's recipe in ONE VISIT. The engine's WATER pays +2 when
+# the tile is fertilised that day, so FERTILIZE -> WATER is two acts on one tile and an extra
+# unit of yield. Our crew water-first, which collects +1 and pays a walk for the fertilise.
+# This lifts the tile's own FERTILIZE above its WATER for the turn, so the order lands right.
+VISIT_RECIPE_CHAIN = False
+VISIT_RECIPE_CHAIN_P2 = None
+VISIT_RECIPE_CHAIN_P3 = None
+WATER_ONGOING_SURVIVE = False
+WATER_ONGOING_SURVIVE_P2 = None
+WATER_ONGOING_SURVIVE_P3 = None
 WATER_ONGOING_PRODUCE = False
 # WATER_WINDOW_PRIORITY -- an in-window water carries P_WATER_BONUS even when the tile is
 # also survival-critical. See crop_plan.jobs.

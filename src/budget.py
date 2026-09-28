@@ -16,6 +16,32 @@ def hire_cost(n_already_today: int) -> int:
     return _fib(n_already_today)
 
 
+def _fill_capital(state):
+    """Working capital to FILL a quadrant: 25 seeds of the best recipe crop.
+
+    THE ROOT FIX. MEASURED (`round 25`): the reference's EMPTY share is **0.0 % every day** and
+    ours was **40 % at d8 and 35 % at d10** -- we bought quadrants and left them bare for 8-10
+    days. At d8 our bank was $98 having just paid $2,000 for the ground, so there was no cash
+    for seed. Buying land without seed is buying weeds: `_spawn_weeds` rolls once per `None`
+    tile, so the empty quadrant IS the weed farm (his `weeds_max` 0, ours 23), it scatters the
+    crops so every trip is longer (moves 41 % vs 60 %), and it starves revenue.
+
+    An asset you cannot make productive is a liability. This makes the land buy carry the
+    capital to fill it, so the quadrant is only bought when it can be worked.
+    """
+    if not params.at("LAND_FILL_CAPITAL", state.day):
+        return 0.0
+    try:
+        from . import crew, recipes
+        from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS
+        crop, _rate = recipes.best_crop_per_tile_day(crew.prices(state), state.day)
+        if crop is None:
+            return 0.0
+        return 25.0 * float(CROPS[crop]["seed"])
+    except Exception:                                     # noqa: BLE001
+        return 0.0
+
+
 def market_intents(state):
     """Land + hiring orders. Land first (structural), then hires up to the day's target."""
     out = []
@@ -41,14 +67,27 @@ def market_intents(state):
         # hands+ground lockstep: buy land only when we can keep working it after
         # the purchase (cash reserve guards against a pre-revenue bankruptcy).
         if (state.day >= params.LAND_TARGET_DAY[q]
-                and state.money >= params.LAND_COST[q] + land_reserve):
+                and state.money >= params.LAND_COST[q] + land_reserve + _fill_capital(state)):
             out.append(["BUY_LAND"])
         break  # one BUY_LAND per turn; the engine fills quadrants in order anyway
 
     # hands+ground lockstep: hire only up to the ground we own (actions are the
     # scarce resource; a hand with no tiles idles expensively).
     owned_tiles = sum(1 for row in state.tiles for t in row if t != "LOCKED")
-    target = min(params.target_hands(state.day), max(2, owned_tiles // params.TILES_PER_HAND))
+    if params.at("HIRE_FROM_WORKLOAD", state.day):
+        # WORKLOAD, NOT GROUND. `owned_tiles // TILES_PER_HAND` = 6 on the opening quadrant
+        # against the reference's 9.6, which is a ~40 % shortfall in the land-burst window.
+        from . import plan as plan_mod
+        wl_target = 1 + plan_mod.hand_target(state)
+        # REPLACE THE LEGACY SCHEDULE, DO NOT `min` WITH IT. This was the third instance of the
+        # same failure class: the derived target was CORRECT (6/7/10/11 at d2/d4/d6/d8 against
+        # the legacy 5/5/8/8) and `min(schedule, derived)` silently threw it away, so the crew
+        # stayed flat at 129 unit-turns for d1-d5 while the reference ramped 91 -> 161. A
+        # structural fix clamped by a legacy param cap is not a fix.
+        target = wl_target
+    else:
+        target = min(params.target_hands(state.day),
+                     max(2, owned_tiles // params.TILES_PER_HAND))
     have = len(state.hand_positions)
     n_hire = 0
     cost = 0

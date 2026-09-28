@@ -35,7 +35,7 @@ _BUSYWORK_OPS = ("DIG",)
 _BONUS_OPS = ("FERTILIZE",)
 
 
-def _move_or_act(state, pos, job, cost):
+def _move_or_act(state, pos, job, cost, first=None):
     if pos == job.tile:
         op = [job.op]
         if job.item is not None:
@@ -43,17 +43,22 @@ def _move_or_act(state, pos, job, cost):
         if job.qty is not None:
             op.append(job.qty)
         return op
+    if first is not None and job.tile in first:
+        # FLOOD ROUTING: the first step of the true shortest path, not a greedy choice.
+        return [routing.step_of(pos, first[job.tile])]
     op = routing.step_toward(pos, job.tile, cost)
     return [op] if op else ["PASS"]
 
 
-def _deposit_op(state, pos, cost):
+def _deposit_op(state, pos, cost, first=None):
     """Route a carrying unit toward the shed; drop once adjacent."""
     if pos in params.SHED_ACCESS_SET:
         return ["DROP"]
     target = routing.nearest_shed_access(pos, cost)
     if target is None:
         return ["PASS"]
+    if first is not None and target in first:
+        return [routing.step_of(pos, first[target])]
     op = routing.step_toward(pos, target, cost)
     return [op] if op else ["DROP"]
 
@@ -138,7 +143,7 @@ def _band_crop(state, band, crops, i):
     return crops[i % len(crops)] if crops else None
 
 
-def _plant_jobs(state, used, slices, n, limit=None):
+def _plant_jobs(state, used, slices, n, limit=None, force_global=False):
     """One PLANT job per worker, on its OWN band (aligned: crops live where the
     worker works), kept monocropped per `_band_crop` so water windows cluster.
 
@@ -204,7 +209,7 @@ def _plant_jobs(state, used, slices, n, limit=None):
         # crop tiles and 6 bands some workers have no empty tile in their slice and
         # plant nothing while the script has a deficit. PLANT_GLOBAL lets any worker
         # take the nearest empty on the farm.
-        band = all_band if params.PLANT_GLOBAL else slices[i]
+        band = all_band if (params.PLANT_GLOBAL or force_global) else slices[i]
         quota = 1 if block <= 1 else max(1, min(block, len(slices[i]) or block))
         for _ in range(quota):
             if block > 1 and len(jobs) >= cap:
@@ -232,7 +237,8 @@ _ANIMAL_OPS = ("FEED", "CARE", "COLLECT_FERTILIZER")
 
 
 def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
-          owner=None, me=None, day=0, deliver_margin=None, horizon=None):
+          owner=None, me=None, day=0, deliver_margin=None, horizon=None,
+          vals=None, floor=0.0, quota=None, taken=None, vmap=None):
     """Choose the best job for a unit: minimise ``walk_cost - priority``.
 
     Distance is priced (``MOVE_WEIGHT`` per tile) rather than used as a tie-break,
@@ -247,6 +253,11 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
     ``horizon`` = the moves left before the day ends. A job farther than that is
     unreachable (hands are wiped at `_end_of_day`), so it is dropped from the choice --
     see params.HORIZON_FILTER.
+
+    ``vals`` = per-job DOLLARS (from `src/crew.py`), computed once per turn by `plan`. With
+    it the ranking becomes dollars per unit-turn instead of `dcost - priority`, and `floor`
+    is the budget rule: a hand will not start work below that many dollars per turn unless
+    the job is `critical`. See params.VALUE_KERNEL.
     """
     band_ops = (_FIELD_OPS + _ANIMAL_OPS
                 if params.at("BAND_ANIMALS", day) else _FIELD_OPS)
@@ -286,6 +297,11 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
         for jidx, j in enumerate(jobs):
             if assigned[jidx] or j.tile is None:
                 continue
+            # ALLOCATION ACTUATOR: a class whose hands are spent is closed for the turn, so
+            # the graph reallocates the crew instead of biasing a preference. See src/plan.py.
+            if quota is not None and taken is not None and j.op in quota \
+                    and taken.get(j.op, 0) >= quota[j.op]:
+                continue
             if only_delivery and j.op not in _DELIVER_OPS:
                 if deliver_margin is None:
                     continue
@@ -301,6 +317,11 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             if not restrict and owner_water and j.op == "WATER" and not j.critical:
                 continue      # no global fallback for a bonus water: its band owner waters it
             d = routing.manhattan(pos, j.tile)
+            if vmap and j.tile in vmap:
+                # AMORTISED COST: the trip is paid once and shared across the cluster, so a
+                # clustered task is scored as if it were nearer. Correct arithmetic, not a
+                # bonus -- see `tasks.visit_turns_map`.
+                d = min(d, max(0, vmap[j.tile] - 1))
             if (only_delivery and j.op == "FERTILIZE"
                     and fert_radius is not None and d > fert_radius):
                 continue      # never commute to spend a fertilizer -- FERT_DELIVER_RADIUS
@@ -332,8 +353,24 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             # the score below it still loses to any distant job more than MOVE_WEIGHT*DIST_CAP
             # priority points higher (a distant PICKUP_WHEAT 101 beats the CARE 70 underfoot).
             # See params.ON_TILE_BONUS for the measured visit trace. 0 = off.
-            on_tile = params.at("ON_TILE_BONUS", day) if d == 0 else 0
-            key = (dcost - j.priority - on_tile + dmargin, d, -j.priority)
+            if vals is not None:
+                # DOLLARS PER UNIT-TURN. `d` is the walk, +1 for the act itself.
+                v = vals[jidx]
+                if v <= 0 and not j.critical:
+                    continue          # worth nothing on its own; never spend a turn
+                s = v / max(1.0, float(d + 1))
+                if j.critical:
+                    # A tile that becomes a weed tonight, or an animal that escapes, is a
+                    # DIFFERENT KIND of loss from a forgone yield: the tile is gone for the
+                    # season. Rank dominance rather than a floor, because otherwise a
+                    # $1,500 melon harvest outranks a $451 tile save and the wheat dies.
+                    s *= params.at("CRITICAL_VALUE_BOOST", day)
+                elif s < floor:
+                    continue          # below what a turn is worth elsewhere: the budget
+                key = (-s, d, -j.priority)
+            else:
+                on_tile = params.at("ON_TILE_BONUS", day) if d == 0 else 0
+                key = (dcost - j.priority - on_tile + dmargin, d, -j.priority)
             if best_key is None or key < best_key:
                 best_key, best = key, (jidx, j, d)
         if best is not None:
@@ -395,7 +432,21 @@ def plan(state):
         # 1 of the 5 d0 animals got placed, against Boey's 5.
         jobs = opening.jobs(state)
     else:
-        jobs = field_jobs + _plant_jobs(state, used, slices, n, limit=plant_limit)
+        # EMPTY DEFICIENT -> PLANT GLOBALLY. With `PLANT_GLOBAL=0` a worker may only sow inside
+        # ITS OWN BAND, so an empty tile whose band has no spare worker never gets sown -- which
+        # is the last link in the chain seed->empty. MEASURED: end-of-day empty was 18 % at d8
+        # against the reference's 0 %, with the seed already covered (adding a seed order changed
+        # the run BYTE-IDENTICALLY). The graph says `empty` is deficient, so the band wall comes
+        # down for PLANT specifically: any hand may sow any empty owned tile.
+        _plant_global = False
+        if params.at("PLANT_GLOBAL_WHEN_EMPTY", state.day):
+            try:
+                from . import state_graph as sg
+                _plant_global = any(r[0] == "empty" for r in sg.roots(state))
+            except Exception:                             # noqa: BLE001
+                _plant_global = False
+        jobs = field_jobs + _plant_jobs(state, used, slices, n, limit=plant_limit,
+                                        force_global=_plant_global)
         if params.HERD_ENABLED:
             jobs += herd_plan.jobs(state)
         jobs += endgame.jobs(state)
@@ -431,6 +482,12 @@ def plan(state):
             b = job_mod.phase_band(j, state.day)
             remapped.append(j if b is None or b == j.priority else j._replace(priority=b))
         jobs = remapped
+    # STATE GRAPH: the benchmark heuristics (docs/boey_bench.md / docs/boey_priors.md) as a
+    # causal graph evaluated IN-STATE with a time dimension, re-weighting priorities so the
+    # machine is forced toward his curves. See src/state_graph.py.
+    if params.at("STATE_GRAPH", state.day):
+        from . import state_graph
+        jobs = state_graph.apply_to_jobs(jobs, state)
     # Binding-root controller: re-weight every job by how far its op class is behind
     # its own requirement this turn (see src/roots.py). URGENCY_SLOPE=0 disables it.
     jobs = roots.apply(jobs, state)
@@ -443,6 +500,34 @@ def plan(state):
     # per-unit loop lets a unit further away claim it. `_pick` runs in index order, so
     # without this the same-tile rate is only ~31 % (22 % for CARE) and the work does
     # not chain -- MEASURED with a `_pick` wrapper. Pure ordering; no priority changes.
+    visit_first, visit_turns = {}, {}
+    if params.at("VISIT_PLANNER", state.day):
+        try:
+            from . import tasks as tasks_mod
+            from . import crew as crew_mod
+            pr_v = crew_mod.prices(state)
+            all_tasks = tasks_mod.tasks(state, pr_v)
+            for i in range(n):
+                # CROSS-OP CLUSTERS FOR EMPTY-HANDED UNITS ONLY. A carrying unit's step 1 is
+                # restricted to delivery ops, so a mixed trip would fight that; it keeps the
+                # existing path untouched.
+                if state.unit_inv(i):
+                    continue
+                pos_i = tuple(state.positions[i])
+                v = tasks_mod.route(state, pos_i, all_tasks, pr_v)
+                if v is None or not v.tasks:
+                    continue
+                # THE AMORTISED COST APPLIES TO EVERY UNIT WITH A VISIT, reserved or not:
+                # reserving the first stop guarantees the trip, but the corrected cost is what
+                # lets a clustered task WIN ON MERIT inside `_pick` for the units that fall
+                # through. Setting it only on reservation meant `_pick` never saw it and walking
+                # did not move (measured 60.8 % vs the baseline's 60.1 %).
+                visit_turns[i] = tasks_mod.visit_turns_map(v)
+                if tasks_mod.reserve_ok(state, pos_i, v, all_tasks):
+                    visit_first[i] = v.tasks[0]
+        except Exception:                                 # noqa: BLE001
+            visit_first, visit_turns = {}, {}
+
     preop = {}
     if params.SAME_TILE_FIRST:
         # A local job must NOT pre-empt a tile that is about to die -- but only for the
@@ -515,6 +600,12 @@ def plan(state):
                              me=i, day=state.day)
                 if cand is not None and cand[1].tile != pos:
                     best = None
+            if best is None and i in visit_first:
+                # THE VISIT RESERVATION. `preop` already bypasses the band and `claimed`, and
+                # runs before the greedy loop, so it is where a trip belongs -- and because it
+                # only fires when nothing was underfoot, the kernel still gets first refusal.
+                t0 = visit_first[i]
+                preop[i] = Job(job_mod.P_PLANT, t0.tile, t0.op, t0.item, None, t0.critical)
             if best is not None:
                 jidx, j = best
                 assigned[jidx] = True
@@ -575,8 +666,48 @@ def plan(state):
     for i in range(n):
         occupied.setdefault(tuple(state.positions[i]), i)
 
+    # FLOOD ROUTING: one Dijkstra per unit per turn gives the true shortest path to every
+    # tile. Cheap on a 10x10 board, and it removes the greedy step's detours/oscillation.
+    floods = None
+    if params.at("FLOOD_ROUTING", state.day):
+        floods = [routing.flood(tuple(state.positions[i]), cost) for i in range(n)]
+
+    # VISIT PLANNER: enumerate every scenario with a DEADLINE (src/tasks.py) and route each
+    # unit over a cluster of them, so 2-3 adjacent ops cost 3 turns instead of 1 + 3 walks.
+    # MEASURED: 60 % of our unit-turns are walking against the reference's 41 %, and with only
+    # 2.8 % idle the job race can only reshuffle the remaining ~37 %. This decides the TRIP.
     # HORIZON: moves left before the day ends. See params.HORIZON_FILTER.
     hzn = max(0, 24 - state.hour) if params.at("HORIZON_FILTER", state.day) else None
+    # WASTE GATE: drop every job the engine would silently ignore, counting the reason.
+    # Measured defect this closes: `idle_share_pct` 2.7 while `plants_died` 53 and
+    # `feed_surplus` -313 -- the crew was not idle, it was emitting actions with no effect.
+    waste_fail = {}
+    if params.at("WASTE_GATE", state.day):
+        from . import waste as waste_mod
+        waste_fail = collections.Counter()
+        before = len(jobs)
+        jobs = waste_mod.filter_jobs(state, jobs, fail=waste_fail)
+        if params.SHOW_WASTE and before:
+            print(waste_mod.budget_report(waste_fail, before, "   waste: "))
+
+    # ALLOCATION ACTUATOR: hands per op class, from the graph pressures x unmet need.
+    quota, taken = None, None
+    if params.at("ALLOC_ACTUATOR", state.day):
+        from . import plan as plan_mod
+        quota = plan_mod.allocation(state, jobs, n)
+        taken = collections.Counter()
+
+    # VALUE_KERNEL: price every job in dollars once, then rank by dollars per unit-turn.
+    vals, floor = None, 0.0
+    if params.at("VALUE_KERNEL", state.day):
+        from . import crew
+        pr = crew.prices(state)
+        herd_daily, at_risk = crew.herd_value_and_risk(state)
+        steer_mul = crew.steer(state) if params.at("BENCH_STEER", state.day) else None
+        vals = [crew.job_value(state, j, pr, herd_daily, at_risk, steer_mul) for j in jobs]
+        pos_vals = [v for v, j in zip(vals, jobs) if v > 0 and j.tile is not None]
+        best = max(pos_vals) if pos_vals else 0.0
+        floor = float(params.at("VALUE_FLOOR_FRAC", state.day) or 0.0) * best
 
     for i in order:
         pos = state.positions[i]
@@ -585,7 +716,8 @@ def plan(state):
         if i in preop:
             # must come FIRST: the pre-pass already chose this unit's job, and `exact`
             # must not have given it a different one (see the guard above).
-            ops.append(_move_or_act(state, pos, preop[i], cost))
+            ops.append(_move_or_act(state, pos, preop[i], cost,
+                                    first=floods[i][2] if floods else None))
             continue
         if i in exact:
             # THE EXACT ASSIGNMENT MUST BE TERMINAL. It used to fall through into the
@@ -598,14 +730,18 @@ def plan(state):
             assigned[jidx] = True
             while len(ops) <= i:
                 ops.append(None)
-            ops[i] = _move_or_act(state, pos, j, cost)
+            ops[i] = _move_or_act(state, pos, j, cost,
+                                  first=floods[i][2] if floods else None)
             continue
-        def _take(best):
+        def _take(best, _bunit=(i,)):
             jidx, j, d = best
             assigned[jidx] = True
+            if taken is not None:
+                taken[j.op] += 1
             if d > 0:
                 claimed.add(j.tile)
-            return _move_or_act(state, pos, j, cost)
+            return _move_or_act(state, pos, j, cost,
+                                first=floods[_bunit[0]][2] if floods else None)
 
         if inv:
             # 1. deliver a deliverable (feed/place/fertilize) if carrying one.
@@ -615,7 +751,7 @@ def plan(state):
                                      else None),
                              claimed=claimed, owner=occupied, me=i, day=state.day,
                              deliver_margin=params.at("CARRY_DELIVERY_MARGIN", state.day),
-                             horizon=hzn)
+                             horizon=hzn, vals=vals, floor=floor, quota=quota, taken=taken, vmap=visit_turns.get(i))
                 if best is not None:
                     op = _take(best)
             # 2. deposit when shed-adjacent (free), or during the endgame so
@@ -624,12 +760,13 @@ def plan(state):
             #    walking back after every harvest is wasted movement.
             if op is None and (pos in params.SHED_ACCESS_SET
                                or state.day >= params.LIQUIDATE_DAY):
-                op = _deposit_op(state, pos, cost)
+                op = _deposit_op(state, pos, cost,
+                                 first=floods[i][2] if floods else None)
             # 3. otherwise keep working while carrying.
             if op is None:
                 best = _pick(jobs, assigned, pos, inv, only_delivery=False,
                              prefer=pref[i], claimed=claimed, owner=occupied, me=i,
-                             day=state.day, horizon=hzn)
+                             day=state.day, horizon=hzn, vals=vals, floor=floor, quota=quota, taken=taken, vmap=visit_turns.get(i))
                 if best is not None:
                     op = _take(best)
             # 4. nothing to do -> HOLD POSITION, not a shed trip.
@@ -644,11 +781,12 @@ def plan(state):
                 if (_hold and state.hour < params.at("DROP_HOUR", state.day)):
                     op = ["PASS"]
                 else:
-                    op = _deposit_op(state, pos, cost)
+                    op = _deposit_op(state, pos, cost,
+                                     first=floods[i][2] if floods else None)
         else:
             best = _pick(jobs, assigned, pos, inv, only_delivery=False,
                          prefer=pref[i], claimed=claimed, owner=occupied, me=i,
-                         day=state.day, horizon=hzn)
+                         day=state.day, horizon=hzn, vals=vals, floor=floor, quota=quota, taken=taken, vmap=visit_turns.get(i))
             if best is not None:
                 op = _take(best)
             else:
@@ -700,6 +838,19 @@ def plan(state):
         market += crop_plan.market_intents(state)
     else:
         market = list(sell_policy.market_intents(state))
+        # SEED BEFORE DISCRETIONARY BUYS. `empty` deficient -> the op class is BUY_SEED, and the
+        # ask is `empty_tiles x the recipe crop's seed`. Slotted immediately after the SELLS (the
+        # only inflow) and AHEAD of hires/animals/feed, because an empty owned tile is a rent --
+        # it spawns weeds, lengthens every trip and earns nothing. Emitted last, it was the first
+        # thing dropped by the MAX_ORDERS=10 cap, which is why we bought quadrants and never
+        # sowed them.
+        if params.at("SEED_FROM_EMPTY", state.day):
+            try:
+                from . import plan as plan_mod
+                for crop_s, qty_s in plan_mod.seed_need(state):
+                    market.append(["BUY_SEED", crop_s, qty_s])
+            except Exception:                             # noqa: BLE001
+                pass
         # THE CARRY RUNS ALL SEASON, not just the opening. It was wired only into the
         # tape (d0-d5), so 24 of 30 days had no market engine: `sell_policy` sold WHEAT
         # at TRICKLE and nothing ever bought it back. Boey's 6,786 wheat sales a season
