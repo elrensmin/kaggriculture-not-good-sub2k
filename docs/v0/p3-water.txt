@@ -1,0 +1,9 @@
+window: d18-d29
+### ours  (8 games, 18-29)
+   per-day medians: demand 4.2  components 3.2  isolated 2.0  watered 3.8  mean-nnd 1.97
+   totals: demand 46  components 30  isolated 19 (42% of demand)  watered 38 (84% of demand)  demand per component 1.54
+
+### v1  (8 games, 18-29)
+   per-day medians: demand 17.5  components 6.0  isolated 3.0  watered 17.0  mean-nnd 1.30
+   totals: demand 189  components 70  isolated 36 (19% of demand)  watered 185 (98% of demand)  demand per component 2.70
+

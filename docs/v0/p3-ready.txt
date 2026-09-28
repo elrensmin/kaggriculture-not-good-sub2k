@@ -1,0 +1,4 @@
+usage: ready_by_crop.py [-h] [--days DAYS] --dir DIR [--seat SEAT]
+                        [--max-games MAX_GAMES] [--ref-from REF_FROM]
+                        [--ref-seat REF_SEAT] [--label LABEL]
+ready_by_crop.py: error: unrecognized arguments: --ref-max 8

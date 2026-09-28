@@ -27,6 +27,12 @@ def market_intents(state):
     for q in ("NE", "SW", "SE"):
         if q in owned:
             continue
+        # W2 geometry test: stop buying ground past this many quadrants. We own 100
+        # tiles in the midgame and plant ~53; Boey owns 75 and plants 55. A bigger,
+        # sparser farm costs walking on every water op (`WATER moves/op` 2.92 vs 1.17),
+        # and coverage is the phase-2 root. 4 = the old behaviour.
+        if len(owned) >= int(params.at("LAND_QUADRANT_MAX", state.day)):
+            break
         # hands+ground lockstep: buy land only when we can keep working it after
         # the purchase (cash reserve guards against a pre-revenue bankruptcy).
         if (state.day >= params.LAND_TARGET_DAY[q]
@@ -47,6 +53,12 @@ def market_intents(state):
             break
         cost += c
         n_hire += 1
-    for _ in range(min(n_hire, params.MAX_HIRE_PER_TURN)):
+    # PHASE-SCOPED, and the midgame needs it badly: `_end_of_day` wipes `hands` and
+    # resets `hires_today` EVERY day, so the whole crew is rebuilt from scratch each
+    # morning. At `MAX_HIRE_PER_TURN=1` (shipped in Phase 1 to stop 5-at-once HIREs
+    # eating the opening's order list) that takes 12 turns, so the crew averages 8.8
+    # units against a target of 10.8 -- and Boey runs 10.8. Measured: the phase-2
+    # `move share`/act deficit traces back to this, not to routing.
+    for _ in range(min(n_hire, int(params.at("MAX_HIRE_PER_TURN", state.day)))):
         out.append(["HIRE"])
     return out

@@ -1,0 +1,102 @@
+window: d6-d17
+op_patterns — act-run structure and per-op chaining, ours vs DSM
+ours: diag-replays/p2-shipped  (4 games)
+dsm : replays/Boey/v1  (4 games, capped 4)
+
+############ ours  (unit-turns 12,476) ############
+  acts 4,835  moves 7,341  PASS 300   -> moves/act 1.52
+  runs (consecutive acts with no MOVE between): 2,967   mean run length 1.63
+  -- run-length distribution --
+      len      runs  acts in them  % of acts
+        1     1,789         1,789      37.0%
+        2       695         1,390      28.7%
+        3       365         1,095      22.6%
+        4        81           324       6.7%
+        5         1             5       0.1%
+        6        25           150       3.1%
+        7         7            49       1.0%
+        8         3            24       0.5%
+       8+         4            33       0.7%
+     acts sitting in a run of >=2:  63.0%
+     acts sitting in a run of >=3:  34.3%
+     acts sitting in a run of >=4:  11.6%
+  -- what immediately follows a productive act --
+     ACT       1,868  ( 38.6%)
+     MOVE      2,775  ( 57.4%)
+     PASS         59  (  1.2%)
+     END         133  (  2.8%)
+  -- per-act-type: share immediately followed by another ACT --
+     PLANT                      406  chained  90.1%
+     PLACE                       27  chained  81.5%
+     DIG                         70  chained  72.9%
+     HARVEST                    404  chained  63.9%
+     CARE                       559  chained  56.2%
+     FEED                       548  chained  56.0%
+     PICKUP                     579  chained  46.8%
+     DROP                       366  chained  44.8%
+     BUILD_COOP                  13  chained  23.1%
+     COLLECT_FERTILIZER         536  chained  20.9%
+     WATER                    1,310  chained   0.0%
+     BUILD_PASTURE               17  chained   0.0%
+
+############ dsm  (unit-turns 11,446) ############
+  acts 5,205  moves 5,650  PASS 591   -> moves/act 1.09
+  runs (consecutive acts with no MOVE between): 2,986   mean run length 1.74
+  -- run-length distribution --
+      len      runs  acts in them  % of acts
+        1     1,642         1,642      31.5%
+        2       771         1,542      29.6%
+        3       317           951      18.3%
+        4       226           904      17.4%
+        5        20           100       1.9%
+        6         6            36       0.7%
+        7         2            14       0.3%
+        8         2            16       0.3%
+       8+         2            16       0.3%
+     acts sitting in a run of >=2:  68.5%
+     acts sitting in a run of >=3:  38.8%
+     acts sitting in a run of >=4:  20.6%
+  -- what immediately follows a productive act --
+     ACT       2,219  ( 42.6%)
+     MOVE      2,655  ( 51.0%)
+     PASS        131  (  2.5%)
+     END         200  (  3.8%)
+  -- per-act-type: share immediately followed by another ACT --
+     PLANT                      313  chained  93.9%
+     BUILD_COOP                  13  chained  84.6%
+     DIG                         10  chained  80.0%
+     PLACE                      123  chained  73.2%
+     BUILD_PASTURE               37  chained  67.6%
+     FEED                       665  chained  65.9%
+     FERTILIZE                  173  chained  61.8%
+     HARVEST                    500  chained  57.6%
+     DROP                       152  chained  44.7%
+     CARE                       758  chained  42.9%
+     COLLECT_FERTILIZER         713  chained  33.9%
+     PICKUP                     414  chained  26.8%
+     WATER                    1,334  chained  15.9%
+
+---- raw op trace: ours, day 12 ----
+     unit 0  (24 turns; 16 acts)
+       h00@4,4:CARE  h01@4,4:COLLECT_FERTILIZER  h02@4,4:DROP  h03@4,4:PICKUP:WHEAT
+       h04@4,4:NORTH  h05@4,3:FEED  h06@4,3:NORTH  h07@4,2:FEED
+       h08@4,2:CARE  h09@4,2:NORTH  h10@4,1:FEED  h11@4,1:CARE
+       h12@4,1:COLLECT_FERTILIZER  h13@4,1:WEST  h14@3,1:WEST  h15@2,1:HARVEST
+       h16@2,1:FEED  h17@2,1:CARE  h18@2,1:COLLECT_FERTILIZER  h19@2,1:NORTH
+       h20@2,0:WATER:MELON  h21@2,0:WEST  h22@1,0:WATER:MELON  h23@1,0:WEST
+
+---- raw op trace: dsm, day 12 ----
+     unit 2  (23 turns; 16 acts)
+       h01@4,5:CARE  h02@4,5:COLLECT_FERTILIZER  h03@4,5:PLACE:FERTILIZER  h04@4,5:PICKUP:WHEAT
+       h05@4,5:SOUTH  h06@4,6:FEED  h07@4,6:WEST  h08@3,6:FEED
+       h09@3,6:CARE  h10@3,6:COLLECT_FERTILIZER  h11@3,6:WEST  h12@2,6:WATER
+       h13@2,6:HARVEST  h14@2,6:PLANT:STRAWBERRY  h15@2,6:WATER  h16@2,6:NORTH
+       h17@2,5:NORTH  h18@2,4:FEED  h19@2,4:CARE  h20@2,4:COLLECT_FERTILIZER
+       h21@2,4:EAST  h22@3,4:EAST  h23@4,4:DROP
+
+############ side by side ############
+   metric                          ours         dsm
+   unit-turns / game           3,119.00    2,861.50
+   moves/act                       1.52        1.09
+   mean act-run length             1.63        1.74
+   act -> ACT next %              38.63       42.63

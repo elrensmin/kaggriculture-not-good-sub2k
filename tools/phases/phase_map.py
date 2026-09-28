@@ -49,6 +49,7 @@ from tools.diagnose.window import parse_days, describe
 from src import params as agent_params
 
 DAY = 24
+_MOVES = frozenset(("NORTH", "SOUTH", "EAST", "WEST"))
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +202,12 @@ def extract(env, seat):
             cmds = [act.get("farmer") or ["PASS"]] + list(act.get("hands") or [])
             for c in cmds:
                 op = c[0] if c else "PASS"
+                # A MOVE is emitted as the direction token itself ("NORTH"), not as
+                # "MOVE" -- so before this the whole labour split was invisible and
+                # every walk counted as productive work. `moves/act` is the phase-2
+                # bottleneck (1.58 vs Boey's 0.82).
+                if op in _MOVES:
+                    op = "MOVE"
                 rec["flow"][op] += 1
                 rec["unit_turns"] += 1
                 if op == "PASS":
@@ -268,6 +275,13 @@ def _series(days, src):
                 out.append((d, 100.0 * rec["pass"] / ut if ut else 0.0))
             elif key == "plants_died":
                 out.append((d, float(rec["flow"].get("__died", 0))))
+            elif key == "move_pct":
+                ut = rec["unit_turns"]
+                out.append((d, 100.0 * rec["flow"].get("MOVE", 0) / ut if ut else 0.0))
+            elif key == "acts_per_turn":
+                ut = rec["unit_turns"]
+                mv = rec["flow"].get("MOVE", 0)
+                out.append((d, (ut - mv - rec["flow"].get("PASS", 0)) / ut if ut else 0.0))
             elif key == "water_per_tile":
                 planted = rec["stock"].get("planted", 0)
                 out.append((d, rec["flow"].get("WATER", 0) / planted if planted else 0.0))

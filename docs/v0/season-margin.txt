@@ -1,0 +1,8 @@
+
+=== season-shipped   (16 games) ===
+  W/L/T          0/16/0   win rate 0%
+  median margin  $     -95,138   mean $     -95,733
+  median WIN     $           0   (best $0)
+  median LOSS    $     -95,138   (worst $-119,489)
+  p10/p25/p75/p90 $ -107,401 $ -105,434 $  -85,657 $  -83,194
+  guards         floor u 429  discard u 144  ovf days 15  escapes 3  idle% 2.6  stranded $21,605

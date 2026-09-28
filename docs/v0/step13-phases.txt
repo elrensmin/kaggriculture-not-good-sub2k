@@ -1,0 +1,6 @@
+paired over 96 games: phase-wise bank growth delta (ship - pre)
+   p1      median         +0  better 0/96
+   p2      median         +0  better 0/96
+   p3      median     +6,758  better 94/96
+   season  median     +6,758  better 94/96
+   absolute finals: pre median 58,724  ship median 65,722

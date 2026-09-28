@@ -9,7 +9,8 @@ from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS
 
 from . import endgame, herd_plan, params
 from .job import (
-    P_DIG, P_FERTILIZE, P_HARVEST, P_PICKUP, P_WATER_BONUS, P_WATER_SURVIVAL, Job,
+    P_DIG, P_FERTILIZE, P_HARVEST, P_PICKUP, P_WATER_BONUS, P_WATER_PRODUCE,
+    P_WATER_SURVIVAL, Job,
 )
 
 
@@ -77,6 +78,18 @@ def plant_queue(state):
             if crop == "WHEAT" and state.day <= params.WHEAT_OPENING_UNTIL_DAY:
                 # the opening wheat burst: cheap feed for the herd before land arrives
                 cap = max(cap, min(plan["target"], params.WHEAT_OPENING_TILES))
+            if crop == "WHEAT" and params.at("WHEAT_TARGET_FROM_HERD", state.day):
+                # THE MISSING FEEDBACK LOOP. `herd_plan` refuses to buy an animal until the
+                # STANDING wheat base clears `1.7 * (herd+1)` tiles, but nothing ever asks
+                # the crop plan for that many: `CROP_PLAN["WHEAT"]["target"]` is a fixed 32
+                # and STRAWBERRY competes for the same ground, so the base is pinned at
+                # ~20-28 and the herd at 16 no matter how much cash or shed wheat there is.
+                # MEASURED (`herd_gate`, 16 games): the gate fails every day d11-d17 with
+                # the herd at 17, wheatT 20, need 30.6 and $18.5k idle; the shed at that
+                # moment holds 60 units of wheat. Tying the wheat cap to the herd makes the
+                # target and the gate the same number instead of two unrelated ones.
+                _herd = sum(herd_plan._animal_counts(state).values())
+                cap = max(cap, params.at("WHEAT_TILES_PER_ANIMAL", state.day) * (_herd + 1))
         else:
             cap = float(scripted)
         deficit = int(cap - _crop_count(state, crop))
@@ -116,24 +129,57 @@ def jobs(state):
             if isinstance(t, dict) and t.get("kind") == "PLANT":
                 if state.plant_ready(t):
                     out.append(Job(P_HARVEST, pos, "HARVEST", t["crop"], None,
-                               params.HARVEST_CRITICAL))
-                    if (params.WATER_READY_FALLBACK
+                               params.at("HARVEST_CRITICAL", state.day)))
+                    if (params.at("WATER_READY_FALLBACK", state.day)
                             and t.get("consecutive_unwatered", 0) >= 1):
                         # Fallback so a missed harvest does not become a WEED. HARVEST
                         # outranks this, so it only fires when the harvest did not.
                         out.append(Job(P_WATER_SURVIVAL, pos, "WATER", t["crop"],
                                        None, True))
                 elif state.needs_water(t):
+                    if (params.at("WATER_WINDOW_PRIORITY", state.day)
+                            and state.in_water_window(t)):
+                        # AN IN-WINDOW WATER IS WORTH YIELD *AND* SURVIVAL, so it must carry
+                        # the higher band. The branch below emitted a tile that missed
+                        # yesterday as a SURVIVAL job at 90 -- which loses to HARVEST (100)
+                        # and PICKUP_WHEAT (101) -- and `state.in_water_window` is ages 2-4
+                        # for wheat, exactly the ages where the yield is banked. MEASURED
+                        # (tools/labour/wheat_cycle.py, d6-17): our wheat harvests at age 4
+                        # for 2.94 units on a 4-day replant cycle (0.75 units/tile-day) and
+                        # we run only ~32 wheat harvests a game against a ~69-harvest tile
+                        # capacity; the reference gets 3.90 units at age 3.2. A tile that
+                        # misses its window never reaches `plant_ready` at all and blocks
+                        # its own replant through `_crop_count`.
+                        # Emitted as a SECOND job on the same tile, NON-critical: the
+                        # phase-2 band remap in `scheduler.plan` keys on (op, critical), so
+                        # a job built here with `critical=True` is normalised straight back
+                        # to P_WATER_SURVIVAL (90) and the change is a no-op. The tile keeps
+                        # its critical survival job too, so the free-walk rescue still
+                        # exists; `_pick` prefers this one because 120 > 90.
+                        out.append(Job(P_WATER_BONUS, pos, "WATER", t["crop"]))
                     if t.get("consecutive_unwatered", 0) >= 1:
                         # becomes a WEED tonight -> total loss, walk any distance
                         out.append(Job(P_WATER_SURVIVAL, pos, "WATER", t["crop"],
                                        None, True))
                     elif state.in_water_window(t):
                         out.append(Job(P_WATER_BONUS, pos, "WATER", t["crop"]))
+                    elif (params.at("WATER_ONGOING_PRODUCE", state.day)
+                          and state.ongoing_produces_today(t)):
+                        # ONGOING CROPS HAVE NO WATER WINDOW. `state.water_window` returns
+                        # None for an ongoing crop, so `in_water_window` is False at EVERY
+                        # age and the branch above never fires for STRAWBERRY/TOMATO. The
+                        # only water a mature strawberry ever received was the survival
+                        # one -- the day before it would die -- so it was never watered on
+                        # a PRODUCTION day, and `_daily_refresh_plants` only pays the
+                        # doubled fruit on a production day it WAS watered.
+                        # MEASURED (tools/labour/ready_by_crop.py, d6-17, 8 games): 16.2
+                        # strawberry tiles stand per day and only 0.32 are ripe at the
+                        # start of a day -- the tiles stand and do not bear.
+                        out.append(Job(P_WATER_PRODUCE, pos, "WATER", t["crop"]))
                 # fertilize: boosts one-shot in the water window, or doubles ongoing
                 # fruit on a watered day. Eligibility (carrying FERTILIZER) is the
                 # scheduler's job.
-                if (not retire and state.day >= params.FERTILIZE_FROM_DAY
+                if (not retire and state.day >= params.at("FERTILIZE_FROM_DAY", state.day)
                         and (params.FERTILIZE_MIN_PRICE <= 0
                              or params.MARKET_PARAMS[t["crop"]]["base"] >= params.FERTILIZE_MIN_PRICE)
                         and t.get("fertilized_until_day", -1) < state.day
@@ -146,8 +192,17 @@ def jobs(state):
             elif state.is_weed(pos) and not retire:
                 out.append(Job(P_DIG, pos, "DIG", None))
 
-    # pickup fertilizer from the shed when there are plants worth fertilizing
-    if not retire and int(state.shed.get("FERTILIZER", 0)) > 0 and _worth_fertilizing(state):
+    # pickup fertilizer from the shed when there are plants worth fertilizing.
+    #
+    # FERTILIZE_SHED_PICKUP=0 suppresses this and NOT the FERTILIZE job above, which is the
+    # point: a unit that has just done COLLECT_FERTILIZER on an animal tile is ALREADY
+    # CARRYING fertilizer, and `scheduler` sends a carrying unit down the `only_delivery`
+    # branch first -- so it will walk one tile and apply it at no pickup cost. MEASURED
+    # (round 3): enabling fertilize the ordinary way cost -$9,338 of midgame net, and the
+    # expense is this PICKUP (priority 88, a shed round trip per 6 units) rather than the
+    # application. The animal ring sits next to the crop bands, so delivery is nearly free.
+    if (not retire and params.at("FERTILIZE_SHED_PICKUP", state.day)
+            and int(state.shed.get("FERTILIZER", 0)) > 0 and _worth_fertilizing(state)):
         out.append(Job(P_PICKUP, params.SHED_ACCESS[0], "PICKUP", "FERTILIZER", 6))
     return out
 
@@ -186,7 +241,7 @@ def fertilizer_buy_intent(state):
 
 
 def _worth_fertilizing(state):
-    if state.day < params.FERTILIZE_FROM_DAY:
+    if state.day < params.at("FERTILIZE_FROM_DAY", state.day):
         return False
     for row in state.tiles:
         for t in row:

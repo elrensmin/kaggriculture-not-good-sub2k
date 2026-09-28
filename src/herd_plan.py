@@ -205,13 +205,24 @@ def market_intents(state):
         # $20-30k a game while every labour defect improved. A tile we have already
         # SOWN counts: it will yield, and during day 0 the count climbs 0 -> 15, so
         # the gate opens exactly as the wheat base is established.
-        need = params.WHEAT_TILES_PER_ANIMAL * (herd + 1)
+        need = params.at("WHEAT_TILES_PER_ANIMAL", state.day) * (herd + 1)
         # In the opening, cash is the feed capacity: we commit the bank before any
         # crop can feed the herd, and the feed_cover term below prices that. From
         # HERD_OPENING_DAYS on, the wheat base is the gate -- UNLESS OPENING_BUY_FEED,
         # which lets the opening herd eat bought wheat (Boey's behaviour) so the herd
         # is not capped at ~5 animals by our own not-yet-standing wheat.
-        can_feed = (_wheat_tiles(state) >= need
+        # HERD_SHED_WHEAT_CREDIT: a wheat unit already IN THE SHED is feed the farm owns.
+        # MEASURED (tools/phases/herd_gate.py, 16 games): from d11 to d17 `can_feed` fails
+        # EVERY single day with the herd at 16, wheatT at 22-26 and **$18.5k of idle cash**
+        # -- the gate is a standing-TILE count while the constraint it is proxying for is
+        # feed. The credit converts shed wheat into tile-equivalents (a wheat tile turns
+        # over ~3 units per cycle), so a stocked shed opens the gate without pretending the
+        # farm can out-produce its own herd. 0 = off (the old behaviour).
+        _credit = params.at("HERD_SHED_WHEAT_CREDIT", state.day)
+        _have = _wheat_tiles(state)
+        if _credit:
+            _have += int(state.shed.get("WHEAT", 0)) / float(_credit)
+        can_feed = (_have >= need
                     or state.day <= params.HERD_OPENING_DAYS
                     or (params.OPENING_BUY_FEED
                         and state.day <= params.OPENING_HERD_UNTIL_DAY))
@@ -220,9 +231,19 @@ def market_intents(state):
         # animals on day 0 and leave $600 for six mouths: measured, FEED ops went to
         # 0 in the opening (the animals had nothing to eat) while the farm planted
         # half as much because the seed money was gone too.
-        feed_days = (params.OPENING_FEED_DAYS
-                     if state.day <= params.OPENING_HERD_UNTIL_DAY
-                     else params.ANIMAL_FEED_RESERVE_DAYS)
+        #
+        # MATURE wheat base = the cover is double-counting. `can_feed` already says the
+        # standing wheat covers the herd at the ration the farm runs; holding 5 more days
+        # of bought-feed cash on top of that is what froze the midgame herd at 10 while
+        # money grew to $7,792 (see tools/phases/herd_gate.py). Measured blocked days:
+        # d10-d12 had 22 wheat tiles, `can_feed` True, and money $691-1,345 against a
+        # $1,650-1,725 cover -- the animal was affordable and the reserve refused it.
+        if state.day <= params.OPENING_HERD_UNTIL_DAY:
+            feed_days = params.OPENING_FEED_DAYS
+        elif _wheat_tiles(state) >= need:
+            feed_days = params.at("ANIMAL_FEED_RESERVE_DAYS_MATURE", state.day)
+        else:
+            feed_days = params.at("ANIMAL_FEED_RESERVE_DAYS", state.day)
         feed_cover = feed_days * params.FEED_PRICE_GUESS * (herd + 1)
         for a in params.HERD_SPECIES_ORDER:
             deficit = targets[a] - counts[a]
@@ -232,9 +253,14 @@ def market_intents(state):
                 # script-aware, not a flat floor: reserve exactly what TODAY's
                 # crop plan still needs to buy, so the animal buys with the rest
                 seed_floor = _script_seed_need(state)
+                # `ANIMAL_SHED_LIMIT`: the 95 was a "don't overflow the shed" proxy, but an
+                # animal bought into the shed is PLACED and vacates it, and MEASURED the
+                # guard binds exactly when the gate finally opens -- the same turns the
+                # shed holds 60-94 items (mostly 59 WHEAT, which is 3.7 days of feed for
+                # 16 animals). At d14 in a live game: shed 94, wheat tiles 28, need 32.3.
                 if (state.money >= ANIMALS[a]["cost"] * n + params.ANIMAL_CASH_RESERVE
                         + feed_cover + seed_floor
-                        and state.shed_total() + n <= 95):
+                        and state.shed_total() + n <= params.at("ANIMAL_SHED_LIMIT", state.day)):
                     out.append(["BUY_ANIMAL", a, n])
     # feed top-up: buy the shortfall to cover every unfed animal (no hoarding).
     # From day 0, not day 4: an opening herd bought before its own wheat ripens
@@ -323,9 +349,10 @@ def jobs(state):
     if active and unfed > 0 and wheat > 0:
         # one feeder per ~WHEAT_PICKUP_QTY animals, spread across the shed-access
         # tiles, so the feed chain scales with the herd instead of starving it.
-        n_pickups = max(1, (unfed + params.WHEAT_PICKUP_QTY - 1) // params.WHEAT_PICKUP_QTY)
+        pick_qty = int(params.at("WHEAT_PICKUP_QTY", state.day))
+        n_pickups = max(1, (unfed + pick_qty - 1) // pick_qty)
         for k in range(n_pickups):
-            qty = min(params.WHEAT_PICKUP_QTY, max(1, unfed - k * params.WHEAT_PICKUP_QTY), wheat)
+            qty = min(pick_qty, max(1, unfed - k * pick_qty), wheat)
             if qty <= 0:
                 break
             out.append(Job(P_PICKUP_WHEAT, params.SHED_ACCESS[k % 4], "PICKUP", "WHEAT", qty))

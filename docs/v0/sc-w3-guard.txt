@@ -1,0 +1,66 @@
+phase_map — structural phase audit (LIVE mode)
+   opponents: 1-4  seeds: 4  games/phase: 16
+   truncated at: phase1=d5(144 steps)
+   reference : 30 replays from replays/Boey/v1 (seat=auto), reduced identically
+
+############ phase1 (opening, d0-d5) — 16 games (live, 4 opponents x 4 seeds) ############
+   did we commit the land, the crew and the first production?
+   reference: 30 replays from replays/Boey/v1 (seat=auto), reduced identically
+   both arms reduced over d0-d5 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   animals on board                 7.00   10.0   0.70x  BAD  src/herd_plan.py::market_intents
+   FEED ops                         31.0   38.0   0.82x  BAD  src/herd_plan.py::jobs
+   CARE ops                         34.0   40.0   0.85x  WARN src/herd_plan.py::jobs
+   GOOSE on board                   1.00   2.00   0.50x  WARN src/opening.py::_herd_target
+   WATER ops                        67.0   77.0   0.87x  WARN src/crop_plan.py::jobs
+   sell revenue                     6926  11305   0.61x  ·    src/market.py (quote) + src/sell_policy.py
+   opening cash committed           1.00   0.99   1.00x  ok   src/herd_plan.py::market_intents + src/crop_plan.py::market_intents
+   COW on board                     4.00   4.00   1.00x  ok   src/opening.py::_herd_target
+   empty owned tiles                2.50   0.00      -  ok   src/crop_plan.py::plant_queue
+   hands                            5.00   5.00   1.00x  ok   src/budget.py::market_intents (target_hands, TILES_PER_HAND)
+   idle share %                     8.53   6.74   1.27x  ok   src/scheduler.py::plan
+   MELON tiles                      9.00   10.0   0.90x  ok   src/params.py::CROP_PLAN
+   owned tiles                      25.0   25.0   1.00x  ok   src/budget.py::market_intents
+   PLANT ops                        30.0   30.0   1.00x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   quadrants unlocked               1.00   1.00   1.00x  ok   src/budget.py::market_intents
+   SHEEP on board                   2.00   2.50   0.80x  ok   src/opening.py::_herd_target
+   shops unlocked                   1.00   1.00   1.00x  ok   -  LATENT (RNG-revealed)
+   STRAWBERRY tiles                 4.00   4.00   1.00x  ok   src/params.py::CROP_PLAN
+   animal structures                8.00   10.0   0.80x  ok   src/herd_plan.py::jobs
+   trade net $                      2233   2492   0.90x  ok   src/trade.py + src/sell_policy.py
+   YARN_STORE unlocked              0.00   0.00      -  ok   -  LATENT (RNG-revealed)
+
+############ causal trace (phase1) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   animals on board = 7.00 vs 10.00   [ BAD ]
+      <- opening cash committed         [OK]  the same bank buys the opening herd -- you cannot fund both fully
+      <- owned tiles                    [OK]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+      <- YARN_STORE unlocked            [OK]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+         <- quadrants unlocked             [OK]  a quadrant is 25 tiles
+         <- shops unlocked                 [OK]  YARN_STORE is one of the shops in the draw
+            <- opening cash committed         [OK]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+   FEED ops = 31.00 vs 38.00   [ BAD ]
+      <- animals on board               [BAD]  one wheat per animal per day
+         <- opening cash committed         [OK]  the same bank buys the opening herd -- you cannot fund both fully
+         <- owned tiles                    [OK]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+         <- YARN_STORE unlocked            [OK]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+            <- quadrants unlocked             [OK]  a quadrant is 25 tiles
+            <- shops unlocked                 [OK]  YARN_STORE is one of the shops in the draw
+               <- opening cash committed         [OK]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. animals on board  (7.00 vs 10.00)
+    Daily feed/care/collect work is what fills the odd opening days.
+    owner: src/herd_plan.py::market_intents
+    explains 1 other deficient metric(s): FEED ops
+    downstream mechanisms:
+      -> CARE ops: care is free and daily, and it banks the bonus
+      -> FEED ops: one wheat per animal per day
+      -> idle share %: feed/care/collect are DAILY work; a crop-only farm has nothing to do on the odd days
+      -> animal structures: housing is built only for animals already owned
+

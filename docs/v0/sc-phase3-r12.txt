@@ -1,0 +1,72 @@
+phase_map — structural phase audit (LIVE mode)
+   opponents: 1-4  seeds: 4  games/phase: 16
+   truncated at: phase3=d29(720 steps)
+   reference : 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+
+############ phase3 (endgame, d18-d29) — 16 games (live, 4 opponents x 4 seeds) ############
+   did we convert the farm into sold goods and release the herd?
+   reference: 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+   both arms reduced over d18-d29 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   HARVEST ops                       192    338   0.57x  BAD  src/scheduler.py::_pick
+   WATER ops                         198    478   0.41x  BAD  src/crop_plan.py::jobs
+   weeds                            32.0   3.00  10.67x  BAD  src/endgame.py (RETIRE_DAY)
+   HARVEST per planted tile         0.97   1.34   0.72x  WARN src/scheduler.py::_pick
+   shed at the bell                 23.0   0.00      -  WARN src/sell_policy.py
+   FERTILIZE ops                    0.00    140   0.00x  ·    src/crop_plan.py::jobs
+   animals at the bell              17.0   15.0   1.13x  ok   src/herd_plan.py (release) + src/endgame.py
+   idle share %                     0.00   1.45   0.00x  ok   src/scheduler.py::plan
+
+############ causal trace (phase3) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   HARVEST ops = 192.00 vs 337.50   [ BAD ]
+      <- HARVEST ops                    [phase2]  standing crops at d18 are what d18-29 can harvest
+      <- weeds                          [BAD]  a weeded tile cannot be harvested
+         <- FERTILIZE ops                  [phase2]  fertilizer doubles one-shot yield and ongoing fruit
+         <- move share %                   [phase2]  walking is a turn not spent harvesting
+         <- plants died                    [phase2]  a dead plant is a harvest that never happens
+         <- WATER ops                      [BAD]  retiring a tile means it weeds -- deliberately (rule #4)
+         <- weeds                          [phase2]  weed tiles have to be dug before they can be replanted
+         <- weeds                          [phase2]  weeds only accumulate
+            <- animals on board               [phase2]  fertilizer supply gates FERTILIZE
+            <- COLLECT_FERTILIZER ops         [phase2]  digging is done by the units that would collect fertilizer
+      ... 143 more ancestor nodes
+
+   WATER ops = 198.00 vs 477.50   [ BAD ]
+      <- WATER ops                      [phase2]  the same watering demand carries into the last days
+         <- hands                          [phase2]  the crew is the watering capacity
+         <- move share %                   [phase2]  walking is a turn not spent watering
+         <- planted tiles                  [phase2]  every planted tile is watering demand
+         <- STRAWBERRY tiles               [phase2]  watering demand scales with standing crops
+         <- WHEAT tiles                    [phase2]  wheat's window is ages 2-4
+            <- owned tiles                    [phase2]  hands are capped by ground
+            <- owned tiles                    [phase2]  the strawberry ramp peaks at 30 tiles
+            <- owned tiles                    [phase2]  tiles are the ceiling on every crop ramp (C4)
+               <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+      ... 5 more ancestor nodes
+
+   weeds = 32.00 vs 3.00   [ BAD ]
+      <- WATER ops                      [BAD]  retiring a tile means it weeds -- deliberately (rule #4)
+      <- weeds                          [phase2]  weeds only accumulate
+         <- COLLECT_FERTILIZER ops         [phase2]  digging is done by the units that would collect fertilizer
+         <- plants died                    [phase2]  a dead plant IS a weed
+         <- WATER ops                      [phase2]  the same watering demand carries into the last days
+         <- WATER ops                      [phase2]  watering is what keeps a tile from becoming a weed
+            <- animals on board               [phase2]  one fertilizer per animal per day
+            <- hands                          [phase2]  the crew is the watering capacity
+            <- hands                          [phase2]  the crew is the watering capacity
+            <- move share %                   [phase2]  walking is a turn not spent collecting
+      ... 52 more ancestor nodes
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. WATER ops  (198.00 vs 477.50)
+    Falls 63 -> 24 in the #1's last four days: production is switched off.
+    owner: src/crop_plan.py::jobs
+    explains 2 other deficient metric(s): HARVEST ops, weeds
+    downstream mechanisms:
+      -> weeds: retiring a tile means it weeds -- deliberately (rule #4)
+

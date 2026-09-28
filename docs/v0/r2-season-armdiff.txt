@@ -1,0 +1,30 @@
+arm A = A  (diag-replays/r2-g0)  16 games
+arm B = B  (diag-replays/r2-g1)  16 games
+matched pairs: 16   unmatched: 0 only-A, 0 only-B
+
+=== MARGIN (the low-noise readout, NOT the score) ===
+  A: W0  B: W0   (of 16 pairs)
+  delta money  median -14,954   mean -9,755   min -21,961   max +7,760
+  p10 -19,326  p25 -17,471  p75 -4,938  p90 +5,465
+  sign test: B better in 3/16 decided pairs   p=0.0213
+
+=== per opponent (median delta, wins A -> B) ===
+  kaggriculture-cloning-agent                  n=4  median    -8,140  W 0 -> 0
+  kaggriculture-master-engine-v3               n=4  median   -19,566  W 0 -> 0
+  kaggriculture-one-more-wheat                 n=4  median      +264  W 0 -> 0
+  kaggriculture-pipe16-idle-workers            n=4  median   -15,072  W 0 -> 0
+
+=== defect columns (median delta; sign = B - A) ===
+  idle_share_pct                   -0.250   (4/16 worse)
+  idle_units_ready_total           +0.000   (1/16 worse)
+  idle_units_total                -13.500   (4/16 worse)
+  floor_sales                     +28.000   (11/16 worse)  <-- majority moved the WRONG way
+  discarded_units_total            +0.000   (6/16 worse)
+  stranded_at_bell                 -9.500   (8/16 worse)
+  premium_below_base_frac          +0.040   (13/16 worse)  <-- majority moved the WRONG way
+  animal_escapes                   +0.000   (7/16 worse)
+  plants_died                      +1.000   (10/16 worse)  <-- majority moved the WRONG way
+  unwatered_eod                    -7.500   (7/16 worse)
+  missed_harvest_eod               +6.000   (14/16 worse)  <-- majority moved the WRONG way
+  shed_overflow_days               +0.000   (3/16 worse)
+  sell_revenue_total          -13,188.000   (12/16 worse)  <-- majority moved the WRONG way

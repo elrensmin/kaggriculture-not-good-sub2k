@@ -1,0 +1,45 @@
+window: d6-d17
+### ours  (12 games, ((6, 17),))
+   item           produced  per game  source days   per day
+   WHEAT             3,807     317.2        4,736     0.067
+   FERTILIZER        1,290     107.5        3,189     0.034
+   MILK                753      62.8        1,328     0.047
+   EGG                 624      52.0        1,044     0.050
+   MELON               544      45.3        1,615     0.028
+   WOOL                506      42.2          817     0.052
+   STRAWBERRY           90       7.5        4,873     0.002
+   COW                  52       4.3            0       nan
+   GOOSE                44       3.7            0       nan
+   SHEEP                17       1.4            0       nan
+   animal-days/game 3,189   tile-days/game 11,440
+
+### v1  (12 games, ((6, 17),))
+   item           produced  per game  source days   per day
+   FERTILIZER          542      45.2        4,198     0.011
+   MELON               450      37.5        1,721     0.022
+   WOOL                381      31.8        1,468     0.022
+   EGG                 377      31.4          745     0.042
+   MILK                371      30.9        1,985     0.016
+   STRAWBERRY          154      12.8        4,843     0.003
+   TOMATO               69       5.8          531     0.011
+   SHEEP                53       4.4            0       nan
+   COW                  49       4.1            0       nan
+   CARROT               45       3.8          135     0.028
+   GOOSE                21       1.8            0       nan
+   WHEAT            -1,733    -144.4        4,337    -0.033
+   animal-days/game 4,198   tile-days/game 11,566
+
+=== output per source-day, ours vs reference ===
+   item              ours       ref   ratio
+   WHEAT            0.067    -0.033   -2.01
+   FERTILIZER       0.034     0.011    3.13
+   MILK             0.047     0.016    3.03
+   EGG              0.050     0.042    1.18
+   MELON            0.028     0.022    1.29
+   WOOL             0.052     0.022    2.39
+   STRAWBERRY       0.002     0.003    0.58
+   COW                nan       nan     nan
+   GOOSE              nan       nan     nan
+   SHEEP              nan       nan     nan
+   TOMATO           0.000     0.011    0.00
+   CARROT           0.000     0.028    0.00

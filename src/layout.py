@@ -36,17 +36,61 @@ def slice_partition(state, n_units: int):
     # so herd_plan has somewhere to build -- it builds shed-outward, so it claims
     # exactly these. A count, not a radius: the geometric ANIMAL_ZONE reserved 40
     # of 100 tiles and left almost nothing for crops in a 25-tile opening quadrant.
-    if params.STRUCTURE_HOLDBACK > 0:
-        held = set(sorted(owned, key=shed_dist)[:params.STRUCTURE_HOLDBACK])
-        owned = [p for p in owned if p not in held]
+    holdback = int(params.at("STRUCTURE_HOLDBACK", state.day))
+    held = []
+    if holdback > 0:
+        held = sorted(owned, key=shed_dist)[:holdback]
+        set_held = set(held)
+        owned = [p for p in owned if p not in set_held]
     # snake (boustrophedon) order: contiguous chunks are compact horizontal strips,
     # so walking inside a worker's band is short and the crops stay grouped.
-    owned.sort(key=lambda p: (p[1], p[0] if p[1] % 2 == 0 else -p[0]))
+    # `LAYOUT_RADIAL` orders the same contiguous chunks by SHED DISTANCE instead of by row,
+    # so a band is a piece of one ring around the shed and every worker's ground is at a
+    # comparable distance from the shed it must visit for wheat/fertilizer/drops.
+    if params.at("LAYOUT_RADIAL", state.day):
+        import math as _math
+        def _angle(p):
+            return _math.atan2(p[1] - 4.5, p[0] - 4.5)
+        owned.sort(key=lambda p: (shed_dist(p), _angle(p)))
+    else:
+        owned.sort(key=lambda p: (p[1], p[0] if p[1] % 2 == 0 else -p[0]))
     if not owned:
         return [[] for _ in range(n_units)]
 
+    # `LAYOUT_EVEN_BANDS` -- the `ceil(len/n)` chunking leaves the LAST workers with an empty
+    # band whenever the tile count is not a multiple of the crew (63 tiles, 12 hands -> ten
+    # bands of 6, one of 3, one of 0), so that worker has no local work on any turn and is a
+    # pure rover. Fixing it is the obvious thing and it is MEASURED WORSE: d6-17,
+    # plants died 10.0 -> 17.5, trade net 35,684 -> 34,434 at 16.5 animals. An empty band is
+    # apparently how the farm keeps two units available as a farm-wide reserve. OFF.
     slices = [[] for _ in range(n_units)]
-    chunk = max(1, (len(owned) + n_units - 1) // n_units)
-    for i in range(n_units):
-        slices[i] = owned[i * chunk:(i + 1) * chunk]
+    if params.at("LAYOUT_EVEN_BANDS", state.day):
+        base, extra = divmod(len(owned), n_units)
+        idx = 0
+        for i in range(n_units):
+            k = base + (1 if i < extra else 0)
+            slices[i] = owned[idx:idx + k]
+            idx += k
+    else:
+        chunk = max(1, (len(owned) + n_units - 1) // n_units)
+        for i in range(n_units):
+            slices[i] = owned[i * chunk:(i + 1) * chunk]
+    if params.at("BAND_ANIMALS", state.day) and held:
+        # BAND THE ANIMAL RING TOO. `_pick`'s band preference only covers `_FIELD_OPS`
+        # (PLANT/WATER/HARVEST/DIG/FERTILIZE), because the animal tiles sit in the
+        # holdback ring and in no crop band -- so FEED/CARE/COLLECT are ALWAYS resolved by
+        # the global pass and a unit will cross the farm for them. MEASURED
+        # (tools/labour/walk_runs.py, d6-17, 4 games): FEED 241 + CARE 241 + COLLECT 424
+        # = 906 of 3,073 walks start at an animal op, and our mean walk is 2.39 tiles
+        # against Boey's 1.95. Give each worker the holdback tiles nearest its own band and
+        # the animal visit becomes local work like any other.
+        for p in sorted(held, key=lambda q: (q[1], q[0])):
+            best, bd = 0, None
+            for i, band in enumerate(slices):
+                if not band:
+                    continue
+                d = min(abs(p[0] - t[0]) + abs(p[1] - t[1]) for t in band)
+                if bd is None or d < bd:
+                    bd, best = d, i
+            slices[best].append(p)
     return slices

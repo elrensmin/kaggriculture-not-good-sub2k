@@ -204,6 +204,18 @@ METRICS = {
                    "funds the herd; gross revenue above is only the turnover."),
 
     # ---- phase 2: midgame ---------------------------------------------------
+    # REVENUE IN THE MIDGAME. Phase 1 had a revenue node; phase 2 did not, which is how
+    # the midgame was worked for a whole round on structure alone. Both halves are here
+    # for the same reason as phase 1: gross sales measure turnover and reward churn,
+    # `TRADE_NET` is the ledger identity (`d_money + fixed spend = sells - product buys`)
+    # and is the one to judge. Read them together, always.
+    "revenue2": M("sell revenue", 2, "flow:REVENUE", "sum", "none",
+                  "higher", 0.25, "src/sell_policy.py + src/market.py",
+                  "GROSS midgame sales. DESCRIPTIVE: turnover, not profit -- read it "
+                  "beside trade net, never as a target.", descriptive=True),
+    "trade_net2": M("trade net $", 2, "flow:TRADE_NET", "sum", "none",
+                    "higher", 0.30, "src/trade.py + src/sell_policy.py",
+                    "Sells minus product buys over d6-17, exact from the money ledger."),
     "quadrants2": M("quadrants unlocked", 2, "stock:quadrants", "last", "quad",
                     "higher", 0.5, "src/budget.py::market_intents",
                     "All four by d10 is the #1's schedule."),
@@ -215,7 +227,14 @@ METRICS = {
                 "Crew size, ground-locked."),
     "animals2": M("animals on board", 2, "stock:animals", "max", "animals",
                   "higher", 3, "src/herd_plan.py::market_intents",
-                  "The herd is tile-blocked: it can only grow as land and wheat allow."),
+                  "The herd is tile-blocked: it can only grow as land and wheat allow. "
+                  "MEASURED 2026-09-28: this is NOT the feed GATE. herd_gate (16 games) "
+                  "shows the gate failing every day d11-d17 at 17 animals / 22-26 wheat "
+                  "tiles / need 30.6 with $18,546 idle at d17, and opening it "
+                  "(HERD_SHED_WHEAT_CREDIT) makes every metric WORSE -- animals 16 -> 15.5. "
+                  "The binding quantity is wheat OUTPUT per tile: 0.51 units/tile-day "
+                  "against the reference's 0.70, at a theoretical unfertilised max of 0.60. "
+                  "See S3.1j and tools/labour/production.py."),
     "structures2": M("animal structures", 2, "stock:structures", "max", "structs",
                      "higher", 6, "src/herd_plan.py::jobs",
                      "Housing follows owned animals."),
@@ -231,15 +250,33 @@ METRICS = {
     "feed_ops2": M("FEED ops", 2, "flow:FEED", "sum", "feed",
                    "higher", 25, "src/herd_plan.py::jobs",
                    "Scales with herd size; gated by wheat."),
+    # DESCRIPTIVE, and this is a deliberate DAG correction. Fertilizer we do not apply
+    # is SOLD ($100 base, and the opening's earliest cash engine), so 0 FERTILIZE is a
+    # portfolio choice, not a deficiency. MEASURED on the current tree (16 paired games):
+    # `FERTILIZE_FROM_DAY=6` closes this node (42 ops) and cuts `plants died` by 8 --
+    # and costs **-$4,474 median margin (4/16, p=0.077)** with **-$6,549 revenue
+    # (12/16 worse)**. The attrition gain does not pay for the output it consumes.
     "fert_ops2": M("FERTILIZE ops", 2, "flow:FERTILIZE", "sum", "fert",
                    "higher", 10, "src/crop_plan.py::jobs + src/herd_plan.py::jobs",
-                   "Requires animals (fertilizer) AND the pickup chain."),
+                   "MEASURED NEGATIVE as an objective: we sell the fertilizer instead.",
+                   descriptive=True),
     "collect_ops2": M("COLLECT_FERTILIZER ops", 2, "flow:COLLECT_FERTILIZER", "sum", "none",
                       "higher", 10, "src/herd_plan.py::jobs",
                       "1 per animal per day; the fertilizer supply."),
     "water_ops2": M("WATER ops", 2, "flow:WATER", "sum", "water",
                     "higher", 60, "src/crop_plan.py::jobs",
                     "Demand scales with planted tiles."),
+    # THE PHASE-2 BOTTLENECK, as a node. Boey converts 51 % of his unit-turns into acts
+    # and 42 % into walking; we convert 38 % and 60 %. With the same crew that is a
+    # 1.65x work deficit, and it is upstream of WATER/HARVEST/COLLECT/FEED at once.
+    "move_pct2": M("move share %", 2, "derived:move_pct", "median", "none",
+                   "lower", 12, "src/scheduler.py::_pick + src/layout.py",
+                   "Walking is the cost. Every point of it is an act we did not do. "
+                   "TUNING IS EXHAUSTED: 14 scheduler/layout arms (DIST_CAP 2/3/5 with "
+                   "CRITICAL_FREE_WALK_FRAC=0, radial and even bands, animal banding, "
+                   "EXACT_ASSIGN, HANDS 14/16, hire 2/3) all trade move share for plant "
+                   "deaths and net revenue. The remaining work is the crew-turns a tile "
+                   "needs per unit of OUTPUT, not who walks to it. See S3.1i."),
     "watered_per_tile": M("WATER ops per planted tile", 2, "derived:water_per_tile", "mean", "water_per_tile",
                           "range", 0.3, "src/scheduler.py::_pick",
                           "If this is low the crew is not reaching the crops it owns."),
@@ -274,7 +311,8 @@ METRICS = {
                     "Falls 63 -> 24 in the #1's last four days: production is switched off."),
     "fert_ops3": M("FERTILIZE ops", 3, "flow:FERTILIZE", "sum", "fert",
                    "range", 40, "src/crop_plan.py::jobs",
-                   "Stops dead on d29 in the #1's farm."),
+                   "Descriptive: see fert_ops2 -- the fertilizer is a sold product here.",
+                   descriptive=True),
     "harvests3": M("HARVEST ops", 3, "flow:HARVEST", "sum", "none",
                    "higher", 40, "src/scheduler.py::_pick",
                    "The last days are harvesting and selling."),
@@ -337,6 +375,36 @@ EDGES = [
     ("weeds2", "harvests2", "weed tiles have to be dug before they can be replanted"),
     ("plants_died2", "harvests2", "a dead plant is a harvest that never happens"),
     ("hands2", "water_ops2", "the crew is the watering capacity"),
+    # MOVE SHARE IS A ROOT, and it is not a restatement of `hands`. MEASURED 2026-09-27:
+    # the crew is re-hired from scratch every night (`_end_of_day` clears `farm["hands"]`
+    # and `hires_today`), so `MAX_HIRE_PER_TURN` was paying a 12-hand crew back at one
+    # hand per turn; raising it (phase-scoped) bought +14 % acts with NO extra walking.
+    # Independently, an animal tile offers FEED/CARE/COLLECT and we were taking one op per
+    # visit -- `SAME_TILE_ANIMAL_CHAIN` took FEED chaining 21 % -> 56 % against Boey's 66 %.
+    # Both raised the act count; neither shortened a walk, so `move share` is still 59.5 %
+    # against Boey's 41.6 % and every act class below it is still reachable only by
+    # converting a walk into an act (moves/act 1.52 vs 1.09, walks 3,073 vs 2,895 at a
+    # mean of 2.39 vs 1.95 tiles -- tools/labour/walk_runs.py, d6-17, 4 games each).
+    # REVENUE IS DOWNSTREAM OF THROUGHPUT, and the midgame had no money node at all
+    # until 2026-09-28 -- a whole round of phase-2 work was done on structure alone.
+    # MEASURED (tools/report/phase_revenue.py, 96 games x 12 public opponents): we net
+    # $37k in d6-17 against the field's $61k (0.60x, and Boey's own reference is $61k).
+    # `TRADE_NET` is ledger-exact and therefore the only fair cross-seat number; the
+    # `REVENUE` estimator is capped by the shed and under-counts an opponent that
+    # over-orders (a public agent issued 579 units of SELL orders from a shed of 262).
+    ("harvests2", "trade_net2", "the midgame earns what it harvests and sells"),
+    ("collect_ops2", "trade_net2", "fertilizer is a midgame revenue line"),
+    ("animals2", "trade_net2", "milk/wool/egg are the herd's revenue"),
+    # THE DISPLACEMENT. The crew is fixed; every field-work metric competes with the animal
+    # chain for the same turns, and MEASURED the animal chain pays better on every turn.
+    # `P_DIG_P3=90` holds the endgame farm at 32-36 planted tiles against a collapse to 3
+    # and still loses $4,708 (0/16, p=0.0000), because phase-3 FERTILIZER collection falls
+    # 1,885 -> 668 units and every other line falls with it. See S3.1r.
+    ("collect_ops2", "weeds2", "digging is done by the units that would collect fertilizer"),
+    ("move_pct2", "water_ops2", "walking is a turn not spent watering"),
+    ("move_pct2", "harvests2", "walking is a turn not spent harvesting"),
+    ("move_pct2", "collect_ops2", "walking is a turn not spent collecting"),
+    ("move_pct2", "feed_ops2", "walking is a turn not spent feeding"),
     ("watered_per_tile", "plants_died2", "coverage, not raw watering, is what keeps plants alive"),
     ("hands2", "idle_pct2", "a crew bigger than the work idles"),
     ("animals2", "idle_pct2", "daily feed/care/collect work"),

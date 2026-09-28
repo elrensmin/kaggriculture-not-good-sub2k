@@ -1,0 +1,38 @@
+arm A = A  (diag-replays/step13-pre)  96 games
+arm B = B  (diag-replays/step13-ship)  96 games
+matched pairs: 96   unmatched: 0 only-A, 0 only-B
+
+=== MARGIN (the low-noise readout, NOT the score) ===
+  A: W0  B: W0   (of 96 pairs)
+  delta money  median +6,758   mean +6,287   min -1,835   max +11,797
+  p10 +3,444  p25 +5,128  p75 +7,380  p90 +9,578
+  sign test: B better in 94/96 decided pairs   p=0.0000
+
+=== per opponent (median delta, wins A -> B) ===
+  kaggriculture-cloning-agent                  n=8  median    +6,750  W 0 -> 0
+  kaggriculture-master-engine-v3               n=8  median    +7,034  W 0 -> 0
+  kaggriculture-one-more-wheat                 n=8  median    +5,000  W 0 -> 0
+  kaggriculture-pipe16-idle-workers            n=8  median    +7,354  W 0 -> 0
+  kaggriculture-pipe7-wheat-microstructure     n=8  median    +6,750  W 0 -> 0
+  kaggriculture-public-state-router-74-5-win-r n=8  median    +7,812  W 0 -> 0
+  kaggriculture-reactive-router                n=8  median    +4,063  W 0 -> 0
+  kaggriculture-top-2-master-engine-v4         n=8  median    +6,912  W 0 -> 0
+  kaggriculture-v38-smarter-feed-stronger-marg n=8  median    +6,206  W 0 -> 0
+  kaggriculture-v47-reactive-market-coordinati n=8  median    +6,912  W 0 -> 0
+  kaggriculture-v53-opening-signature          n=8  median    +7,156  W 0 -> 0
+  market-smart-farming-kaggriculture           n=8  median    +6,750  W 0 -> 0
+
+=== defect columns (median delta; sign = B - A) ===
+  idle_share_pct                   +0.600   (96/96 worse)  <-- majority moved the WRONG way
+  idle_units_ready_total           +0.000   (24/96 worse)
+  idle_units_total                +60.000   (96/96 worse)  <-- majority moved the WRONG way
+  floor_sales                      +4.000   (68/96 worse)  <-- majority moved the WRONG way
+  discarded_units_total            +0.000   (30/96 worse)
+  stranded_at_bell                -24.000   (44/96 worse)
+  premium_below_base_frac          -0.019   (34/96 worse)
+  animal_escapes                   +0.000   (7/96 worse)
+  plants_died                      -4.000   (16/96 worse)
+  unwatered_eod                   +30.500   (95/96 worse)  <-- majority moved the WRONG way
+  missed_harvest_eod               -2.500   (26/96 worse)
+  shed_overflow_days               +0.000   (31/96 worse)
+  sell_revenue_total           +9,140.000   (0/96 worse)

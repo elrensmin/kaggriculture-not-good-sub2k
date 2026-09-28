@@ -16,9 +16,13 @@ from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 from . import (budget, crop_plan, emit, endgame, herd_plan, layout, opening, roots,
                routing, sell_policy, trade)
 from . import params
+from . import job as job_mod
 from .job import Job, P_PLANT
 
 _DELIVER_OPS = ("FEED", "PLACE", "FERTILIZE")
+# The ops a unit can perform on an animal tile it already occupies. See
+# params.SAME_TILE_ANIMAL_CHAIN -- FEED/CARE/COLLECT are one visit, not three trips.
+_ANIMAL_VISIT_OPS = ("FEED", "CARE", "COLLECT_FERTILIZER")
 
 
 def _move_or_act(state, pos, job, cost):
@@ -143,10 +147,13 @@ def _plant_jobs(state, used, slices, n, limit=None):
 
 
 _FIELD_OPS = ("PLANT", "WATER", "HARVEST", "DIG", "FERTILIZE")
+# Ops that honour the per-worker band in `_pick` pass 1. The animal trio joins only
+# when `BAND_ANIMALS` has put the holdback ring into the bands (see layout).
+_ANIMAL_OPS = ("FEED", "CARE", "COLLECT_FERTILIZER")
 
 
 def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
-          owner=None, me=None):
+          owner=None, me=None, day=0):
     """Choose the best job for a unit: minimise ``walk_cost - priority``.
 
     Distance is priced (``MOVE_WEIGHT`` per tile) rather than used as a tie-break,
@@ -154,6 +161,8 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
     (DSM's ~0.76 moves/act). ``claimed`` stops two units walking to the same tile
     for two different ops, which would burn one of the two turns.
     """
+    band_ops = (_FIELD_OPS + _ANIMAL_OPS
+                if params.at("BAND_ANIMALS", day) else _FIELD_OPS)
     # two passes: band-local field work first (adjacent tasks, DSM-like), then a
     # global fallback so a worker never idles while cross-band work exists.
     for restrict in (True, False):
@@ -165,7 +174,7 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
                 continue
             if not _eligible(inv, j):
                 continue
-            if restrict and prefer is not None and j.op in _FIELD_OPS and j.tile not in prefer:
+            if restrict and prefer is not None and j.op in band_ops and j.tile not in prefer:
                 continue
             d = routing.manhattan(pos, j.tile)
             if claimed is not None and d > 0 and j.tile in claimed:
@@ -176,7 +185,7 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             # Distance prices the tile cluster but is capped so local busywork can
             # never starve a far high-value job; a job that stops an irreversible
             # loss (tonight's weed/escape) pays no walk cost at all.
-            dcost = params.MOVE_WEIGHT * min(d, params.DIST_CAP)
+            dcost = params.at("MOVE_WEIGHT", day) * min(d, params.at("DIST_CAP", day))
             if j.critical:
                 dcost *= params.CRITICAL_FREE_WALK_FRAC
             # Finishing the visit: a job on the tile the unit already occupies costs no
@@ -184,7 +193,7 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
             # the score below it still loses to any distant job more than MOVE_WEIGHT*DIST_CAP
             # priority points higher (a distant PICKUP_WHEAT 101 beats the CARE 70 underfoot).
             # See params.ON_TILE_BONUS for the measured visit trace. 0 = off.
-            on_tile = params.ON_TILE_BONUS if d == 0 else 0
+            on_tile = params.at("ON_TILE_BONUS", day) if d == 0 else 0
             key = (dcost - j.priority - on_tile, d, -j.priority)
             if best_key is None or key < best_key:
                 best_key, best = key, (jidx, j, d)
@@ -222,14 +231,15 @@ def plan(state):
     slice_sets = [set(s) for s in slices]
     # USE_SLICES=False drops the band preference so assignment is purely
     # distance-priority (see the param).
-    pref = slice_sets if params.USE_SLICES else [None] * n
+    use_slices = params.at("USE_SLICES", state.day)
+    pref = slice_sets if use_slices else [None] * n
 
     field_jobs = crop_plan.jobs(state)
     plant_limit = n
-    if params.PLANT_WATER_CAP_DIVISOR:
+    if params.at("PLANT_WATER_CAP_DIVISOR", state.day):
         # don't create new tiles while the survival backlog is already too big to serve
         n_surv = sum(1 for j in field_jobs if j.op == "WATER" and j.critical)
-        plant_limit = max(0, n - n_surv // params.PLANT_WATER_CAP_DIVISOR)
+        plant_limit = max(0, n - n_surv // params.at("PLANT_WATER_CAP_DIVISOR", state.day))
     if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
         # `opening.jobs` owns the tape's job list: field work + named-tile plant jobs +
         # herd + endgame, with the herd's daily loop re-prioritised. It was DEAD CODE
@@ -242,6 +252,17 @@ def plan(state):
         if params.HERD_ENABLED:
             jobs += herd_plan.jobs(state)
         jobs += endgame.jobs(state)
+    # PHASE-SCOPED PRIORITY BANDS. A band re-tuned for the midgame (`params.P_*_P2`)
+    # would otherwise also move the opening -- which is how `P_COLLECT_FERT=70` was a
+    # phase-2 win and a phase-1 regression at the same time. Remapping here, in one
+    # place, keeps every job constructor ignorant of phases and leaves phase 1
+    # bit-identical while no `_P2` override is set.
+    if params.phase_of(state.day) >= 2:
+        remapped = []
+        for j in jobs:
+            b = job_mod.phase_band(j, state.day)
+            remapped.append(j if b is None or b == j.priority else j._replace(priority=b))
+        jobs = remapped
     # Binding-root controller: re-weight every job by how far its op class is behind
     # its own requirement this turn (see src/roots.py). URGENCY_SLOPE=0 disables it.
     jobs = roots.apply(jobs, state)
@@ -282,9 +303,17 @@ def plan(state):
                     continue
                 if not _eligible(inv, j):
                     continue
-                if j.priority < params.SAME_TILE_MIN_PRIORITY and not j.critical:
+                # An animal tile offers FEED/CARE/COLLECT on the SAME tile, so the trip is
+                # only worth making if the unit clears the stack. This exemption lets those
+                # three ops chain regardless of the generic threshold and of the rescuer
+                # hold-back; crop-tile busywork keeps the gate that stops it starving a
+                # dying tile. See params.SAME_TILE_ANIMAL_CHAIN.
+                chain = (params.at("SAME_TILE_ANIMAL_CHAIN", state.day)
+                         and j.op in _ANIMAL_VISIT_OPS)
+                if (not chain and j.priority < params.at("SAME_TILE_MIN_PRIORITY", state.day)
+                        and not j.critical):
                     continue      # not worth chaining; leave it to the global assignment
-                if i in rescuers and not j.critical:
+                if i in rescuers and not j.critical and not chain:
                     continue      # this unit is the nearest to a tile about to die
                 keys = (-j.priority,)
                 if best_key is None or keys < best_key:
@@ -306,26 +335,35 @@ def plan(state):
     if params.SAME_TILE_ORDER:
         # local-first: a unit standing on work chooses before a distant unit can claim it
         order.sort(key=lambda i: (0 if _has_local(i) else 1, i))
-    # exact per-turn assignment: cheapest (unit, job) edge first, globally
+    # exact per-turn assignment: cheapest (unit, job) edge first, globally.
+    #
+    # A unit already holding a same-tile job in `preop` is EXCLUDED from the matching.
+    # It used to be included, so it could win an edge, mark the job assigned, and then be
+    # overridden by the `preop` branch a few lines below -- burning that job for the turn
+    # and leaving the unit it would have served idle. That is the whole reason the earlier
+    # `EXACT_ASSIGN=1` screen read "CARE 70 -> 8": the chaining jobs were being consumed by
+    # units that never took them.
     exact = {}
     if params.EXACT_ASSIGN:
         edges = []
         for i in range(n):
+            if i in preop:
+                continue
             pos, inv = state.positions[i], state.unit_inv(i)
             deliv = bool(inv) and _carrying_deliverable(inv)
             for jidx, j in enumerate(jobs):
-                if j.tile is None:
+                if assigned[jidx] or j.tile is None:
                     continue
                 if deliv and j.op not in _DELIVER_OPS:
                     continue
                 if not _eligible(inv, j):
                     continue
                 d = routing.manhattan(pos, j.tile)
-                dcost = 0.0 if j.critical else params.MOVE_WEIGHT * min(d, params.DIST_CAP)
+                dcost = 0.0 if j.critical else params.at("MOVE_WEIGHT", state.day) * min(d, params.at("DIST_CAP", state.day))
                 pen = 0.0
-                if (params.USE_SLICES and pref[i] is not None and j.op in _FIELD_OPS
+                if (use_slices and pref[i] is not None and j.op in _FIELD_OPS
                         and j.tile not in pref[i]):
-                    pen = params.SLICE_PENALTY
+                    pen = params.at("SLICE_PENALTY", state.day)
                 edges.append(((dcost - j.priority + pen, d, -j.priority), i, jidx))
         edges.sort()
         used_u, used_j = set(), set()
@@ -344,23 +382,24 @@ def plan(state):
         pos = state.positions[i]
         inv = state.unit_inv(i)
         op = None
-        if i in exact:
-            jidx, j = exact[i]
-            assigned[jidx] = True
-            op = _move_or_act(state, pos, j, cost)
-        if params.EXACT_ASSIGN and op is None:
-            # not assigned a job this turn: use the same fallbacks as before
-            if inv and (pos in params.SHED_ACCESS_SET
-                        or state.day >= params.LIQUIDATE_DAY):
-                op = _deposit_op(state, pos, cost)
-            elif inv:
-                op = _deposit_op(state, pos, cost)
-            else:
-                op = ["PASS"]
         if i in preop:
+            # must come FIRST: the pre-pass already chose this unit's job, and `exact`
+            # must not have given it a different one (see the guard above).
             ops.append(_move_or_act(state, pos, preop[i], cost))
             continue
-
+        if i in exact:
+            # THE EXACT ASSIGNMENT MUST BE TERMINAL. It used to fall through into the
+            # `if inv:` / `else:` blocks below, which call `_pick` again -- and `_pick`
+            # cannot see the jobs the matching already consumed, so it re-decided the turn
+            # from a half-emptied job list. That is why `EXACT_ASSIGN=1` measured as a
+            # catastrophe (idle 16.7 %, animals 16 -> 3): the global matching was computed,
+            # billed for, and then thrown away. See params.EXACT_ASSIGN.
+            jidx, j = exact[i]
+            assigned[jidx] = True
+            while len(ops) <= i:
+                ops.append(None)
+            ops[i] = _move_or_act(state, pos, j, cost)
+            continue
         def _take(best):
             jidx, j, d = best
             assigned[jidx] = True
@@ -372,7 +411,7 @@ def plan(state):
             # 1. deliver a deliverable (feed/place/fertilize) if carrying one.
             if _carrying_deliverable(inv):
                 best = _pick(jobs, assigned, pos, inv, only_delivery=True,
-                             claimed=claimed, owner=occupied, me=i)
+                             claimed=claimed, owner=occupied, me=i, day=state.day)
                 if best is not None:
                     op = _take(best)
             # 2. deposit when shed-adjacent (free), or during the endgame so
@@ -385,7 +424,8 @@ def plan(state):
             # 3. otherwise keep working while carrying.
             if op is None:
                 best = _pick(jobs, assigned, pos, inv, only_delivery=False,
-                             prefer=pref[i], claimed=claimed, owner=occupied, me=i)
+                             prefer=pref[i], claimed=claimed, owner=occupied, me=i,
+                             day=state.day)
                 if best is not None:
                     op = _take(best)
             # 4. nothing to do -> deposit.
@@ -393,7 +433,8 @@ def plan(state):
                 op = _deposit_op(state, pos, cost)
         else:
             best = _pick(jobs, assigned, pos, inv, only_delivery=False,
-                         prefer=pref[i], claimed=claimed, owner=occupied, me=i)
+                         prefer=pref[i], claimed=claimed, owner=occupied, me=i,
+                         day=state.day)
             if best is not None:
                 op = _take(best)
             else:
@@ -423,11 +464,26 @@ def plan(state):
     # no seed rebuy and no herd buying, which is why the full-season idle sat at ~25 %.
     # Turning the tape's own sell block into the single owner exposed it as a $0 finish
     # with a full shed (discarded 140 units, shed pressure 17 days).
+    # HIRE-FIRST. The crew is wiped nightly (`_end_of_day` clears `hands` and `hires_today`),
+    # so the first turns of every day are a rebuild, and `MAX_ORDERS=10` truncates the tail.
+    # MEASURED (mean units by hour, d6-29, 16 games): Boey 1.0/8.7/11.2/11.5..., us
+    # 1.0/4.3/7.0/7.8 -- a complete crew at hour 2 against hour 12, ~40 unit-turns lost every
+    # day. We are not cash-short ($18.5k idle at hour 0), the hires are simply behind sells
+    # and land in the list. `budget.market_intents` refuses a hand it cannot afford, so
+    # front-running it cannot overspend. See params.MARKET_HIRE_FIRST_HOURS.
+    _hire_first = state.hour < int(params.at("MARKET_HIRE_FIRST_HOURS", state.day))
     if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
         # The tape owns the opening market list (sells + full seed basket in one ordered
         # block); the per-turn layers do not also jostle for the 10 slots.
         market = list(opening.market_intents(state))
         market += budget.market_intents(state)
+    elif _hire_first:
+        market = list(budget.market_intents(state))
+        market += list(sell_policy.market_intents(state))
+        market += trade.sell_intents(state) if params.TRADE_MIDGAME else []
+        if params.HERD_ENABLED:
+            market += herd_plan.market_intents(state)
+        market += crop_plan.market_intents(state)
     else:
         market = list(sell_policy.market_intents(state))
         # THE CARRY RUNS ALL SEASON, not just the opening. It was wired only into the

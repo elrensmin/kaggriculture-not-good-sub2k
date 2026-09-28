@@ -19,6 +19,183 @@ MAX_ORDERS = 10
 START_MONEY = 3000
 I0 = 10000
 
+# ===========================================================================
+# PHASE-SCOPED PARAMS -- tune the midgame without touching the opening
+# ===========================================================================
+# Every knob used to be global, so a phase-2 experiment could regress phase 1 and the
+# screen had to be thrown away. Measured example: `P_COLLECT_FERT=70` raised phase-2
+# `COLLECT_FERTILIZER ops` 84 -> 108 and improved weeds (27 -> 24) and plants died, but
+# it dropped the OPENING herd 8 -> 7, GOOSE 2 -> 1 and trade net 0.98x -> 0.90x. The
+# change was good for the phase it targeted and had to be rejected for the phase it did
+# not.
+#
+# Mechanism: a knob `X` keeps its shipped value (the phase-1 / season base) and
+# `X_P2` / `X_P3` override it for days 6-17 / 18-29. `None` (the default) = no override,
+# so phase 1 is bit-identical until someone asks otherwise. Layers that run in more than
+# one phase must read the knob with `params.at("X", day)`, never `params.X`.
+# Both `X` and `X_P2` are SCRATCH_PARAMS-settable.
+PHASE1_LAST_DAY = 5      # the opening script's last day
+PHASE2_LAST_DAY = 17     # the midgame's last day
+
+
+def phase_of(day: int) -> int:
+    """1 = opening (d0-5), 2 = midgame (d6-17), 3 = endgame (d18-29)."""
+    if day <= PHASE1_LAST_DAY:
+        return 1
+    if day <= PHASE2_LAST_DAY:
+        return 2
+    return 3
+
+
+def at(name: str, day: int):
+    """Phase-scoped value of the knob `name`: `NAME_P2`/`NAME_P3` override `NAME`.
+
+    Phase 1 returns `NAME` unchanged, which is what makes a phase-2-only experiment
+    safe: with every `_P2` left at its `None` default the opening cannot move.
+
+    `None` means "no override" and falls THROUGH to the base -- the `_P2` key exists
+    with value None, so `globals().get(...)` alone would return None and every phase-2
+    read would get None instead of the shipped value.
+    """
+    p = phase_of(day)
+    base = globals().get(name)
+    if p >= 2:
+        override = globals().get(f"{name}_P{p}")
+        return base if override is None else override
+    return base
+
+
+# Phase-2 priority-band overrides applied by the scheduler (see `job.phase_band`).
+# `None` = keep the band the job was constructed with.
+P_HARVEST_P2 = None
+P_PICKUP_WHEAT_P2 = None
+P_FEED_P2 = None
+P_WATER_SURVIVAL_P2 = None
+P_WATER_BONUS_P2 = None
+WATER_ONGOING_PRODUCE_P2 = None
+WATER_WINDOW_PRIORITY_P2 = None
+BAND_ANIMALS_P2 = None
+LAYOUT_RADIAL_P2 = None
+LAYOUT_EVEN_BANDS_P2 = None
+P_PICKUP_P2 = None
+P_PLANT_P2 = None
+P_CARE_P2 = None
+P_PICKUP_ANIMAL_P2 = None
+P_PLACE_P2 = None
+P_COLLECT_FERT_P2 = None
+P_FERTILIZE_P2 = None
+P_BUILD_P2 = None
+P_DIG_P2 = None
+# Phase-2 overrides for the structural/tuning scalars we actually sweep in the midgame.
+LAND_QUADRANT_MAX_P2 = None
+WHEAT_TILES_PER_ANIMAL_P2 = None
+WHEAT_SELL_RESERVE_P2 = None
+TRICKLE_P2 = None
+TRICKLE_P3 = None
+SELL_TRICKLE_FRACTION_P3 = None
+WHEAT_SELL_RESERVE_P3 = None
+WHEAT_TARGET_FROM_HERD_P2 = None
+HERD_SHED_WHEAT_CREDIT_P2 = None
+ANIMAL_FEED_RESERVE_DAYS_P2 = None
+ANIMAL_FEED_RESERVE_DAYS_MATURE_P2 = None
+ANIMAL_SHED_LIMIT_P2 = None
+MOVE_WEIGHT_P2 = None
+DIST_CAP_P2 = None
+ON_TILE_BONUS_P2 = None
+SLICE_PENALTY_P2 = None
+SAME_TILE_MIN_PRIORITY_P2 = None
+SAME_TILE_ANIMAL_CHAIN_P2 = 1
+# ^ MEASURED on top of MAX_HIRE_PER_TURN_P2=6 (same 4-game screen): plants died
+# 12.0 -> 10.0, weeds 14.0 -> 8.0, COLLECT_FERTILIZER 108 -> 133, WATER 318 -> 322,
+# shed peak 21 -> 19.5. Nothing regressed.
+PLANT_WATER_CAP_DIVISOR_P2 = None
+WATER_READY_FALLBACK_P2 = None
+FERTILIZE_FROM_DAY_P2 = None
+FERTILIZE_SHED_PICKUP_P2 = None
+HARVEST_CRITICAL_P2 = None
+ONGOING_HARVEST_ANY_P2 = None
+ONGOING_HARVEST_MIN_P2 = None
+PICKUP_WHEAT_QTY_P2 = None
+STRUCTURE_HOLDBACK_P2 = None
+WHEAT_PICKUP_QTY_P2 = None
+DROP_HOUR_P2 = None
+USE_SLICES_P2 = None
+MARKET_HIRE_FIRST_HOURS_P2 = None
+MAX_HIRE_PER_TURN_P2 = 6
+# ^ PHASE-2 CREW RATE. The engine wipes `farm["hands"]` and `hires_today` every
+# night, so the whole crew must be RE-HIRED daily, one hand per HIRE order. The
+# phase-1 value is 1 (the tape's market list is already 10 slots wide and 5 HIREs
+# at once pushed the MELON seed past MAX_ORDERS). Phase 1 does not care -- it runs
+# 5 hands -- but phase 2 runs 12, so the cap was paying the crew back at ~1/day.
+# MEASURED (phase_map --phase phase2 --pa 2,5 --batch 2, 4 games, ref 20 Boey
+# replays): WATER ops 248 -> 322, HARVEST 79 -> 100, FEED 125 -> 137, COLLECT
+# 85.5 -> 104, animals 12.5 -> 16, weeds 27 -> 14.5, shed peak 22.5 -> 20.
+# 4 / 6 / 12 all land inside the 4-game noise band; 6 is the smallest that
+# captures the gain, which keeps the phase-2 market list clear of the
+# MAX_ORDERS=10 tail.
+
+# --- phase 3 (d18-29) equivalents. Without a declaration a `X_P3=` in
+# SCRATCH_PARAMS is silently ignored -- the phantom-knob trap.
+ANIMAL_FEED_RESERVE_DAYS_P3 = None
+ANIMAL_FEED_RESERVE_DAYS_MATURE_P3 = None
+DIST_CAP_P3 = None
+DROP_HOUR_P3 = None
+FERTILIZE_FROM_DAY_P3 = None
+FERTILIZE_SHED_PICKUP_P3 = None
+HARVEST_CRITICAL_P3 = None
+LAND_QUADRANT_MAX_P3 = None
+MOVE_WEIGHT_P3 = None
+ONGOING_HARVEST_ANY_P3 = None
+ONGOING_HARVEST_MIN_P3 = None
+ON_TILE_BONUS_P3 = None
+PICKUP_WHEAT_QTY_P3 = None
+PLANT_WATER_CAP_DIVISOR_P3 = None
+P_BUILD_P3 = None
+P_CARE_P3 = None
+P_COLLECT_FERT_P3 = None
+P_DIG_P3 = None
+P_FEED_P3 = None
+P_FERTILIZE_P3 = None
+P_HARVEST_P3 = None
+P_PICKUP_P3 = None
+P_PICKUP_ANIMAL_P3 = None
+P_PICKUP_WHEAT_P3 = None
+P_PLACE_P3 = None
+P_PLANT_P3 = None
+P_WATER_BONUS_P3 = None
+WATER_ONGOING_PRODUCE_P3 = None
+WATER_WINDOW_PRIORITY_P3 = None
+BAND_ANIMALS_P3 = None
+LAYOUT_RADIAL_P3 = None
+LAYOUT_EVEN_BANDS_P3 = None
+P_WATER_SURVIVAL_P3 = None
+SAME_TILE_MIN_PRIORITY_P3 = None
+SAME_TILE_ANIMAL_CHAIN_P3 = None
+# ^ NOT SHIPPED: the same bug class as `MAX_HIRE_PER_TURN_P3` (declared `_P2`, unset `_P3`)
+# but MEASURED INERT -- the 96-game arm with `_P3=1` is byte-identical to the one without it
+# (`docs/v0/step14-armdiff.txt` vs `step13b-armdiff.txt`), so the chain does not bind in
+# phase 3 the way it does in phase 2. Kept as a knob, default off.
+SLICE_PENALTY_P3 = None
+STRUCTURE_HOLDBACK_P3 = None
+USE_SLICES_P3 = None
+MARKET_HIRE_FIRST_HOURS_P3 = None
+# ^ NOT SHIPPED. It looked good on 16 games (cap alone +$7,052/14-16 -> cap + hire-first
+# +$8,598/16-16) and is WORSE on 96: cap alone **+$6,758, 94/96** vs cap + hire-first
+# **+$5,342, 95/96**. The 96-game pair is the one to trust; the 16-game gain was noise.
+# Kept as a knob, default off.
+MAX_HIRE_PER_TURN_P3 = 6
+# ^ PHASE 3 WAS MISSING THIS AND IT COST THE SEASON. `_end_of_day` wipes the whole
+# crew nightly and resets `hires_today`, so every morning is a rebuild. Round 0 set
+# `_P2 = 6` and left `_P3` unset, so the endgame silently fell through to the base
+# value of **1** -- twelve turns to re-hire twelve hands, every day, for d18-29.
+# MEASURED (live probe of `budget.market_intents`, d20 h0): money $29,415,
+# n_hire 12, cap 1, emitted 1. Mean units by hour over d6-29: us 1.0/4.3/7.0/7.8
+# against Boey's 1.0/8.7/11.2/11.5 -- a complete crew at hour 12 against hour 2.
+# See §3.1s.
+WATER_READY_FALLBACK_P3 = None
+WHEAT_PICKUP_QTY_P3 = None
+WHEAT_TILES_PER_ANIMAL_P3 = None
+
 # The four tiles that touch the shed. "Shed-adjacent" == standing on one of these.
 SHED_ACCESS = [(4, 4), (5, 4), (4, 5), (5, 5)]
 SHED_ACCESS_SET = set(SHED_ACCESS)
@@ -117,6 +294,10 @@ def target_hands(day: int) -> int:
 
 # ---- land schedule. Re-issue BUY_LAND every turn until filled. ---------------
 LAND_TARGET_DAY = {"NE": 6, "SW": 9, "SE": 10}
+# How many quadrants to buy in total (4 = the whole board = the old behaviour). W2
+# geometry test: we own 100 tiles and plant ~53 in the midgame, Boey owns 75 and plants
+# 55, and every extra unused tile is walking on each water op (moves/op 2.92 vs 1.17).
+LAND_QUADRANT_MAX = 3
 LAND_COST = {"NE": 1000, "SW": 2000, "SE": 4000}
 # keep this many seeds in hand per active crop (re-bought as they are planted).
 SEED_BUFFER = 6
@@ -147,6 +328,19 @@ TILES_PER_HAND = 4
 # sells + trade + feed + seed + 3 animal orders + the hire block, and 5-at-once HIREs
 # pushed the tape's bulk sells and the MELON/STRAWBERRY seeds past slot 10 -- the
 # dropped orders are exactly the d2 revenue and the d1->d2 MELON top-up. One per turn.
+# MARKET_HIRE_FIRST_HOURS -- put the hire block at the FRONT of the market list for the
+# first N hours of the day. `budget.market_intents` already refuses a hand it cannot
+# afford, so this can never overspend; it only stops `MAX_ORDERS=10` from truncating
+# the crew rebuild.
+#
+# MEASURED (mean units by hour, d6-29, 16 games each): Boey reaches 11.5 units at hour
+# 1 and holds it; we reach 12.1 only at hour 12 (1.0 / 4.3 / 7.0 / 7.8 / 8.3 at hours
+# 0-4). Hires placed: Boey 7.7 then 2.5; us 3.3 then 2.7 then a trickle. The engine
+# wipes `hands` every night, so that ramp is ~40 unit-turns lost EVERY day, ~960 a
+# season -- the same order as the whole midgame gap. We are not cash-short: $18,542
+# sits idle at hour 0 while we place 3.3 hires. The cause is the order list: sells and
+# the land/seed blocks occupy slots ahead of the hires.
+MARKET_HIRE_FIRST_HOURS = 0
 MAX_HIRE_PER_TURN = 1
 # stop planting after this hour: a crop planted late can't be watered the same
 # day and dies that night (consecutive_unwatered 1 -> 2 = weed).
@@ -306,6 +500,21 @@ WATER_READY_FALLBACK = False
 # local ops and the trade disappears: PLANT 27 -> 30, empty -> 3.0, cash 0.97 -> 1.00.
 # Season A/B: margin +$5,061, revenue +$8,747, `plants_died` -5.5 (0/16 worse).
 SAME_TILE_FIRST = True
+# SAME_TILE_ANIMAL_CHAIN -- FINISH THE ANIMAL VISIT. An animal tile offers up to three
+# ops (FEED / CARE / COLLECT_FERTILIZER) and all three are on the SAME tile, so the trip
+# is only worth making if the unit clears the stack before it leaves. MEASURED
+# (tools/labour/op_patterns.py, d6-17, 4 games vs 4 Boey replays): the #1 chains a FEED
+# into another act **65.9 %** of the time; we chain 21.3 %, and `visit_trace` records
+# `FEED -> CARE` split at **100 %** -- two round trips per animal per day instead of one.
+#
+# Why the generic threshold misses it: `SAME_TILE_MIN_PRIORITY=70` exists so local
+# busywork cannot starve a survival water. CARE (70) clears it but COLLECT_FERTILIZER
+# (54) does not, so the unit cares and then walks away rather than collecting the
+# fertilizer it is standing on. This flag exempts exactly the three animal-tile ops from
+# both the threshold and the rescuer hold-back -- cropping ops (DIG, WATER_BONUS, PLANT,
+# FERTILIZE) keep the old gate, so the "local busywork starves a dying tile" failure
+# measured for `SAME_TILE_MIN_PRIORITY=0` cannot come back through here.
+SAME_TILE_ANIMAL_CHAIN = False
 # While a critical job (tonight's weed / tonight's escape) is pending, the K units
 # NEAREST to each such tile are held back from chaining a non-critical local op, so a
 # dying tile still gets rescued. K=1 keeps almost all chaining; the first (too blunt)
@@ -567,6 +776,19 @@ BAND_MONOCROP = True
 
 P_CARE = 70
 
+# The remaining priority bands, moved here from `job.py` so every band is A/B-able from
+# SCRATCH_PARAMS. Defaults reproduce the shipped behaviour exactly.
+P_HARVEST = 100
+# Feed-critical: the highest band in the system, ABOVE harvest and survival water. With a
+# 13-animal herd on bought wheat the pickup->feed chain fires continuously and preempts
+# watering, which is the phase-2 attrition root -- so this is a W2 candidate.
+P_PICKUP_WHEAT = 101
+P_PICKUP = 88
+P_PLANT = 85
+P_PICKUP_ANIMAL = 60
+P_PLACE = 60
+P_DIG = 20
+
 P_BUILD = 95
 
 P_FEED = 100
@@ -586,6 +808,36 @@ P_WATER_SURVIVAL = 90
 #  140/160 -> identical to 120 (saturates above P_HARVEST=100). Alone (no chain) 120
 #  gives WATER 58 / animals 7, so the two changes are synergistic, not additive.
 P_WATER_BONUS = 120
+# WATER_ONGOING_PRODUCE -- water an ONGOING crop (STRAWBERRY, TOMATO) on a production day.
+#
+# `state.water_window()` returns **None for an ongoing crop**, so `in_water_window` is
+# False at every age and the WATER_BONUS branch in `crop_plan.jobs` NEVER fires for them.
+# The only water a mature strawberry ever received was the SURVIVAL one -- the day before
+# it would die -- so it was watered roughly every other day and never on a production day.
+# The engine pays the doubled fruit only on a production day the tile WAS watered, so half
+# of every strawberry's output was never claimed.
+#
+# MEASURED (tools/labour/ready_by_crop.py, d6-17, 8 games): 16.2 strawberry tiles stand
+# per day and only **0.32** are ripe at the start of a day; 30 strawberry harvest ops in
+# the whole midgame against Boey's 107, with our standing STRAWBERRY count at 1.04x his.
+#
+# `P_WATER_PRODUCE` is the band this job is emitted at. It defaults to P_WATER_BONUS (120,
+# above HARVEST) because a missed production-day water loses that day's fruit outright;
+# set it below P_HARVEST to make harvesting win the ordering instead.
+WATER_ONGOING_PRODUCE = False
+# WATER_WINDOW_PRIORITY -- an in-window water carries P_WATER_BONUS even when the tile is
+# also survival-critical. See crop_plan.jobs.
+WATER_WINDOW_PRIORITY = False
+# BAND_ANIMALS -- the holdback ring joins the per-worker bands, so FEED/CARE/COLLECT
+# resolve locally instead of through the global pass. See layout.slice_partition.
+BAND_ANIMALS = False
+# LAYOUT_RADIAL -- order the per-worker bands by SHED DISTANCE instead of by row, so a
+# band is a piece of one ring around the shed. See layout.slice_partition.
+LAYOUT_RADIAL = False
+# LAYOUT_EVEN_BANDS -- distribute the owned tiles evenly so no worker's band is empty.
+# MEASURED WORSE (plants died 10.0 -> 17.5, net -$1,250); see layout.slice_partition.
+LAYOUT_EVEN_BANDS = False
+P_WATER_PRODUCE = 120
 
 P_COLLECT_FERT = 55
 
@@ -617,9 +869,12 @@ _FERTILIZE_FROM_DAY_WAS = 6
 # the trade is closed entirely (+$2,294, 36/36); this is the targeted version, to see
 # whether the high-value crops still pay. Base prices: MELON ~267, STRAWBERRY ~141,
 # TOMATO ~63, CARROT ~35, WHEAT ~30. 0 = no gate (every eligible crop).
+FERTILIZE_SHED_PICKUP = True
 FERTILIZE_MIN_PRICE = 0
 
 # trickle: cap units per SELL order so a large order does not walk the curve down.
+# SELL_TRICKLE_FRACTION -- sell this share of the shed each turn, above TRICKLE.
+SELL_TRICKLE_FRACTION = 0.0
 TRICKLE = 6
 # a good is sold only at/above this fraction of its base price (loose guard).
 MIN_SELL_FRAC = 0.85
@@ -649,13 +904,48 @@ MIN_SELL_FRAC = 0.85
 # ~40 % overshoot. Lowering both moves tiles from the plateau into the d8-d10 window.
 WHEAT_TARGET = 32
 WHEAT_PEAK = 11
+# STRAWBERRY ramp shape, as scalars so SCRATCH_PARAMS can A/B it.
+#
+# An ongoing crop's FIRST YIELD is `first_yield_day` after planting (STRAWBERRY 10,
+# TOMATO 8) and it then yields at `interval` (STRAWBERRY 2) up to `max_yield` times (4) --
+# STRAWBERRY production ages are 10/12/14/16 and then it decays into a weed. So a tile
+# planted on day d produces nothing before d+10: **the midgame can only harvest the
+# strawberry that was IN THE GROUND by d7**. The old ramp (`peak=16`) did not reach its
+# 30-tile target until d16, which put most of the block past the end of the phase.
+STRAWBERRY_TARGET = 30
+STRAWBERRY_PEAK = 16
+
+# Every crop's ramp as scalars so SCRATCH_PARAMS can A/B it (the resync at the bottom of
+# this file writes them back into CROP_PLAN -- without that they are phantom knobs).
+# TOMATO is the interesting one: `first_yield_day=8` from a `start=9` planting means its
+# first fruit lands d17, the LAST day of the midgame, and it soaks up a full share of the
+# plant queue's round-robin slots and tiles the whole time. MEASURED (herd_gate, 16 games):
+# the herd gate's `wheatT >= 1.7*(herd+1)` fails EVERY day from d11 to d17 with $18.5k of
+# idle cash, because the wheat base sits at 22 against a 30.6 requirement.
+MELON_TARGET = 10
+MELON_PEAK = 1
+# `end` = the last day a planting can still yield before the day-30 bell. MEASURED
+# (tools/labour/water_geometry --days 18-29, 8 games): our phase-3 water demand is **46
+# tiles against the reference's 189**, and `ready_by_crop` shows why -- the plant calendar
+# closes at d19/d21/d24 and the farm ages out. Phase 3 is where the money is: the shipped
+# arm grows $23,828 in d18-29 against $18,156 in d6-17.
+STRAWBERRY_END = 19
+WHEAT_END = 24
+TOMATO_END = 21
+CARROT_END = 25
+MELON_END = 2
+TOMATO_TARGET = 16
+TOMATO_PEAK = 18
+CARROT_TARGET = 23
+CARROT_PEAK = 24
 
 CROP_PLAN = {
-    "MELON":      {"start": 0,  "end": 2,  "target": 10, "peak": 1},
-    "STRAWBERRY": {"start": 2,  "end": 19, "target": 30, "peak": 16},
-    "WHEAT":      {"start": 0,  "end": 24, "target": WHEAT_TARGET, "peak": WHEAT_PEAK},
-    "TOMATO":     {"start": 9,  "end": 21, "target": 16, "peak": 18},
-    "CARROT":     {"start": 17, "end": 25, "target": 23, "peak": 24},
+    "MELON":      {"start": 0,  "end": MELON_END,  "target": MELON_TARGET, "peak": MELON_PEAK},
+    "STRAWBERRY": {"start": 2,  "end": STRAWBERRY_END, "target": STRAWBERRY_TARGET,
+                   "peak": STRAWBERRY_PEAK},
+    "WHEAT":      {"start": 0,  "end": WHEAT_END, "target": WHEAT_TARGET, "peak": WHEAT_PEAK},
+    "TOMATO":     {"start": 9,  "end": TOMATO_END, "target": TOMATO_TARGET, "peak": TOMATO_PEAK},
+    "CARROT":     {"start": 17, "end": CARROT_END, "target": CARROT_TARGET, "peak": CARROT_PEAK},
 }
 # Throttle planting to the ramp above. False reproduces the old "fill the tile
 # target as fast as we have hands" behaviour (per-day planting waves).
@@ -674,10 +964,24 @@ PLANT_ORDER = ("MELON", "STRAWBERRY", "TOMATO", "CARROT", "WHEAT")
 
 
 # ---- herd (structural). ------------------------------------------------------
+# Herd composition targets as scalars so SCRATCH_PARAMS can A/B them (resynced into HERD
+# at the bottom of this file). MEASURED (round 5-6): in the 87 % of games with no YARN_STORE
+# the target totals **20** (9 COW + 3 SHEEP + 8 GOOSE) -- i.e. the agent's own composition
+# target is BELOW the objective's `animals 21`, so no amount of feed or cash could reach it.
+HERD_COW_TARGET = 9
+HERD_COW_BUY = 11
+HERD_SHEEP_TARGET_YARN = 10
+HERD_SHEEP_TARGET_NOYARN = 3
+HERD_SHEEP_BUY = 4
+HERD_GOOSE_TARGET_YARN = 6
+HERD_GOOSE_TARGET_NOYARN = 8
+HERD_GOOSE_BUY = 7
 HERD = {
-    "COW":   {"target": 9, "buy": 11},
-    "SHEEP": {"target_yarn": 10, "target_noyarn": 3, "buy": 4},
-    "GOOSE": {"target_yarn": 6, "target_noyarn": 8, "buy": 7},
+    "COW":   {"target": HERD_COW_TARGET, "buy": HERD_COW_BUY},
+    "SHEEP": {"target_yarn": HERD_SHEEP_TARGET_YARN,
+              "target_noyarn": HERD_SHEEP_TARGET_NOYARN, "buy": HERD_SHEEP_BUY},
+    "GOOSE": {"target_yarn": HERD_GOOSE_TARGET_YARN,
+              "target_noyarn": HERD_GOOSE_TARGET_NOYARN, "buy": HERD_GOOSE_BUY},
 }
 # R4 (herd) feature flag.
 #
@@ -895,7 +1199,7 @@ FEED_EVERY_DAY = True
 # **+$3,013, 23/24, p=0.000** over the tree default, against **-$8,014 (0/24)** for the
 # same expansion with the ring left to the crops. Expansion was never intrinsically
 # unprofitable -- it was unpayable at the old farm shape.
-HERD_BUY_UNTIL = 12
+HERD_BUY_UNTIL = 20
 # Post-opening herd EXPANSION may only happen once the wool buyer is revealed.
 #
 # Why this exists: post-opening expansion measured -$16,775 from an identical d5 state,
@@ -918,6 +1222,13 @@ ANIMAL_CASH_RESERVE = 0
 # expensive (~$25-40/unit early), so cover this many days per animal at commit
 # time. Without it the opening herd eats the bank and starves on day 2.
 ANIMAL_FEED_RESERVE_DAYS = 5
+# Feed cover once the standing WHEAT base already satisfies the herd's ration
+# (`_wheat_tiles >= WHEAT_TILES_PER_ANIMAL * (herd+1)`). 5 days of bought-feed cash on
+# top of a mature wheat base is double-counting, and it is what froze the midgame herd:
+# d10-d12 ran 22 standing wheat tiles (gate open) with $691-1,345 against a $1,650-1,725
+# cover, so the animal was affordable and the reserve refused it. See
+# `tools/phases/herd_gate.py`. Keep 5 for the immature/base-short case.
+ANIMAL_FEED_RESERVE_DAYS_MATURE = 1
 FEED_PRICE_GUESS = 30
 # Our own wheat lands around here (the opening burst is harvested d4-d5); bought feed
 # is only needed until then, so the reserve shrinks to zero as the day approaches.
@@ -935,6 +1246,10 @@ FEED_BUY_CHUNK = 12
 # A wheat tile turns over ~4 units per 5 days (0.8 units/day) and an animal eats
 # 1/day, so the farm needs about this many standing wheat tiles per animal before
 # it can afford to buy the next one. DSM: ~32 wheat tiles / 19 animals = 1.7.
+HERD_SHED_WHEAT_CREDIT = 0
+# ANIMAL_SHED_LIMIT -- shed size at which the herd stops buying. See herd_plan.market_intents.
+ANIMAL_SHED_LIMIT = 95
+WHEAT_TARGET_FROM_HERD = False
 WHEAT_TILES_PER_ANIMAL = 1.7
 # wheat kept in the shed (beyond unfed animals) before any is sold for cash
 WHEAT_SELL_RESERVE = 15
@@ -967,6 +1282,18 @@ def _apply_env_overrides() -> None:
                 globals()[key] = int(val)
             elif isinstance(cur, float):
                 globals()[key] = float(val)
+            elif cur is None:
+                # A `_P2`/`_P3` override declares itself with None, so the type has to
+                # be inferred. Without this every phase-scoped knob would silently
+                # ignore SCRATCH_PARAMS -- the same "phantom knob" failure that cost a
+                # round on `P_WATER_BONUS`.
+                if val.lower() in ("true", "false"):
+                    globals()[key] = val.lower() == "true"
+                else:
+                    try:
+                        globals()[key] = int(val)
+                    except ValueError:
+                        globals()[key] = float(val)
         except ValueError:
             pass
 
@@ -996,10 +1323,29 @@ OPENING_HERD = {"COW": OPENING_HERD_COW, "SHEEP": OPENING_HERD_SHEEP,
 if OPENING_MIX_BOEY:
     OPENING_STANDING = OPENING_STANDING_BOEY
 
-# re-sync the wheat ramp from its scalars, so a SCRATCH_PARAMS override of WHEAT_TARGET /
-# WHEAT_PEAK actually reaches CROP_PLAN (which was built before the overrides ran).
-CROP_PLAN["WHEAT"]["target"] = WHEAT_TARGET
-CROP_PLAN["WHEAT"]["peak"] = WHEAT_PEAK
+# re-sync every crop ramp from its scalars, so a SCRATCH_PARAMS override of
+# `<CROP>_TARGET` / `<CROP>_PEAK` actually reaches CROP_PLAN -- which is built in a dict
+# literal BEFORE the overrides run. Without this the override mutates the module global
+# and the plan keeps the old value: a silent phantom knob. WHEAT had a bespoke line for
+# this; STRAWBERRY_PEAK was added later WITHOUT one, and four A/B arms came back
+# byte-identical before it was caught.
+for _crop in list(CROP_PLAN):
+    for _field, _suffix in (("target", "_TARGET"), ("peak", "_PEAK"),
+                            ("end", "_END"), ("start", "_START")):
+        _name = f"{_crop}{_suffix}"
+        if _name in globals():
+            CROP_PLAN[_crop][_field] = globals()[_name]
+del _crop, _field, _suffix, _name
+
+# re-sync the herd composition from its scalars (same phantom-knob reason as the crops).
+HERD["COW"]["target"] = HERD_COW_TARGET
+HERD["COW"]["buy"] = HERD_COW_BUY
+HERD["SHEEP"]["target_yarn"] = HERD_SHEEP_TARGET_YARN
+HERD["SHEEP"]["target_noyarn"] = HERD_SHEEP_TARGET_NOYARN
+HERD["SHEEP"]["buy"] = HERD_SHEEP_BUY
+HERD["GOOSE"]["target_yarn"] = HERD_GOOSE_TARGET_YARN
+HERD["GOOSE"]["target_noyarn"] = HERD_GOOSE_TARGET_NOYARN
+HERD["GOOSE"]["buy"] = HERD_GOOSE_BUY
 
 if CROP_SCALE != 1.0:
     for _c, _v in CROP_PLAN.items():

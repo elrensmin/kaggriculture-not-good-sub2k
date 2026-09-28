@@ -145,68 +145,107 @@ FEED turns BAD). It needs either a cheaper 9th animal (a 3rd GOOSE at $300 would
 
 ## 3. Phase 2 — midgame (d6–d17)
 
-Sources: `docs/v0/phase2.txt`, `docs/v0-boey/phase_all_vs_boey.txt`.
+Sources: `docs/v0/sc-p2-shipped16.txt` — fresh d0–d17 audit of the shipped tree
+(`tools.phases.phase_map --phase phase2 --pa 1-4 --batch 4 --ref-from replays/Boey/v1
+--ref-max 40 --team Boey`, 16 games). `us (before)` is `docs/v0/sc-p2-current.txt`
+from the same 16-game protocol before the 2026-09-27 crew/visit round. **Anchored to
+Boey only.** The DSM column was removed: the two leaders are different
+archetypes (DSM is a pure production farm, Boey adds arbitrage), so a two-reference table
+invites averaging choices that are not comparable.
 
-| metric | us | DSM | Boey | DAG |
+| metric | us (before) | us (now) | Boey | DAG |
 |---|---|---|---|---|
-| **WATER ops** | **318** | 585 | 466 | **ROOT** (explains 4) |
-| **WATER ops / planted tile** | **0.58** | 0.83 | 0.77 | **ROOT** |
-| animals on board | **11** | 22 | 20 | **ROOT** (explains 6) |
-| FERTILIZE ops | 0 | 76 | 64 | BAD |
-| HARVEST ops | **71** | 182 | 183 | BAD |
-| COLLECT_FERTILIZER ops | 85 | 215 | 215 | BAD |
-| FEED ops | 101 | 197 | 209 | BAD |
-| **plants died** | **21** | 2 | **0** | **BAD** |
-| **weeds** | **17** | 1 | **0** | **BAD** |
-| shed peak | 18 | 28 | 31 | BAD |
-| planted tiles | 73 | 72 | 56 | ok |
-| owned tiles / quadrants | 100 / 4 | 100 / 4 | **75 / 3** | ok |
-| STRAWBERRY tiles | 30 | 30 | 27 | ok |
-| idle share % | 0.00 | 0.00 | 2.46 | ok |
+| animals on board | 13 | **16** | **21** | **ROOT** — explains 4 |
+| — animal structures | 13 | 17 | 21 | symptom of `animals` |
+| COLLECT_FERTILIZER ops | 84 | **130** | 222 | symptom of `animals` |
+| FEED ops | 120 | **132** | 218 | symptom of `animals` |
+| HARVEST ops | 79.5 | **95.5** | **194** | symptom of BOTH roots |
+| WATER ops | 248 | **332** | **465** | **ROOT** — explains 3 |
+| WATER ops / planted tile | 0.61 | 0.64 | 0.78 | WARN (same node as coverage) |
+| plants died | **22.5** | **12.0** | **0** | symptom of `WATER` (lag 2) |
+| weeds | **27** | **7.5** | **0** | symptom of `WATER` |
+| **move share %** | 60.0 | 59.5 | **41.6** | **ROOT (new)** — see §3.1g |
+| shed peak | 20.5 | 20.0 | 24.5 | WARN |
+| WHEAT tiles | 23 | 28 | 30.5 | ok (the feed ceiling on `animals`) |
+| planted tiles | 51 | 57 | 55 | ok |
+| owned tiles / quadrants | 75 / 3 | 75 / 3 | 75 / 3 | **met** (W2) |
+| STRAWBERRY tiles | 23 | 26.5 | 24 | ok |
+| hands | 12 | 12 | 11 | ok |
+| idle share % | 0.00 | 1.79 | 2.52 | ok |
+| FERTILIZE ops | 0 | 0 | 64 | *descriptive* — a portfolio choice, not a deficit |
 
-**DAG causation:**
+**DAG causation — traced, not asserted** (`sc-p2-shipped16.txt` walks this and names the
+deepest line as the furthest upstream):
 
 ```
-animals on board [p2]      <- animals [p1]  (p1 ROOT vs Boey; opening cash committed is now CLOSED)
-COLLECT/FEED/FERTILIZE [p2]<- animals on board [p2]
-WATER ops per planted tile <- scheduler._pick          [ROOT, NO bad ancestor]
-plants died [p2]           <- WATER ops per planted tile [p2]   (lag 2)
-weeds [p2]                 <- plants died [p2] <- WATER ops [p2]
-HARVEST ops [p2]           <- weeds, plants died, animals
-shed peak [p2]             <- HARVEST ops, animals
+animals on board [p2]  16 vs 21   [ROOT, no deficient ancestor]
+  -> COLLECT_FERTILIZER 130 vs 222  one fertilizer per animal per day
+  -> FEED 132 vs 218               one wheat per animal per day
+  -> animal structures 17 vs 21    housing is built only for animals already owned
+  -> HARVEST 95.5 vs 194, shed peak the herd's output and its daily work
+  WHY it is short: feed-limited, not window-limited (3.1b). The window is open
+  (BUY_UNTIL=20) and money is available; the standing WHEAT base (28 tiles vs Boey's
+  30.5) cannot ration 21 animals at 1.7 tiles/animal.
+
+move share % [p2]      59.5 vs 41.6 [ROOT, no deficient ancestor]
+  -> WATER ops 332 vs 465          walking is a turn not spent watering
+  -> HARVEST 95.5 vs 194           walking is a turn not spent harvesting
+  -> FEED 132 vs 218               walking is a turn not spent feeding
+  WHY it is high: the crew still leaves a tile it is standing on. §3.1g.
+
+WATER ops [p2]         332 vs 465 [symptom of `move share`, not a root any more]
+  -> plants died 12 vs 0           an unwatered plant weeds after two nights (C5)
+     -> weeds 7.5 vs 0             a dead plant IS a weed
+        -> HARVEST 95.5 vs 194     a weeded tile cannot be harvested
+  WHY it is short: crew REACH. Planted tiles are within 4 % of Boey's and we run MORE
+  hands (12 vs 11), yet cover 0.64 vs 0.78 ops per planted tile. W2 shipped
+  `LAND_QUADRANT_MAX=3` (weeds 35 -> 27); the crew-rate + visit-chaining round (§3.1g)
+  took it to 7.5. The residue is `_pick` movement.
+
+FERTILIZE ops 0 vs 64 -- DESCRIPTIVE, and measured out (3.1d): enabling it closes the
+node and costs -$4,474 median margin. The fertilizer is sold instead.
 ```
 
-**Boey beats DSM on agronomy while working fewer tiles.** It owns 75 tiles to our 100 and plants 56 to
-our 73, yet **loses 0 plants and 0 weeds** and still harvests **183 ops to our 71**. It runs 466 WATER
-ops on 56 tiles = **0.77 coverage**, second only to DSM. With no plant loss, its fertilizer and water
-are spent on output instead of repair — which is why it can afford the trading side of its game.
+**The root moved.** After the 2026-09-27 round the old pair ("animals" + "WATER" = one
+capacity-per-tile bottleneck) is no longer the whole story: `WATER` is now *downstream of
+`move share`*, because the crew is not short of turns any more (§3.1g measured +14 %
+hands-hours of acts for free). What is left is what those turns are spent on: 59.5 % of
+them are WALKING, against Boey's 41.6 %.
 
-**The farm we have is the right size; it is the wrong throughput.** Two roots, and only one of them is
-dependency-free:
+Progress since the first Phase-2 audit: `animals` 11 → **16**, `owned/quadrants` 100/4 →
+**75/3** (matching Boey exactly), `WATER ops` 248 → **332**, `HARVEST` 79.5 → **95.5**,
+`COLLECT` 84 → **130**, `plants died` 22.5 → **12.0**, `weeds` 27 → **7.5**,
+`FERTILIZE` correctly reclassified as descriptive.
 
-1. `animals` (11 vs 20–22) — chain runs back to phase 1.
-2. **`WATER ops per planted tile` (0.58 vs 0.77–0.83) — owned solely by `_pick`, no deficient ancestor.**
+### 3.1 The mechanism: the same-tile revisit
 
-### 3.1 The mechanism is the same-tile revisit — both references agree
+**"us" in this table is the PRE-FIX arm** — it is the evidence that identified the root, not
+the current state. `SAME_TILE_FIRST` at the default `SAME_TILE_MIN_PRIORITY=70` has since
+shipped (§2.1) and took phase-1 `WATER ops` 53 → 66 and `PLANT` 27 → 30.
 
-| measure | us | DSM | Boey | source |
-|---|---|---|---|---|
-| moves / act | **2.03** | 0.76 | 0.82 | `movement.txt` |
-| movement share | 63.3 % | 41.5 % | 43.8 % | `movement.txt` |
-| WATER chained (act→act on the spot) | **0.0 %** | 21.8 % | **22.7 %** | `op_patterns.txt` |
-| FEED chained | **5.0 %** | 89.4 % | 64.5 % | `op_patterns.txt` |
-| PLANT → WATER split across two visits | **86 %** | 4 % | **12 %** | `visit_trace.txt` |
-| FEED → CARE split across two visits | **100 %** | 5 % | ~8 % | `visit_trace.txt` |
-| ops per tile stop | **1.36** | 1.90 | 1.78 | `visit_trace.txt` |
-| extra trips / tile-day | 0.350 | 0.202 | 0.328 | `visit_trace.txt` |
-| WATER moves per op | **2.92** | 1.17 | 1.25 | `move_trace.txt` |
-| FEED moves per op | **2.12** | 0.09 | 0.54 | `move_trace.txt` |
-| PASS-on-READY turns / game | **119.5** | 30.3 | 72.4 | `ready_idle.txt` |
-| value left on tiles / game | **$36,024** | $7,168 | $8,435 | `ready_idle.txt` |
+| measure | us (pre-fix) | Boey | source |
+|---|---|---|---|
+| moves / act | **2.03** | 0.82 | `movement.txt` |
+| movement share | 63.3 % | 43.8 % | `movement.txt` |
+| WATER chained (act→act on the spot) | **0.0 %** | **22.7 %** | `op_patterns.txt` |
+| FEED chained | **5.0 %** | 64.5 % | `op_patterns.txt` |
+| PLANT → WATER split across two visits | **86 %** | **12 %** | `visit_trace.txt` |
+| FEED → CARE split across two visits | **100 %** | ~8 % | `visit_trace.txt` |
+| ops per tile stop | **1.36** | 1.78 | `visit_trace.txt` |
+| extra trips / tile-day | 0.350 | 0.328 | `visit_trace.txt` |
+| WATER moves per op | **2.92** | 1.25 | `move_trace.txt` |
+| FEED moves per op | **2.12** | 0.54 | `move_trace.txt` |
+| PASS-on-READY turns / game | **119.5** | 72.4 | `ready_idle.txt` |
+| value left on tiles / game | **$36,024** | $8,435 | `ready_idle.txt` |
 
 The crew is not idle (`idle-on-work` ~72 turns/game); it never reaches the work. Pending per day is
 **WATER 1,341 / FERT 561 / HARVEST 472 / DIG 337** (`missed_work.txt`). `_pick` splits one tile's acts
-into separate trips; that is the root both leaders have solved and we have not.
+into separate trips; that is the root Boey has solved and we have not.
+
+**This is still the live root in the midgame** — see §3.1c: `WATER ops` 248 vs 464 and `WATER
+ops / planted tile` 0.61 vs 0.78 with *more* hands and zero idle. What changed is which half
+of the mechanism we attack: chaining (shipped) and geometry (`LAND_QUADRANT_MAX=3`,
+shipped) are in; the remaining distance is that Boey does the same work in fewer steps.
 
 **MEASURED — the chaining fix is a revenue lever that breaks the health watchlist.** Three 96-game
 arms on the same seeds/opponents (`docs/v0/step1-*.txt`, `arm_diff` vs the baseline reconstructed from
@@ -227,23 +266,22 @@ workstream (§7 Step 2/3), never before it. This is the non-composability rule i
 
 ### 3.2 Volume, not price
 
-`dsm_profile` selling, ours (audit) vs DSM (reconstructed) — Boey's line totals are in
-`dsm_profile.txt`/`dsm_flows.txt`:
+Season selling, ours (audit) vs Boey's line totals (`dsm_profile.txt` / `dsm_flows.txt`):
 
-| product | our units | our px | DSM units | DSM px | Boey units | Boey px |
-|---|---|---|---|---|---|---|
-| WHEAT | 128 | $42.2 | 562 | $34.6 | **6,786** | $35.3 |
-| STRAWBERRY | 94 | $171.5 | 223 | $135.6 | 358 | $157.7 |
-| MELON | 28 | $198.0 | 60 | $208.7 | **337** | $194.6 |
-| EGG | 52 | $54.4 | 207 | $46.3 | **2,025** | $44.1 |
-| MILK | 107 | $202.3 | 191 | $90.6 | 720 | $87.3 |
-| WOOL | 88 | $228.9 | 104 | $128.0 | 161 | $106.8 |
-| FERTILIZER | 192 | $52.3 | 266 | $52.1 | **4,622** | $38.7 |
-| CARROT | 20 | $49.2 | 190 | $39.8 | **968** | $42.0 |
+| product | our units | our px | Boey units | Boey px |
+|---|---|---|---|---|
+| WHEAT | 128 | $42.2 | **6,786** | $35.3 |
+| STRAWBERRY | 94 | $171.5 | 358 | $157.7 |
+| MELON | 28 | $198.0 | **337** | $194.6 |
+| EGG | 52 | $54.4 | **2,025** | $44.1 |
+| MILK | 107 | $202.3 | 720 | $87.3 |
+| WOOL | 88 | $228.9 | 161 | $106.8 |
+| FERTILIZER | 192 | $52.3 | **4,622** | $38.7 |
+| CARROT | 20 | $49.2 | **968** | $42.0 |
 
-We get a **better unit price than either leader on most lines** and move a small fraction of their
-volume. The gap is supply, and for Boey it is also **trading** (it buys 3,497 wheat and 728
-fertilizer to resell into the deep `log`-curve goods).
+We get a **better unit price than Boey on most lines** and move a small fraction of the
+volume, so the gap is supply, not pricing. For Boey it is also **trading** — he buys 3,497
+wheat and 728 fertilizer to resell into the deep `log`-curve goods.
 
 `crop_demand` peaks: WHEAT 33 / 57 / —, STRAWBERRY 31 / 56 / —, CARROT 17 / 55 / —, MELON 6 / 10 / 10
 against Boey's per-day curve in `docs/v0-boey/crop_demand.txt`.
@@ -285,8 +323,10 @@ phase-1 one. Boey fills far more of it and adds **trading** on the deep `log`-cu
 
 **Caveat, and it is the whole point of the running metric:** the draw is a function of our own
 play (`_spawn_weeds` shares the RNG stream), so the two arms are *different worlds*. YARN appears
-in **95/96** of our games against **78/123** DSM and **238/359** Boey — no shop-conditioned
-comparison across arms is controlled. `demand_map` prints the mix first for exactly this reason.
+in **238/359** of Boey's episodes and in **95/96** of our reference arm, but that is not a
+controlled comparison — our own empty-tile count moves the draw. `demand_map` prints the mix
+first for exactly this reason, and every judgement in this section is made on unconditional
+metrics.
 
 ---
 
@@ -492,12 +532,42 @@ herd buying). Now day-gated. Measured: full-season idle **25.8 % → 1.3 %**, pa
 - **DAG edge:** `harvests [p3] → shed [p3] → idle`.
 - **Evidence:** `stranded_at_bell` **$1,100 vs $45 / $0**; shed at bell 25.5 vs 1.0 / 0.0.
 - **Target:** stranded ≤ $100. Keep `RETIRE_DAY=99` (blanket water-off was catastrophic).
+- **New (from the §3.1g 96-game confirm):** phase 3 is where this round's surplus lands as a
+  *regression* — `WATER ops` 165 → **126** against Boey's 472 and `weeds` 31 → **40** against his
+  3, while `HARVEST ops` 147 → 158. Phase 3 is the dominant root of the season's `plants_died +4`.
+  A bigger phase-2 farm has to be **spent** at d18; that is this step, and it now has a measured
+  starting point (`step10-{pre,ship}-phase3.txt`, replayed from the saved 96 games).
+
+**Step 10 — `move share` is now its own ROOT (OPEN). Depends on nothing; blocks everything.**
+- **DAG node:** `move share %` — 59.5 vs Boey's 41.6, **no deficient ancestor** since §3.1g.
+- **Evidence:** `moves/act` 1.52 vs 1.09; 3,073 walks totalling 7,341 tiles at a mean of 2.39 vs
+  2,895 / 5,650 / 1.95 (`tools/labour/walk_runs.py`, d6-17, 4 games each); WATER starts **40.4 %** of
+  our walks. Act-by-act chain rate after §3.1g: WATER 0.0 %, COLLECT 20.9 %, PICKUP 46.8 %,
+  DROP 44.8 % (Boey: WATER 15.9 %, COLLECT 33.9 %, PICKUP 26.8 %, DROP 44.7 %).
+- **What is already known NOT to work** (§3.1g table): `DIST_CAP_P2` 2/3 and `ON_TILE_BONUS_P2=60`
+  buy 1.5–2.2 pp of `move share` and pay 7–10 extra plant deaths; `PLANT_BLOCK` (sow a band in one
+  day) empties WHEAT.
+- **The shape of the fix:** the demand, not the choice rule. `layout.slice_partition` gives each
+  worker a ~6-tile band, but `_plant_jobs` fills it one tile per turn, so the band carries six
+  different water windows and the day's thirsty tiles are never neighbours. A correct version of
+  block-sowing has to consume the per-crop deficit (`crop_plan.plant_queue`) instead of filling a
+  band blindly — that is the difference between the measured regression and the intended win.
+- **Target:** `move share` ≤ 45 % **with** `plants died` ≤ 8 and `WHEAT tiles` ≥ 28. **Watch:**
+  `plants_died`, `weeds`, `shed peak`, `HARVEST`.
 
 **Closed — do not re-try:** `FERTILIZE_FROM_DAY=6` (−$14,230, 2/96), `FERTILIZE_ONGOING_ONLY`,
 `P_WATER_SURVIVAL`, `PLANT_WATER_CAP_DIVISOR=2`, `HANDS_MIDGAME=20`, `WHEAT_LANDS_DAY=2`,
 `CASH_RESERVE=0`, `MOVE_WEIGHT` 15/60, `HERD_BUY_UNTIL=5` (−$2,080 vs the shipped 12),
+`FERTILIZE_FROM_DAY=6` (**−$4,474 median, 4/16, p=0.077, revenue −$6,549** on the current
+tree — the node is now DESCRIPTIVE: we sell the fertilizer instead, which is a portfolio
+choice, not a deficiency), `P_COLLECT_FERT=70` (phase-1 regression: animals 8 → 7,
+GOOSE 2 → 1, trade net 0.98× → 0.90×),
 `SAME_TILE_MIN_PRIORITY=0` (steals the planters), `SAME_TILE_ORDER=1` and `EXACT_ASSIGN=1`
 (CARE 70 → 8 / 0), `ON_TILE_BONUS=20` (WATER → 49), `P_WATER_BONUS` 140/160 (identical to 120),
-`OPENING_WHEAT_KEEP_DAYS=1` (WATER 68 but FEED turns BAD), `OPENING_OWNS_SELLS=1` (slightly worse).
+`OPENING_WHEAT_KEEP_DAYS=1` (WATER 68 but FEED turns BAD), `OPENING_OWNS_SELLS=1` (slightly worse),
+`DIST_CAP_P2=2` (plants died 10 → 17) and `=3` (shed peak 40.5, animals 16 → 15),
+`ON_TILE_BONUS_P2=60` (move share 57.4 but plants died 10 → 20.5), `PLANT_BLOCK_P2=3/5`
+(WHEAT 28 → 17.5/9, animals 16 → 10/9, idle 7–10 %), `HANDS_MIDGAME=14` (idle rises —
+the extra hands have nothing to do, so the midgame is not throughput-limited), `TRADE_MIDGAME=1` (re-measured on the post-W6/W7 tree: revenue +6.6 % but trade net −$1,605 and plants died 10 → 15.5 — the carry is churn, §3.1h), `STRAWBERRY_PEAK=8/6` (animals 16 → 11.5, WHEAT 28 → 20), `BAND_ANIMALS_P2=1` (animals 16 → 13, move share 59.6 → 61.1), `WATER_ONGOING_PRODUCE_P2=1` (inert — the survival rule already covered ~half the production days), and the whole of §3.1i: `DIST_CAP_P2` 2/3/5 with `CRITICAL_FREE_WALK_FRAC=0`, `LAYOUT_RADIAL_P2=1`, `LAYOUT_EVEN_BANDS_P2=1`, `HANDS_MIDGAME` 14/16, `MAX_HIRE_PER_TURN_P2` 2/3, `FERTILIZE_FROM_DAY_P2=6` with our own fertilizer (**−$9,338 net**, herd 16 → 12) and both of its ONEHOT/ONGOING restrictions. `EXACT_ASSIGN` is now correct and still slower than `_pick`.
 
 Raw output: `docs/v0/MANIFEST.md` (us vs DSM) and `docs/v0-boey/MANIFEST.md` (us vs Boey).

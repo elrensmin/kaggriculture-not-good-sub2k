@@ -68,6 +68,17 @@ verify: ## Compile every module + import the harness and the agent
 	$(PY) -c "import src; assert callable(src.agent); from tools import diagnose; \
 		n=len(diagnose.PUBLIC_AGENT_MAP); assert n>=12, n; \
 		print('OK: src.agent + tools.diagnose, public agents:', n)"
+	$(PY) -c "import os; \
+		os.environ['SCRATCH_PARAMS']='__PROBE__=1'; \
+		import importlib, src.params as p; importlib.reload(p); \
+		assert [p.phase_of(d) for d in (0,5,6,17,18,29)]==[1,1,2,2,3,3], 'phase boundaries'; \
+		probe=[k for k in dir(p) if k.endswith('_P2')][0][:-3]; \
+		base=getattr(p,probe); \
+		setattr(p,probe+'_P2', 12345); setattr(p,probe+'_P3', 54321); \
+		assert p.at(probe,0)==base and p.at(probe,5)==base, 'phase 1 must ignore _P2/_P3'; \
+		assert p.at(probe,6)==12345 and p.at(probe,17)==12345, '_P2 must apply d6-17 only'; \
+		assert p.at(probe,18)==54321 and p.at(probe,29)==54321, '_P3 must apply d18-29 only'; \
+		print('OK: phase scoping isolated (phase1 base, _P2 d6-17, _P3 d18-29)')" 
 
 install: ## Install/refresh the runtime dependency (use uv or pip; see README)
 	$(PY) -m pip install -U "kaggle-environments>=1.32.7"

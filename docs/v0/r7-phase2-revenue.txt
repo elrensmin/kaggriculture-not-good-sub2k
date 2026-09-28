@@ -1,0 +1,23 @@
+=== r7-g0   16 games, 4 opponents ===
+   opponent                                       n    our rev    opp rev  rev x    our net    opp net  net x  net>0
+   kaggriculture-cloning-agent                    4     37,906     18,366   2.06     33,440     57,787   0.58      0
+   kaggriculture-master-engine-v3                 4     39,979     18,712   2.14     34,198     59,628   0.57      0
+   kaggriculture-one-more-wheat                   4     36,432     18,833   1.93     32,573     57,600   0.57      0
+   kaggriculture-pipe16-idle-workers              4     41,021     18,142   2.26     36,038     62,512   0.58      0
+   -- median across opponents --                        38,943     18,539   2.10     33,819     58,708   0.58    0/16
+   pooled game medians: our rev 37,906 vs 18,226   our net 34,556 vs 60,622   net-positive games 16/16   net beats opponent in 0/16
+
+=== r7-g1   16 games, 4 opponents ===
+   opponent                                       n    our rev    opp rev  rev x    our net    opp net  net x  net>0
+   kaggriculture-cloning-agent                    4     44,136     19,026   2.32     36,444     60,492   0.60      0
+   kaggriculture-master-engine-v3                 4     42,851     19,036   2.25     36,313     59,434   0.61      0
+   kaggriculture-one-more-wheat                   4     37,468     17,240   2.17     31,224     54,936   0.57      0
+   kaggriculture-pipe16-idle-workers              4     41,824     19,182   2.18     35,194     59,698   0.59      0
+   -- median across opponents --                        42,337     19,032   2.22     35,753     59,566   0.60    0/16
+   pooled game medians: our rev 42,564 vs 17,698   our net 34,861 vs 60,492   net-positive games 16/16   net beats opponent in 0/16
+
+=== PAIRED over 16 matched (opponent, seed) pairs ===
+   our revenue   median delta       +1,504   better in 13/16
+   our trade net median delta         +164   better in 10/16
+   net ADVANTAGE median delta       +1,578   better in 12/16
+

@@ -1,0 +1,17 @@
+=== step10-ship   96 games, 12 opponents ===
+   opponent                                       n    our rev    opp rev  rev x    our net    opp net  net x  net>0
+   kaggriculture-cloning-agent                    8      7,244        594  12.20      2,495      1,700   1.47      8
+   kaggriculture-master-engine-v3                 8      7,226        588  12.29      2,498      1,698   1.47     16
+   kaggriculture-one-more-wheat                   8      6,598        556  11.87      2,051      1,793   1.14     23
+   kaggriculture-pipe16-idle-workers              8      7,195        556  12.94      2,498      1,758   1.42     31
+   kaggriculture-pipe7-wheat-microstructure       8      7,244        594  12.20      2,495      1,700   1.47     39
+   kaggriculture-public-state-router-74-5-win-r   8      7,285      1,014   7.18      2,574      1,850   1.39     47
+   kaggriculture-reactive-router                  8      7,244      1,061   6.83      2,496      1,702   1.47     55
+   kaggriculture-top-2-master-engine-v4           8      7,244      1,524   4.75      2,495      1,700   1.47     63
+   kaggriculture-v38-smarter-feed-stronger-marg   8      7,244        971   7.46      2,495      1,702   1.47     71
+   kaggriculture-v47-reactive-market-coordinati   8      7,244      1,524   4.75      2,495      1,700   1.47     79
+   kaggriculture-v53-opening-signature            8      7,244      1,524   4.75      2,495      1,702   1.47     87
+   market-smart-farming-kaggriculture             8      7,244        594  12.20      2,495      1,700   1.47     95
+   -- median across opponents --                         7,244        782   9.66      2,495      1,701   1.47   95/96
+   pooled game medians: our rev 7,226 vs 780   our net 2,416 vs 1,701   net-positive games 96/96   net beats opponent in 95/96
+

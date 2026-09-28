@@ -1,0 +1,167 @@
+phase_map — structural phase audit (LIVE mode)
+   opponents: 1-4  seeds: 4  games/phase: 16
+   truncated at: phase2=d17(432 steps)
+   reference : 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+
+############ phase2 (midgame, d6-d17) — 16 games (live, 4 opponents x 4 seeds) ############
+   is the farm big, watered, fed and harvested?
+   reference: 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+   both arms reduced over d6-d17 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   animals on board                 17.0   21.0   0.81x  BAD  src/herd_plan.py::market_intents
+   COLLECT_FERTILIZER ops            149    220   0.68x  BAD  src/herd_plan.py::jobs
+   FEED ops                          152    214   0.71x  BAD  src/herd_plan.py::jobs
+   HARVEST ops                      92.5    190   0.49x  BAD  src/scheduler.py::_pick
+   move share %                     58.9   42.1   1.40x  BAD  src/scheduler.py::_pick + src/layout.py
+   trade net $                     33087  61278   0.54x  BAD  src/trade.py + src/sell_policy.py
+   WATER ops                         274    464   0.59x  BAD  src/crop_plan.py::jobs
+   weeds                            8.00   0.00      -  BAD  src/crop_plan.py::jobs (DIG)
+   WHEAT tiles                      20.0   29.0   0.69x  BAD  src/params.py::CROP_PLAN + src/crop_plan.py::plant_queue
+   plants died                      11.5   0.00      -  WARN src/scheduler.py::_pick (water prioritisation)
+   WATER ops per planted tile       0.64   0.78   0.82x  WARN src/scheduler.py::_pick
+   FERTILIZE ops                    0.00   65.0   0.00x  ·    src/crop_plan.py::jobs + src/herd_plan.py::jobs
+   sell revenue                    39524  86289   0.46x  ·    src/sell_policy.py + src/market.py
+   hands                            12.0   11.0   1.09x  ok   src/budget.py::market_intents
+   idle share %                     0.83   2.60   0.32x  ok   src/scheduler.py::plan
+   owned tiles                      75.0   75.0   1.00x  ok   src/budget.py::market_intents
+   planted tiles                    51.0   55.5   0.92x  ok   src/crop_plan.py::plant_queue
+   quadrants unlocked               3.00   3.00   1.00x  ok   src/budget.py::market_intents
+   shed peak                        24.0   26.5   0.91x  ok   src/sell_policy.py + src/scheduler.py (DROP)
+   STRAWBERRY tiles                 28.0   25.5   1.10x  ok   src/params.py::CROP_PLAN
+   animal structures                23.0   21.0   1.10x  ok   src/herd_plan.py::jobs
+   TOMATO tiles                     5.00   0.00      -  ok   src/params.py::CROP_PLAN
+
+############ causal trace (phase2) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+   animals on board = 17.00 vs 21.00   [ BAD ]
+      <- animals on board               [phase1]  phase 1's herd is the floor for phase 2's herd
+      <- owned tiles                    [OK]  the herd is tile-blocked: an animal tile is a crop tile
+         <- opening cash committed         [phase1]  the same bank buys the opening herd -- you cannot fund both fully
+         <- owned tiles                    [phase1]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+         <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+         <- YARN_STORE unlocked            [phase1]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+            <- opening cash committed         [phase1]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+            <- quadrants unlocked             [phase1]  a quadrant is 25 tiles
+            <- shops unlocked                 [phase1]  YARN_STORE is one of the shops in the draw
+               <- opening cash committed         [phase1]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+   COLLECT_FERTILIZER ops = 149.00 vs 219.50   [ BAD ]
+      <- animals on board               [BAD]  one fertilizer per animal per day
+      <- move share %                   [BAD]  walking is a turn not spent collecting
+         <- animals on board               [phase1]  phase 1's herd is the floor for phase 2's herd
+         <- owned tiles                    [OK]  the herd is tile-blocked: an animal tile is a crop tile
+            <- opening cash committed         [phase1]  the same bank buys the opening herd -- you cannot fund both fully
+            <- owned tiles                    [phase1]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+            <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+            <- YARN_STORE unlocked            [phase1]  MEASURED, LAGGED: at the season end YARN worlds hold SHEEP 7.5 / GOOSE 2 while no-YARN worlds hold SHEEP 0 / GOOSE 6 -- but his d5 mix is invariant, so this edge acts from d6 on, never in the opening
+               <- opening cash committed         [phase1]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+               <- quadrants unlocked             [phase1]  a quadrant is 25 tiles
+      ... 2 more ancestor nodes
+
+   FEED ops = 152.00 vs 214.00   [ BAD ]
+      <- animals on board               [BAD]  one per animal per day
+      <- move share %                   [BAD]  walking is a turn not spent feeding
+      <- WHEAT tiles                    [BAD]  home-grown wheat is the cheap feed (C2)
+         <- animals on board               [phase1]  phase 1's herd is the floor for phase 2's herd
+         <- owned tiles                    [OK]  the herd is tile-blocked: an animal tile is a crop tile
+         <- owned tiles                    [OK]  tiles are the ceiling on every crop ramp (C4)
+            <- opening cash committed         [phase1]  the same bank buys the opening herd -- you cannot fund both fully
+            <- owned tiles                    [phase1]  ANIMAL TILE = CROP TILE at 25 tiles: measured, a 6-tile holdback + a 6-animal herd cost $15,020 vs 25-tile crops (margin, matched pairs, p=0.0001)
+            <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+            <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+      ... 6 more ancestor nodes
+
+   HARVEST ops = 92.50 vs 190.00   [ BAD ]
+      <- FERTILIZE ops                  [-]  fertilizer doubles one-shot yield and ongoing fruit
+      <- move share %                   [BAD]  walking is a turn not spent harvesting
+      <- plants died                    [WARN]  a dead plant is a harvest that never happens
+      <- weeds                          [BAD]  weed tiles have to be dug before they can be replanted
+         <- animals on board               [BAD]  fertilizer supply gates FERTILIZE
+         <- COLLECT_FERTILIZER ops         [BAD]  the pickup -> fertilize chain
+         <- plants died                    [WARN]  a dead plant IS a weed
+         <- WATER ops                      [BAD]  an unwatered plant weeds after two nights (C5)
+         <- WATER ops                      [BAD]  watering is what keeps a tile from becoming a weed
+         <- WATER ops per planted tile     [WARN]  coverage, not raw watering, is what keeps plants alive
+      ... 66 more ancestor nodes
+
+   move share % = 58.86 vs 42.15   [ BAD ]
+
+   trade net $ = 33087.00 vs 61278.50   [ BAD ]
+      <- animals on board               [BAD]  milk/wool/egg are the herd's revenue
+      <- COLLECT_FERTILIZER ops         [BAD]  fertilizer is a midgame revenue line
+      <- HARVEST ops                    [BAD]  the midgame earns what it harvests and sells
+         <- animals on board               [phase1]  phase 1's herd is the floor for phase 2's herd
+         <- animals on board               [BAD]  one fertilizer per animal per day
+         <- FERTILIZE ops                  [-]  fertilizer doubles one-shot yield and ongoing fruit
+         <- move share %                   [BAD]  walking is a turn not spent collecting
+         <- move share %                   [BAD]  walking is a turn not spent harvesting
+         <- owned tiles                    [OK]  the herd is tile-blocked: an animal tile is a crop tile
+         <- plants died                    [WARN]  a dead plant is a harvest that never happens
+      ... 91 more ancestor nodes
+
+   WATER ops = 274.00 vs 463.50   [ BAD ]
+      <- hands                          [OK]  the crew is the watering capacity
+      <- move share %                   [BAD]  walking is a turn not spent watering
+      <- planted tiles                  [OK]  every planted tile is watering demand
+      <- STRAWBERRY tiles               [OK]  watering demand scales with standing crops
+      <- WHEAT tiles                    [BAD]  wheat's window is ages 2-4
+         <- owned tiles                    [OK]  hands are capped by ground
+         <- owned tiles                    [OK]  the strawberry ramp peaks at 30 tiles
+         <- owned tiles                    [OK]  tiles are the ceiling on every crop ramp (C4)
+            <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+            <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+      ... 4 more ancestor nodes
+
+   weeds = 8.00 vs 0.00   [ BAD ]
+      <- plants died                    [WARN]  a dead plant IS a weed
+      <- WATER ops                      [BAD]  watering is what keeps a tile from becoming a weed
+         <- hands                          [OK]  the crew is the watering capacity
+         <- move share %                   [BAD]  walking is a turn not spent watering
+         <- planted tiles                  [OK]  every planted tile is watering demand
+         <- STRAWBERRY tiles               [OK]  watering demand scales with standing crops
+         <- WATER ops                      [BAD]  an unwatered plant weeds after two nights (C5)
+         <- WATER ops per planted tile     [WARN]  coverage, not raw watering, is what keeps plants alive
+         <- WHEAT tiles                    [BAD]  wheat's window is ages 2-4
+            <- hands                          [OK]  the crew is the watering capacity
+      ... 22 more ancestor nodes
+
+   WHEAT tiles = 20.00 vs 29.00   [ BAD ]
+      <- owned tiles                    [OK]  tiles are the ceiling on every crop ramp (C4)
+         <- quadrants unlocked             [phase1]  NE at d6 is worth 25 tiles for the whole strawberry ramp
+            <- opening cash committed         [phase1]  the same opening bank buys land; the #1 spends to $6 and takes NE on d6
+
+############ ROOTS — fix these, not their symptoms ############
+
+ 1. move share %  (58.86 vs 42.15)
+    Walking is the cost. Every point of it is an act we did not do. TUNING IS EXHAUSTED: 14 scheduler/layout arms (DIST_CAP 2/3/5 with CRITICAL_FREE_WALK_FRAC=0, radial and even bands, animal banding, EXACT_ASSIGN, HANDS 14/16, hire 2/3) all trade move share for plant deaths and net revenue. The remaining work is the crew-turns a tile needs per unit of OUTPUT, not who walks to it. See S3.1i.
+    owner: src/scheduler.py::_pick + src/layout.py
+    explains 6 other deficient metric(s): COLLECT_FERTILIZER ops, FEED ops, HARVEST ops, trade net $, WATER ops, weeds
+    downstream mechanisms:
+      -> COLLECT_FERTILIZER ops: walking is a turn not spent collecting
+      -> FEED ops: walking is a turn not spent feeding
+      -> HARVEST ops: walking is a turn not spent harvesting
+      -> WATER ops: walking is a turn not spent watering
+
+ 2. WHEAT tiles  (20.00 vs 29.00)
+    Feed reserve AND a sale line; the #1 peaks ~32.
+    owner: src/params.py::CROP_PLAN + src/crop_plan.py::plant_queue
+    explains 5 other deficient metric(s): FEED ops, HARVEST ops, trade net $, WATER ops, weeds
+    downstream mechanisms:
+      -> FEED ops: home-grown wheat is the cheap feed (C2)
+      -> WATER ops: wheat's window is ages 2-4
+
+ 3. animals on board  (17.00 vs 21.00)
+    The herd is tile-blocked: it can only grow as land and wheat allow. MEASURED 2026-09-28: this is NOT the feed GATE. herd_gate (16 games) shows the gate failing every day d11-d17 at 17 animals / 22-26 wheat tiles / need 30.6 with $18,546 idle at d17, and opening it (HERD_SHED_WHEAT_CREDIT) makes every metric WORSE -- animals 16 -> 15.5. The binding quantity is wheat OUTPUT per tile: 0.51 units/tile-day against the reference's 0.70, at a theoretical unfertilised max of 0.60. See S3.1j and tools/labour/production.py.
+    owner: src/herd_plan.py::market_intents
+    explains 4 other deficient metric(s): COLLECT_FERTILIZER ops, FEED ops, HARVEST ops, trade net $
+    downstream mechanisms:
+      -> COLLECT_FERTILIZER ops: one fertilizer per animal per day
+      -> FEED ops: one per animal per day
+      -> FERTILIZE ops: fertilizer supply gates FERTILIZE
+      -> idle share %: daily feed/care/collect work
+      -> shed peak: milk/wool/egg/fertilizer also land in the shed (C1)
+      -> animal structures: housing follows animals
+

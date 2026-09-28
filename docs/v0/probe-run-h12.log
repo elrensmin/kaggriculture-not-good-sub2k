@@ -1,0 +1,13 @@
+Saving replays to diag-replays/p2-h12  (workers=8)
+  [##############--------------]   1/2  50.0%  [############################]   2/2 100.0%  done.
+  wrote days_seed129756794.csv (60 rows)
+  wrote days_seed248743186.csv (60 rows)
+  wrote games.csv (4 rows)
+
+Per-game summary:
+  agent                                  opponent       seed  final_money  opponent_final  result  idle_share_pct  idle_units_total  shed_pressure_days  floor_sales  animal_escapes  at_risk_of_escape  plants_died  missed_harvest_eod  feed_surplus  sell_revenue_total  premium_below_base_frac  discarded_units_total  unfed_signals  unwatered_eod
+-------  ----------------------------------------  ---------  -----------  --------------  ------  --------------  ----------------  ------------------  -----------  --------------  -----------------  -----------  ------------------  ------------  ------------------  -----------------------  ---------------------  -------------  -------------
+scratch  kaggriculture-pipe7-wheat-microstructure  129756794      35567.0        120705.0    LOSS             2.5               163                   0           51               0                  0           55                  17          -302             73273.0                    0.711                      0             22            388
+scratch  kaggriculture-pipe7-wheat-microstructure  248743186      52170.0        136858.0    LOSS             2.5               164                   2           52               0                  0           55                  18          -299             88824.0                    0.358                      7             26            374
+scratch            kaggriculture-master-engine-v3  129756794      35129.0        120569.0    LOSS             2.5               163                   0           58               0                  0           55                  17          -302             72739.0                    0.711                      0             22            388
+scratch            kaggriculture-master-engine-v3  248743186      51593.0        136268.0    LOSS             2.5               164                   2           56               0                  0           55                  18          -299             88173.0                    0.355                      7             26            374

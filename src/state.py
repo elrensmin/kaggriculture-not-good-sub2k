@@ -131,10 +131,10 @@ class State:
         if y <= 0:
             return False
         if cd["ongoing"]:
-            if params.ONGOING_HARVEST_ANY:
+            if params.at("ONGOING_HARVEST_ANY", self.day):
                 return True
-            if params.ONGOING_HARVEST_MIN > 0:
-                return y >= params.ONGOING_HARVEST_MIN
+            if params.at("ONGOING_HARVEST_MIN", self.day) > 0:
+                return y >= params.at("ONGOING_HARVEST_MIN", self.day)
             return y >= cd["max_yield"]
         if params.ONESHOT_HARVEST_AT_PEAK:
             # peak day is the day before `_decay_plants` starts eating the yield
