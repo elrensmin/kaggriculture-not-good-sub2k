@@ -123,6 +123,28 @@ class State:
             return False
         return w[0] <= self.crop_age(plant_tile) <= w[1]
 
+    def fert_window_open(self, plant_tile) -> bool:
+        """Whether fertilizing now can still pay for this tile.
+
+        Ongoing crops: any day (the engine doubles the fruit on a watered production
+        day). One-shot crops: inside the bonus window, and -- when
+        ``params.FERTILIZE_PRE_WINDOW`` -- also on the day BEFORE it opens, because
+        fertilize lasts ``day..day+2`` and ``WATER_BONUS`` outranks ``FERTILIZE``, so a
+        fertilize landing after the window's first water only pays +2 from the second day.
+        ``FERTILIZE_PRE_WINDOW`` is SHIPPED OFF: it measured negative (the crew does not
+        reliably reach the pre-window tile, so the application lands late anyway).
+        """
+        cd = CROPS[plant_tile["crop"]]
+        if cd.get("ongoing"):
+            return True
+        w = self.water_window(plant_tile)
+        if w is None:
+            return False
+        age = self.crop_age(plant_tile)
+        if not params.at("FERTILIZE_PRE_WINDOW", self.day):
+            return w[0] <= age <= w[1]
+        return (w[0] - 1) <= age <= w[1]
+
     def plant_ready(self, plant_tile) -> bool:
         """Harvestable now: one-shot at its unfertilized peak (before decay starts),
         ongoing when full."""
@@ -136,6 +158,17 @@ class State:
             if params.at("ONGOING_HARVEST_MIN", self.day) > 0:
                 return y >= params.at("ONGOING_HARVEST_MIN", self.day)
             return y >= cd["max_yield"]
+        # Early one-shot harvest age (see params.HARVEST_AGE_*). GUARDED ON
+        # `watered_today`: the early day is only "ready" once that day's window water has
+        # actually landed, otherwise the HARVEST job fires first and the tile turns over on
+        # a SINGLE window water (MEASURED: water/cycle 1.93 -> 1.00 and wheat yield
+        # 4.03 -> 2.53 when the guard was missing). Before the water lands, only the WATER
+        # jobs exist and the bonus is banked, then this returns true later the same day.
+        early = {"WHEAT": params.HARVEST_AGE_WHEAT,
+                 "MELON": params.HARVEST_AGE_MELON}.get(plant_tile["crop"], 0)
+        if (early and self.crop_age(plant_tile) >= early
+                and plant_tile.get("watered_today")):
+            return True
         if params.ONESHOT_HARVEST_AT_PEAK:
             # peak day is the day before `_decay_plants` starts eating the yield
             return y > 0 and self.crop_age(plant_tile) >= cd["max_yield_day"]

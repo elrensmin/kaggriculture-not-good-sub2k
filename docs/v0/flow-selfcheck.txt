@@ -1,0 +1,48 @@
+phase_map — structural phase audit (REPLAY mode)
+   replays  : replays/Boey/v1
+   seat     : auto   analysed: 60
+   truncated at: phase2=d17(432 steps)
+   reference : 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+
+############ phase2 (midgame, d6-d17) — 60 games (60 replays, seat=auto) ############
+   is the farm big, watered, fed and harvested?
+   reference: 60 replays from replays/Boey/v1 (seat=auto), reduced identically
+   both arms reduced over d6-d17 with the SAME aggregation
+
+   metric                            ours      #1   ratio       owner
+   ------------------------------------------------------------------------------------------------------------
+   FERTILIZE ops                    65.0   65.0   1.00x  ·    src/crop_plan.py::jobs + src/herd_plan.py::jobs
+   sell revenue                    86289  86289   1.00x  ·    src/sell_policy.py + src/market.py
+   acts per unit-turn               0.55   0.55   1.00x  ok   src/scheduler.py::plan
+   animals on board                 21.0   21.0   1.00x  ok   src/herd_plan.py::market_intents
+   COLLECT_FERTILIZER ops            220    220   1.00x  ok   src/herd_plan.py::jobs
+   DROP ops                         40.0   40.0   1.00x  ok   src/scheduler.py::_deposit_op
+   FEED ops                          214    214   1.00x  ok   src/herd_plan.py::jobs
+   hands                            11.0   11.0   1.00x  ok   src/budget.py::market_intents
+   HARVEST per planted tile         0.31   0.31   1.00x  ok   src/scheduler.py::_pick
+   HARVEST ops                       190    190   1.00x  ok   src/scheduler.py::_pick
+   idle share %                     2.60   2.60   1.00x  ok   src/scheduler.py::plan
+   MOVE ops                         1332   1332   1.00x  ok   src/scheduler.py::_pick + src/layout.py
+   move share %                     42.1   42.1   1.00x  ok   src/scheduler.py::_pick + src/layout.py
+   owned tiles                      75.0   75.0   1.00x  ok   src/budget.py::market_intents
+   PICKUP ops                       89.0   89.0   1.00x  ok   src/scheduler.py::_pick + src/herd_plan.py::jobs
+   PLACE ops                        38.0   38.0   1.00x  ok   src/herd_plan.py::jobs
+   PLANT ops                         114    114   1.00x  ok   src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs
+   planted tiles                    55.5   55.5   1.00x  ok   src/crop_plan.py::plant_queue
+   plants died                      0.00   0.00      -  ok   src/scheduler.py::_pick (water prioritisation)
+   quadrants unlocked               3.00   3.00   1.00x  ok   src/budget.py::market_intents
+   shed peak                        26.5   26.5   1.00x  ok   src/sell_policy.py + src/scheduler.py (DROP)
+   STRAWBERRY tiles                 25.5   25.5   1.00x  ok   src/params.py::CROP_PLAN
+   animal structures                21.0   21.0   1.00x  ok   src/herd_plan.py::jobs
+   TOMATO tiles                     0.00   0.00      -  ok   src/params.py::CROP_PLAN
+   trade net $                     61278  61278   1.00x  ok   src/trade.py + src/sell_policy.py
+   WATER ops                         464    464   1.00x  ok   src/crop_plan.py::jobs
+   WATER ops per planted tile       0.78   0.78   1.00x  ok   src/scheduler.py::_pick
+   weeds                            0.00   0.00      -  ok   src/crop_plan.py::jobs (DIG)
+   WHEAT tiles                      29.0   29.0   1.00x  ok   src/params.py::CROP_PLAN + src/crop_plan.py::plant_queue
+
+############ causal trace (phase2) ############
+   each deficient metric traced UP its causes; the deepest line is the furthest upstream
+
+ no roots: no metric is deficient with a healthy upstream chain.
+

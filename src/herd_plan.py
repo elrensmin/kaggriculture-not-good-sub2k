@@ -267,9 +267,20 @@ def market_intents(state):
     # must be fed from the market or it escapes on day 3.
     unfed = _unfed_count(state)
     wheat = int(state.shed.get("WHEAT", 0))
-    short = max(0, unfed - wheat)
+    # FEED_STOCK_DAYS lets the herd run on a bought buffer rather than on today's
+    # shortfall -- the reference's behaviour (see params.FEED_STOCK_DAYS). 0 = unchanged.
+    days = params.at("FEED_STOCK_DAYS", state.day)
+    target = unfed
+    if days:
+        # COUNT WHAT THE UNITS ARE CARRYING TOO. The shed alone looks empty while feeders
+        # hold wheat in hand, so the layer rebought the same units every turn:
+        # MEASURED 2026-09-29, `FEED_STOCK_DAYS_P2=2` bought **+$45,029 of product** and fed
+        # only 24 more units -- the churn was the whole season cost.
+        wheat += sum(int(inv.get("WHEAT", 0)) for inv in state.inventories)
+        target = max(target, int(sum(_animal_counts(state).values()) * days))
+    short = max(0, target - wheat)
     if short > 0 and state.money >= 100:
-        out.append(["BUY_PRODUCT", "WHEAT", min(params.FEED_BUY_CHUNK, short)])
+        out.append(["BUY_PRODUCT", "WHEAT", min(int(params.at("FEED_BUY_CHUNK", state.day)), short)])
     return out
 
 

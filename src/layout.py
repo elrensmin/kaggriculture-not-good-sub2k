@@ -47,7 +47,21 @@ def slice_partition(state, n_units: int):
     # `LAYOUT_RADIAL` orders the same contiguous chunks by SHED DISTANCE instead of by row,
     # so a band is a piece of one ring around the shed and every worker's ground is at a
     # comparable distance from the shed it must visit for wheat/fertilizer/drops.
-    if params.at("LAYOUT_RADIAL", state.day):
+    # LAYOUT_BY_CROP_AGE -- order the per-worker bands so a band's crops share a water
+    # calendar. MEASURED (d6-17, 8 games): a band of 5.13 tiles carries **2-3 distinct crop
+    # ages** and only **2.35 tiles need water on a given day**, which is why consecutive
+    # waters are 1.67 tiles apart against Boey's 1.07 and WATER is 47.9 % of all our moves.
+    # `PLANT_BLOCK` cannot fix it: the midgame farm is already saturated, so a band can only
+    # be re-shaped one freed tile at a time. This re-shapes the BANDS instead, grouping by
+    # (crop, planted_day) so the day's thirsty tiles share an owner.
+    if params.at("LAYOUT_BY_CROP_AGE", state.day):
+        def _key(p):
+            t = state.plant_at(p)
+            if not t:
+                return (1, "", 0, p[1], p[0])
+            return (0, t.get("crop", ""), t.get("planted_day", 0), p[1], p[0])
+        owned.sort(key=_key)
+    elif params.at("LAYOUT_RADIAL", state.day):
         import math as _math
         def _angle(p):
             return _math.atan2(p[1] - 4.5, p[0] - 4.5)

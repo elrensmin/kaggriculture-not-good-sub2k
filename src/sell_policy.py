@@ -56,8 +56,17 @@ def market_intents(state):
     # feed back at the bell -- `product_cost_total` +$10,670 and a season median of
     # -$6,539. The midgame wants a thin reserve (wheat is the deepest, most liquid
     # line); the endgame wants the old one.
-    sellable = max(0, wheat - unfed
-                   - params.at("WHEAT_SELL_RESERVE", state.day))
+    _reserve = params.at("WHEAT_SELL_RESERVE", state.day)
+    # FEED_STOCK_DAYS keeps a bought feed buffer in the shed. WITHOUT this line the sell
+    # policy liquidates that buffer every day and the herd layer rebuys it -- a round trip
+    # that loses the spread. MEASURED 2026-09-29 (`gates`/games.csv, 8 games): with
+    # `FEED_STOCK_DAYS_P2=2` the bundle bought **+$45,029 of product** and fed only 24 more
+    # wheat units, which is where the -$10,593 season cost came from. The stock IS the
+    # reserve, so hold it.
+    _stock = params.at("FEED_STOCK_DAYS", state.day)
+    if _stock:
+        _reserve = max(_reserve, state.herd_count() * _stock)
+    sellable = max(0, wheat - unfed - _reserve)
     if sellable > 0 and (liquidating or state.inventory.get("WHEAT", params.I0) < params.I0):
         out.append(["SELL", "WHEAT", min(sellable, params.at("TRICKLE", state.day))])
 

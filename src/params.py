@@ -88,7 +88,12 @@ P_BUILD_P2 = None
 P_DIG_P2 = None
 # Phase-2 overrides for the structural/tuning scalars we actually sweep in the midgame.
 LAND_QUADRANT_MAX_P2 = None
-WHEAT_TILES_PER_ANIMAL_P2 = None
+# SHIPPED at the d10 state-clone step WITH FEED_STOCK_DAYS_P2 and STRAWBERRY_PEAK=11.
+# MEASURED (8 paired games, current tree): the 4-part bundle is **+$10,218 median**
+# (revenue +$11,498, plants_died -2.5). The parts are NOT separable: the herd gate
+# alone with feed stocking is **-$5,448** without the earlier strawberry ramp -- the
+# herd eats feed that only the earlier strawberry crop pays for. See S3.10.
+WHEAT_TILES_PER_ANIMAL_P2 = 1.2
 WHEAT_SELL_RESERVE_P2 = None
 TRICKLE_P2 = None
 TRICKLE_P3 = None
@@ -110,7 +115,7 @@ SAME_TILE_ANIMAL_CHAIN_P2 = 1
 # shed peak 21 -> 19.5. Nothing regressed.
 PLANT_WATER_CAP_DIVISOR_P2 = None
 WATER_READY_FALLBACK_P2 = None
-FERTILIZE_FROM_DAY_P2 = None
+FERTILIZE_FROM_DAY_P2 = 6
 FERTILIZE_SHED_PICKUP_P2 = None
 HARVEST_CRITICAL_P2 = None
 ONGOING_HARVEST_ANY_P2 = None
@@ -211,6 +216,28 @@ LOCKED_PENALTY = 200.0
 # purely distance + locked-avoidance.
 OCCUPIED_PENALTY = 0.0
 # Hour after which a carrying unit heads for the shed to deposit before day-end.
+# CARRY_PASS_IN_FIELD -- a carrying unit with no job PASSES instead of walking to the shed.
+# MEASURED (d6-17 per game, ours vs Boey's 60 replays): DROP 99 vs 32, MOVE 1,839 vs 1,319,
+# PASS 86 vs 152. Idle turns are IDENTICAL (185 vs 184); the whole difference is that Boey's
+# idle unit stands still and ours walks in and has to walk back out. The end-of-day clear
+# (`_drop_inventories_to_shed`) already banks every carried item for free, so the mid-day
+# trip only buys a same-day sale. Paired with `DROP_HOUR` (declared and never wired until
+# now): after that hour the unit does deposit, so the bell still gets its produce.
+CARRY_PASS_IN_FIELD = False
+CARRY_PASS_IN_FIELD_P2 = None
+CARRY_PASS_IN_FIELD_P3 = None
+# PICKUP_WITH_PRODUCE -- the engine's PICKUP has no empty-handed rule; ours did, and it is
+# the inbound half of the same shed loop. Allow a fetch while holding only PRODUCE.
+# FEED_PICKUP_INFLIGHT -- cap the per-turn PICKUP WHEAT offer at what is still short once
+# what other units already carry is counted. `herd_plan.jobs` sizes it from `_unfed_count`
+# alone and is rebuilt every turn, so it re-offers the fetch on all 24 turns. MEASURED:
+# WHEAT pickups 142.8/game vs Boey's 74.2, against ~11 feeds/day.
+FEED_PICKUP_INFLIGHT = False
+FEED_PICKUP_INFLIGHT_P2 = None
+FEED_PICKUP_INFLIGHT_P3 = None
+PICKUP_WITH_PRODUCE = False
+PICKUP_WITH_PRODUCE_P2 = None
+PICKUP_WITH_PRODUCE_P3 = None
 DROP_HOUR = 20
 # ---- job choice: walking is priced, not a tie-break --------------------------
 # DSM works a *tile cluster*: he does the whole stack of ops a tile offers
@@ -298,6 +325,26 @@ LAND_TARGET_DAY = {"NE": 6, "SW": 9, "SE": 10}
 # geometry test: we own 100 tiles and plant ~53 in the midgame, Boey owns 75 and plants
 # 55, and every extra unused tile is walking on each water op (moves/op 2.92 vs 1.17).
 LAND_QUADRANT_MAX = 3
+# LAND_CASH_RESERVE -- the feed reserve held back specifically from a LAND purchase.
+# MEASURED 2026-09-29 (`tools/phases/boey_model.py`, 120 of his replays vs ours):
+#   quadrants   ours d6/d8/d10 = 1/1/3      Boey = 1/2/3
+#   empty tiles ours d10 = 25.5             Boey = 0 EVERY day
+#   planted     ours d10 = 33.5             Boey = 53
+#   money       ours d6 = $292              Boey = $99.5   (he is always spent)
+# We hold `CASH_RESERVE=1500` against a $1,000 NE purchase, so NE waits for $2,500 while
+# `LAND_TARGET_DAY["NE"] = 6`; the quadrant then lands together with SW around d9-d10 and
+# 25 tiles sit bare for 4-6 days, which is what caps the wheat base and therefore the herd.
+# This knob reserves against land ONLY, so the feed money is still protected on every other
+# order. Do NOT set `CASH_RESERVE=0` (that is the closed, farm-starving experiment).
+# `None` = fall back to `CASH_RESERVE` (the old behaviour).
+LAND_CASH_RESERVE = None
+# SHIPPED at the d10 state-clone step (2026-09-29). MEASURED on the checkpoint
+# (`transplant --prefix ours --cut-day 10`, 12 eps): planted 43 -> 48, empty 19.5 -> 8,
+# WHEAT 17 -> 22, within-1% 2/13 -> 3/13. COSTS -$7,586 median on the season (same 8-game
+# screen as round 1) and does not move `target_check` (0/16). This is a deliberate
+# state-parity-first choice per the 5-day checkpoint method; it is ONE param to revert.
+LAND_CASH_RESERVE_P2 = 0
+LAND_CASH_RESERVE_P3 = None
 LAND_COST = {"NE": 1000, "SW": 2000, "SE": 4000}
 # keep this many seeds in hand per active crop (re-bought as they are planted).
 SEED_BUFFER = 6
@@ -312,6 +359,23 @@ SEED_BUFFER_MIN = 2
 # Set 1 as part of the opening package (the Boey mix asks for 10 MELON + 4 STRAWBERRY,
 # and an all-or-nothing buy can silently zero a crop for the whole script).
 SEED_PARTIAL_FILL = False
+# PLANT_CAP_BY_SEEDS -- cap the per-crop PLANT requests at the seeds actually held.
+# The engine validates PLANT **collectively per crop**: if the turn's total requests for a
+# crop exceed the seeds held, ALL of them become PASS. MEASURED 2026-09-29 (`boey_model`):
+# our WHEAT PLANT commands are 51.5/game against 46.9 planted (**9 % wasted**) while the
+# reference wastes 2.4 %, and the queue asks for a 15-22 tile wheat deficit while
+# `crop_plan` holds only `SEED_BUFFER = 6` seeds per crop. This turns a wiped-out batch
+# into a partial one. See docs/DSM-vs-us(v0).md S3.10.
+PLANT_CAP_BY_SEEDS = False
+PLANT_CAP_BY_SEEDS_P2 = None
+PLANT_CAP_BY_SEEDS_P3 = None
+# SEED_FILL_BUFFER -- size the seed ask to the crop's own deficit (capped by free tiles)
+# instead of the flat `SEED_BUFFER`, and always allow a partial fill. MEASURED at the d10
+# checkpoint (`transplant --prefix ours --cut-day 10`, 24 episodes): we hold 20 bare owned
+# tiles and 43 planted against the reference's 1 and 54.5, with WHEAT 17 vs 28.
+SEED_FILL_BUFFER = False
+SEED_FILL_BUFFER_P2 = None
+SEED_FILL_BUFFER_P3 = None
 # land buys keep this much cash in reserve afterwards (never spend to zero pre-revenue).
 CASH_RESERVE = 1500
 # During the opening the bank is meant to be COMMITTED (DSM ends d0 at $6, Boey $30):
@@ -453,11 +517,14 @@ BUILD_PER_TURN = 3
 FERTILIZE_ONGOING_ONLY = False
 # The complement: fertilize ONLY one-shot crops. MEASURED as the best of the three
 # (`dterm` vs the all-crops baseline): one-shot-only **+$2,730**, never +$1,954,
-# ongoing-only -$2,730. So one-shot fertilizing is worth +$2,730 and ONGOING
-# (strawberry/tomato) fertilizing is worth **-$4,684** -- the opposite of the
-# "doubles the fruit" intuition, and the reason the naive `FERTILIZE_ONGOING_ONLY`
-# made things worse.
-FERTILIZE_ONESHOT_ONLY = False
+# ongoing-only -$2,730. That ordering still holds, and it is why the shipped phase-2
+# policy turns ON one-shot only. RE-MEASURED 2026-09-29 with the original delivery:
+# **+$4,786 mean / +$8,020 median, 5/8** on 8 pairs. The delivery experiments (shed
+# pickup off, `P_FERTILIZE_P2=88`, `FERTILIZE_PRE_WINDOW`) all measured NEGATIVE and are
+# not shipped. ONGOING (strawberry/tomato) is the second lever and is NOT shipped yet --
+# the reference fertilizes strawberry 470 times in d6-17, so re-test it after the
+# one-shot policy is confirmed on 96 games.
+FERTILIZE_ONESHOT_ONLY = True
 # BUY fertilizer, for the ONGOING crops only. Strawberry/Tomato gain +1 unit per fertilized
 # production day (the engine gives `+2` instead of `+1`), and a strawberry or tomato unit is
 # ~$120-141 against ~$95 of bought fertilizer -- the only route to the fertilizer doubling
@@ -582,6 +649,28 @@ ON_TILE_BONUS = 0
 # game against the #1's 1. Unlike `SAME_TILE_FIRST` this does NOT reserve anything -- it
 # only reorders the units, so a unit with no local work is unaffected.
 SAME_TILE_ORDER = False
+# PLANT_BLOCK -- sow a band in ONE day, not one tile per day. 1 = off.
+# MEASURED (consecutive watered tiles, d6-17, 8 games vs 40 Boey replays): ours are **1.72
+# tiles apart, Boey's 1.07**, and WATER is 47.9 % of all our moves at 2.62 moves/op. A band
+# filled one tile per turn carries six different water windows, so the day's thirsty tiles
+# are never neighbours. The first attempt (round 1) over-planted the crop at the head of the
+# queue and emptied WHEAT; this version consumes the per-crop deficit instead.
+# WATER_OWNER_ONLY -- a non-critical water is visible only to the worker whose band
+# contains it; critical (survival) waters keep the global fallback.
+# MEASURED target: consecutive watered tiles 1.72 (ours) vs 1.07 (Boey); WATER is 47.9 % of
+# all our moves at 2.62 moves/op. Requires USE_SLICES (needs a band to be local to).
+# LAYOUT_BY_CROP_AGE -- order the per-worker bands by (crop, planted_day) instead of by
+# row, so a band's crops share a water calendar. Targets the measured cause of the water
+# scatter: a band of 5.13 tiles carries 2-3 distinct ages and only 2.35 thirsty tiles.
+LAYOUT_BY_CROP_AGE = False
+LAYOUT_BY_CROP_AGE_P2 = None
+LAYOUT_BY_CROP_AGE_P3 = None
+WATER_OWNER_ONLY = False
+WATER_OWNER_ONLY_P2 = None
+WATER_OWNER_ONLY_P3 = None
+PLANT_BLOCK = 1
+PLANT_BLOCK_P2 = None
+PLANT_BLOCK_P3 = None
 # Stop planting when the crew already has a survival-water backlog.
 #
 # THE ATTRITION FIX. We plant ~29 wheat tiles a day whose survival rule is "water every
@@ -755,6 +844,36 @@ OWNER_FIRST = False
 # reached `max_yield_day` (its peak, the day before decay).
 ONESHOT_HARVEST_AT_PEAK = True
 
+# HARVEST AGE OVERRIDE (days since planting), per one-shot crop. 0 = keep the
+# `age >= max_yield_day` rule above. The peak-day rule is still a DAY too late for the
+# two crops whose yield is already maximal when the last bonus-window water lands.
+# MEASURED (`tools/labour/crop_cycle.py`, d6-17, 8 of our games vs 40 Boey replays):
+#   WHEAT ours age 4.0, yield 2.93, 0.59 units/tile-day
+#         Boey age 3.0, yield 4.41, 1.10 -- he banks the age-3 water and replants.
+#   MELON ours age 12.0, 0.41 units/tile-day; Boey age 10.0, 0.54. Melon's water window
+#         is ages 6-12 and it is already at its cap by age 10, so the two extra days
+#         buy nothing.
+#
+# MEASURED NEGATIVE 2026-09-29, SO SHIPPED OFF (0). At `WHEAT=3;MELON=10` the agronomy
+# works exactly as intended -- wheat HARVEST ops **253 -> 456**, harvest age 4.0 -> 3.0,
+# missed window 1.07 -> 0.14, melon 12 -> 10, and `missed_harvest_eod` -17 (0/8 worse).
+# And it LOSES: **-$2,361 mean / -$9,526 median margin, 3/8** over 8 paired games, with
+# `sell_revenue_total` **-$10,984** and `unwatered_eod` +31 (7/8 worse). Doubling the
+# wheat turnover converts low-value wheat tile-days (base $25) with crew turns that were
+# earning STRAWBERRY/MILK/WOOL ($120-200) -- the crew is the constraint, not wheat yield.
+# `state.plant_ready` is guarded on `watered_today`: without that guard the harvest fires
+# before the day's window water and the tile turns over on ONE water (measured yield
+# 4.03 -> 2.53, water/cycle 1.93 -> 1.00).
+HARVEST_AGE_WHEAT = 0
+HARVEST_AGE_MELON = 10
+# ^ SHIPPED at the d10 state-clone step. The reference's melon harvest age is 10 (ours was
+# 12); MEASURED on the checkpoint (`transplant --prefix ours --cut-day 10`, 12 eps):
+# MELON 9 -> 5 vs his 5 (**0 %**), shed total -39.7 % -> -6.8 %, WHEAT -15.4 % -> -9.6 %,
+# STRAWBERRY -15.8 % -> -10.5 %. The reference's own money jumps **+$9,570 on day 10** --
+# that IS the melon harvest -- and we were holding 9 tiles through it.
+# COST: -$5,299 median on the season (floor_sales +25: the block harvest sells into a glut;
+# plants_died +6: the early harvest competes with watering). State-first trade, one param.
+
 
 SLICE_PENALTY = 1000
 
@@ -768,9 +887,57 @@ SLICE_PENALTY = 1000
 # FERTILIZE 54 (now disabled), WATER_BONUS 50, BUILD 45, DIG 20.
 SAME_TILE_MIN_PRIORITY = 70  # inert while SAME_TILE_FIRST is False
 
+# SAME_TILE_CROP_CHAIN / COMPLETE_TILE -- the crew-turn conversion fix.
+# MEASURED 2026-09-29 (`tools/labour/stack_trace.py` + `hop_regret.py`, d6-17, 8 games vs
+# Boey's replays): the two arms have the SAME unit-turns (3,077 vs 3,044) and our crew
+# converts 0.34 of them to acts against his 0.53, because we do not finish the tile.
+# `stack_trace` names the pairs split across visits -- `WATER -> FERTILIZE` 175 times --
+# and `hop_regret` prices the total: 30 % of our walking is avoidable-by-nearest, 78 % of
+# it in WATER + HARVEST.
+#
+# The gate is HERE: the same-tile pre-pass in `scheduler.plan` accepts a job underfoot only
+# at `>= SAME_TILE_MIN_PRIORITY` (70) unless the ANIMAL chain exemption fires. `P_FERTILIZE`
+# is 54, so a unit that just watered a tile walks off instead of fertilizing it -- MEASURED
+# `FERTILIZE` chained 3.1 % vs Boey's 93.3 %, at 3.00 vs 0.02 moves/op.
+#
+#   SAME_TILE_CROP_CHAIN -- add FERTILIZE to the underfoot exemption (crop companion of a
+#       water/harvest on the same tile). Phase-2 gated, like the animal chain.
+#   COMPLETE_TILE -- accept ANY job underfoot the unit is eligible for, except explicit
+#       busywork (DIG), regardless of priority. The narrow rescuer guard still holds the
+#       unit back when it is the nearest hand to a tile about to die.
+#
+# MEASURED NEGATIVE 2026-09-29 (8 paired games each vs the shipped tree), so BOTH SHIP OFF:
+#   crop-chain -$6,836 mean, COMPLETE_TILE -$8,028, both -$7,388, both + min-priority 0
+#   -$8,213. The mechanism barely moved: moves/act 1.81 -> 1.70/1.62 and FERTILIZE chained
+#   3.1 % -> 3.4 %. The reason is that FERTILIZE chaining is NOT gated by priority -- a unit
+#   can only fertilize while CARRYING fertilizer, and it mostly is not carrying it at the
+#   moment it stands on an unfetrilized in-window tile. `USE_SLICES_P2=0` was also measured
+#   and is much WORSE (moves/act 2.35), so band locality is load-bearing. Leave these off;
+#   the next lever is structural or a global assignment (see docs/DSM-vs-us(v0).md S3.5).
+SAME_TILE_CROP_CHAIN = False
+SAME_TILE_CROP_CHAIN_P2 = None
+SAME_TILE_CROP_CHAIN_P3 = None
+COMPLETE_TILE = False
+COMPLETE_TILE_P2 = None
+COMPLETE_TILE_P3 = None
+
 
 
 USE_SLICES = True
+
+# BAND_LOSS_TOL -- how many tiles farther an in-band job may be before a nearer
+# out-of-band job of the SAME priority takes it. `None`/0 = off (hard band wall).
+# MEASURED 2026-09-29 (`tools/labour/hop_regret.py --exclude-claimed`, d6-17, 8 games):
+# 29.5 % of all walking is avoidable-by-nearest even after removing tiles another unit
+# serves that turn -- WATER 1.64 tiles of regret per op, FERTILIZE 1.68, HARVEST 1.52.
+# `scheduler._pick` pass 1 returns the best BAND-LOCAL job before it ever looks outside
+# the band, so a unit passes a nearer thirsty tile that nobody is serving. Dropping the
+# band entirely (`USE_SLICES_P2=0`) is measured WORSE (moves/act 1.81 -> 2.35), because
+# priority then decides across the whole farm and distance is capped at DIST_CAP=1.
+# This keeps the band a preference and lets nearness break it.
+BAND_LOSS_TOL = None
+BAND_LOSS_TOL_P2 = None
+BAND_LOSS_TOL_P3 = None
 
 BAND_MONOCROP = True
 
@@ -847,28 +1014,46 @@ FERT_RESERVE = 5
 # Do not FERTILIZE during the opening: sell the fertilizer instead. Measured on the
 # #1's own d0-d5 orders, his fertilize ops are ZERO and he runs `SELL FERTILIZER`
 # 3-5 units a day from d1 -- it is his earliest cash, and it pays for bought feed and
-# the NE quadrant before any crop revenue lands. Fertilizing a wheat tile converts
-# ~$50 of fertilizer into ~$50 of extra wheat, so early on the cash is worth more
-# than the yield, and it also costs a PICKUP + FERTILIZE pair out of a 6-hand crew.
-# NEVER fertilize: 99 disables both the FERTILIZE job and the fertilizer PICKUP
-# (`_worth_fertilizing` gates on this day), so every unit the herd produces is sold.
+# the NE quadrant before any crop revenue lands.
 #
-# MEASURED (36 paired games, `--perturb 'nofert|FERTILIZE_FROM_DAY=99'`): **dterm +$2,294
-# median, 36/36 games better, p=0.000**. Selling the fertilizer beats spending it. The
-# arithmetic: 1 fertilizer is ~$67 on the market, and FERTILIZE is our most
-# movement-expensive act at **4.35 moves/op** (the #1's is 0.10), to add roughly one
-# unit to one crop. For wheat (~$30/unit) that is plainly negative; only a high-value
-# crop like melon could pay. A crop-value-gated version is the better long-term fix --
-# this is the blunt one, and it is measured.
+# The SEASON default stays OFF; **phase 2 is now ON** via `FERTILIZE_FROM_DAY_P2 = 6`.
+# CORRECTED 2026-09-29: the old note here ("never fertilizing is +$2,294, 36/36") was
+# used to close the `FERTILIZE ops 0 vs 64` DAG node as "descriptive". It is stale on
+# the current tree, and it measured the wrong thing -- the reference DOES fertilize.
+# MEASURED (`tools/labour/crop_cycle.py`, d6-17, 8 of our games vs 40 Boey replays):
+#   Boey : 1,390 wheat FERTILIZE ops, 57 % of wheat harvests fertilized, fertilized
+#          yield 5.35 vs 3.17 unfertilized, harvest age 3.0, 1.10 units/tile-day
+#   ours : 0 FERTILIZE ops, yield 2.93 (only 2s and 3s), harvest age 4.0, 0.59 /tile-day
+# What made our old arms lose was the APPLICATION COST: our FERTILIZE measured **4.35
+# moves/op** (a shed-pickup round trip per 6 units) against the reference's **0.09**.
+# MEASURED (8 paired games x2, current tree), with the ORIGINAL delivery still in place:
+# `FERTILIZE_FROM_DAY_P2=6;FERTILIZE_ONESHOT_ONLY=True` is **+$4,786 mean / +$8,020
+# median margin, 5/8**, wheat yield 2.93 -> 3.49, fertilized share 0 -> 79 %,
+# `plants_died` **-8 (2/8 worse)**, `missed_harvest_eod` **-8.5**,
+# `shed_overflow_days` **-1 (0/8 worse)**. CONFIRM ON 96 BEFORE TRUSTING IT -- 8-game
+# screens flipped sign 3x this session; the guards are the reason to keep it.
+# Tried and MEASURED NEGATIVE (8 games each), so NOT shipped: turning the shed pickup off
+# (`FERTILIZE_SHED_PICKUP_P2=False`), raising `P_FERTILIZE_P2` to 88, and pre-window
+# application. They all measured worse than the original delivery (-$8k to -$16k mean),
+# and did not move FERTILIZE moves/op (3.3 vs 3.2), so the movement lever is NOT the
+# shed pickup -- it is that the crop tiles are far from the animal tiles the fertilizer
+# comes from. That is the layout problem, before the op can be optimised.
 FERTILIZE_FROM_DAY = 99
 _FERTILIZE_FROM_DAY_WAS = 6
 
+# PRE-WINDOW application. Fertilizer lasts `day..day+2`. One-shot crops are only eligible
+# inside the bonus window, and WATER_BONUS (120) outranks FERTILIZE, so the window's first
+# water lands BEFORE the fertilize and banks only +1; the +2 starts the next day (wheat: 4
+# units at age 3 instead of 5). With this on, a one-shot crop is also eligible on
+# `window_start - 1`, the day before the window opens.
+# MEASURED NEGATIVE (8 paired games, packaged with the shed-pickup-off delivery):
+# -$8k mean, so SHIPPED OFF. The theory is sound but the crew does not reliably carry
+# fertilizer to the pre-window tile, so the application lands late anyway.
+FERTILIZE_PRE_WINDOW = False
+
 # Crop-value gate for fertilizing. Only fertilize a crop whose BASE price is at least
-# this, because 1 fertilizer is ~$67 ON THE MARKET and FERTILIZE is our most
-# movement-expensive act (4.35 moves/op vs the #1's 0.10). With `FERTILIZE_FROM_DAY=99`
-# the trade is closed entirely (+$2,294, 36/36); this is the targeted version, to see
-# whether the high-value crops still pay. Base prices: MELON ~267, STRAWBERRY ~141,
-# TOMATO ~63, CARROT ~35, WHEAT ~30. 0 = no gate (every eligible crop).
+# this. Base prices: MELON ~267, STRAWBERRY ~141, TOMATO ~63, CARROT ~35, WHEAT ~30.
+# 0 = no gate (every eligible crop).
 FERTILIZE_SHED_PICKUP = True
 FERTILIZE_MIN_PRICE = 0
 
@@ -913,7 +1098,10 @@ WHEAT_PEAK = 11
 # strawberry that was IN THE GROUND by d7**. The old ramp (`peak=16`) did not reach its
 # 30-tile target until d16, which put most of the block past the end of the phase.
 STRAWBERRY_TARGET = 30
-STRAWBERRY_PEAK = 16
+# SHIPPED at the d10 state-clone step: reach the 30-tile strawberry target by d9 (the
+# reference holds 20 tiles by d9) instead of d16. Only affects d6+ -- the opening is
+# governed by OPENING_STANDING, not the ramp. Part of the +$10,218 herd bundle.
+STRAWBERRY_PEAK = 11
 
 # Every crop's ramp as scalars so SCRATCH_PARAMS can A/B it (the resync at the bottom of
 # this file writes them back into CROP_PLAN -- without that they are phantom knobs).
@@ -934,7 +1122,11 @@ WHEAT_END = 24
 TOMATO_END = 21
 CARROT_END = 25
 MELON_END = 2
-TOMATO_TARGET = 16
+# SHIPPED at the d10 state-clone step: the reference runs NO midgame tomato (0 tiles at
+# d10 in 120 replays), while our TOMATO_TARGET=16 planted 1-3 tiles whose first fruit lands
+# d17 -- the last day of the phase. MEASURED on the checkpoint (`--prefix ours --cut-day 10`):
+# TOMATO 2 -> 0 vs his 0 (**0 %**). TOMATO start=9, so the opening is untouched.
+TOMATO_TARGET = 0
 TOMATO_PEAK = 18
 CARROT_TARGET = 23
 CARROT_PEAK = 24
@@ -1243,6 +1435,22 @@ FEED_WHEAT_RESERVE = 40
 # max wheat units to buy in one top-up order (the feed chain needs to cover every
 # unfed animal, not just six, when the herd is bought before its own wheat lands)
 FEED_BUY_CHUNK = 12
+# Phase-scoped so a midgame top-up cannot change the opening basket.
+FEED_BUY_CHUNK_P2 = 40
+FEED_BUY_CHUNK_P3 = None
+# FEED_STOCK_DAYS -- buy wheat ahead instead of hand-to-mouth. 0 = the old behaviour
+# (buy exactly `unfed - shed_wheat`). MEASURED 2026-09-29 (`tools/phases/boey_model.py`,
+# 120 of his replays vs ours, d6-17 medians): Boey buys **27/34/68/30/18/13/22** wheat per
+# day at d6..d17 against our **6/11/10/12/10/18/12** -- he runs a feed BUFFER, and his
+# herd is 17 by d10 against our 8.5. Our herd gate (`WHEAT_TILES_PER_ANIMAL = 1.7`) is a
+# standing-TILE proxy for feed; the induced gate from his own play has no such step (buy
+# rate by wheat-ratio bucket: 95 % at 0.0-0.5 falling to 44 % at 2.0-2.5), i.e. he does
+# not gate on standing wheat at all -- he gates on CASH and buys the feed.
+# This is the other half of that clone: stock `herd * FEED_STOCK_DAYS` units so the herd
+# can grow without the wheat base having to lead it.
+FEED_STOCK_DAYS = 0
+FEED_STOCK_DAYS_P2 = 2
+FEED_STOCK_DAYS_P3 = None
 # A wheat tile turns over ~4 units per 5 days (0.8 units/day) and an animal eats
 # 1/day, so the farm needs about this many standing wheat tiles per animal before
 # it can afford to buy the next one. DSM: ~32 wheat tiles / 19 animals = 1.7.

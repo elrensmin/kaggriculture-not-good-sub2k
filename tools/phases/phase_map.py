@@ -187,6 +187,9 @@ def extract(env, seat):
     steps = _steps_of(env)
     days = {}
     prev_tiles = None
+    prev_op = {}          # ui -> op name within the current day (chaining)
+    run_len = {}          # ui -> consecutive-act run length (same-tile dwelling)
+    cur_day = None
     for t in range(len(steps)):
         frame = steps[t]
         if len(frame) <= seat:
@@ -195,12 +198,16 @@ def extract(env, seat):
         if not obs:
             continue
         d = t // DAY
-        rec = days.setdefault(d, {"flow": Counter(), "unit_turns": 0, "pass": 0, "stock": {}})
+        if d != cur_day:
+            prev_op, run_len = {}, {}
+            cur_day = d
+        rec = days.setdefault(d, {"flow": Counter(), "unit_turns": 0, "pass": 0, "stock": {},
+                                  "chain": Counter(), "run3": 0, "acts": 0})
         # the action decided FROM this observation lives at t+1 (verified pairing)
         if t + 1 < len(steps) and len(steps[t + 1]) > seat:
             act = steps[t + 1][seat].get("action") or {}
             cmds = [act.get("farmer") or ["PASS"]] + list(act.get("hands") or [])
-            for c in cmds:
+            for ui, c in enumerate(cmds):
                 op = c[0] if c else "PASS"
                 # A MOVE is emitted as the direction token itself ("NORTH"), not as
                 # "MOVE" -- so before this the whole labour split was invisible and
@@ -212,6 +219,23 @@ def extract(env, seat):
                 rec["unit_turns"] += 1
                 if op == "PASS":
                     rec["pass"] += 1
+                # CHAINING / DWELLING. An ACT followed immediately by another ACT (never a
+                # MOVE) is a unit finishing the tile it is on. `chain[op]` counts how often
+                # op was followed by another act; `run3` counts acts sitting in a run of
+                # >=3 consecutive acts. Both are the crew-turn mechanism `op_patterns`
+                # measures, now a per-day DAG source instead of a separate tool run.
+                if op == "MOVE" or op == "PASS":
+                    run_len[ui] = 0
+                    prev_op[ui] = op
+                    continue
+                rec["acts"] += 1
+                p = prev_op.get(ui)
+                if p is not None and p not in ("MOVE", "PASS"):
+                    rec["chain"][p] += 1
+                run_len[ui] = run_len.get(ui, 0) + 1
+                if run_len[ui] >= 3:
+                    rec["run3"] += 1
+                prev_op[ui] = op
             # Sell revenue, for BOTH arms from the same estimator: each SELL order
             # valued at this step's OBSERVED quote, capped by what the shed can actually
             # deliver and by the engine's per-turn order limit. Leaderboard replays
@@ -288,6 +312,20 @@ def _series(days, src):
             elif key == "harvest_per_planted":
                 planted = rec["stock"].get("planted", 0)
                 out.append((d, rec["flow"].get("HARVEST", 0) / planted if planted else 0.0))
+            elif key == "moves_per_act":
+                # The crew-turn conversion rate: MOVE per productive act. 1.81 ours vs
+                # Boey's 0.76 (d6-17). The single number the conversion work moves.
+                acts = rec.get("acts", 0)
+                out.append((d, rec["flow"].get("MOVE", 0) / acts if acts else 0.0))
+            elif key == "runs_ge3_share":
+                acts = rec.get("acts", 0)
+                out.append((d, 100.0 * rec.get("run3", 0) / acts if acts else 0.0))
+            elif key.startswith("chain_"):
+                # share of `op` immediately followed by another act (0 moves between):
+                # FERTILIZE 3.1 % ours vs 93.3 % Boey.
+                op = key[len("chain_"):]
+                n = rec["flow"].get(op, 0)
+                out.append((d, 100.0 * rec.get("chain", {}).get(op, 0) / n if n else 0.0))
             elif key == "cash_commit":
                 out.append((d, 0.0))                      # filled per game below
     return out

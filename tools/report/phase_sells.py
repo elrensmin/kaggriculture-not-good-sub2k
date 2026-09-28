@@ -134,6 +134,10 @@ def main(argv=None):
         merge(mine, theirs)
     else:
         merge(mine, {})
+    print("   # shed-capped ESTIMATE: a SELL order is capped by the seat's shed at the "
+          "quote step, because\n   # audit-less arms send sentinel-sized orders. Do NOT "
+          "compare a raw requested\n   # order sum against an audit-backed arm -- that is "
+          "how the phantom 13.6x wheat gap was made.")
     return 0
 
 

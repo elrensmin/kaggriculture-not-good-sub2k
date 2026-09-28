@@ -24,6 +24,11 @@ def market_intents(state):
     # params.CASH_RESERVE_OPENING); the season reserve is unchanged.
     reserve = (params.CASH_RESERVE_OPENING
                if state.day <= params.OPENING_HERD_UNTIL_DAY else params.CASH_RESERVE)
+    # Land may use a DIFFERENT reserve (see params.LAND_CASH_RESERVE). The default is the
+    # same value, so this is inert until asked; `None` means "unchanged".
+    land_reserve = params.at("LAND_CASH_RESERVE", state.day)
+    if land_reserve is None:
+        land_reserve = reserve
     for q in ("NE", "SW", "SE"):
         if q in owned:
             continue
@@ -36,7 +41,7 @@ def market_intents(state):
         # hands+ground lockstep: buy land only when we can keep working it after
         # the purchase (cash reserve guards against a pre-revenue bankruptcy).
         if (state.day >= params.LAND_TARGET_DAY[q]
-                and state.money >= params.LAND_COST[q] + reserve):
+                and state.money >= params.LAND_COST[q] + land_reserve):
             out.append(["BUY_LAND"])
         break  # one BUY_LAND per turn; the engine fills quadrants in order anyway
 

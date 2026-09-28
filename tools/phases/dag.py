@@ -256,10 +256,19 @@ METRICS = {
     # `FERTILIZE_FROM_DAY=6` closes this node (42 ops) and cuts `plants died` by 8 --
     # and costs **-$4,474 median margin (4/16, p=0.077)** with **-$6,549 revenue
     # (12/16 worse)**. The attrition gain does not pay for the output it consumes.
+    # PROMOTED FROM DESCRIPTIVE 2026-09-29. It used to read "MEASURED NEGATIVE: we sell
+    # the fertilizer instead", from a `FERTILIZE_FROM_DAY=6` arm that lost -$4,474. That
+    # arm was measuring our APPLICATION COST, not the value of the op: `crop_cycle` shows
+    # our FERTILIZE at 4.35 moves/op (a shed-pickup round trip) against the reference's
+    # 0.09, while the reference fertilizes 1,390 wheat tiles in d6-17 and its fertilized
+    # wheat yields 5.35 against 3.17 unfertilized at age 3. Same op, opposite sign once
+    # the delivery is free. MEASURED (8 paired games): one-shot fertilize +$7,434 median.
     "fert_ops2": M("FERTILIZE ops", 2, "flow:FERTILIZE", "sum", "fert",
-                   "higher", 10, "src/crop_plan.py::jobs + src/herd_plan.py::jobs",
-                   "MEASURED NEGATIVE as an objective: we sell the fertilizer instead.",
-                   descriptive=True),
+                   "higher", 10, "src/crop_plan.py::jobs + src/scheduler.py::_pick",
+                   "The yield multiplier. The reference runs 1,390 wheat ops in d6-17; we "
+                   "run 0. What made our arms lose was the shed-pickup delivery (4.35 "
+                   "moves/op vs 0.09), so judge this node WITH `FERTILIZE moves/op` "
+                   "(`tools/labour/crop_cycle.py`), never alone."),
     "collect_ops2": M("COLLECT_FERTILIZER ops", 2, "flow:COLLECT_FERTILIZER", "sum", "none",
                       "higher", 10, "src/herd_plan.py::jobs",
                       "1 per animal per day; the fertilizer supply."),
@@ -275,8 +284,82 @@ METRICS = {
                    "TUNING IS EXHAUSTED: 14 scheduler/layout arms (DIST_CAP 2/3/5 with "
                    "CRITICAL_FREE_WALK_FRAC=0, radial and even bands, animal banding, "
                    "EXACT_ASSIGN, HANDS 14/16, hire 2/3) all trade move share for plant "
-                   "deaths and net revenue. The remaining work is the crew-turns a tile "
-                   "needs per unit of OUTPUT, not who walks to it. See S3.1i."),
+                   "deaths and net revenue. STILL EXHAUSTED after the 2026-09-29 conversion "
+                   "round: 7 more arms -- SAME_TILE_CROP_CHAIN, COMPLETE_TILE, both, both "
+                   "with SAME_TILE_MIN_PRIORITY=0, USE_SLICES=0, USE_SLICES=0+COMPLETE_TILE, "
+                   "and a loosened herd gate -- moved moves/act 1.81 -> 1.62 at best and "
+                   "cost $2.8k-$10.6k median every time. The remaining work is structural "
+                   "(tile geography, the shed round-trip, herd/crop mix) or a GLOBAL "
+                   "per-day assignment, not another per-turn priority knob. See S3.5."),
+    # ---------------------------------------------------------------------
+    # THE FLOW LAYER. Added 2026-09-28 after re-tracing phase 2 against Boey's replays:
+    # the node set above is STOCK plus five op counts, and the four largest phase-2 gaps
+    # were in the ops it did not measure. MEASURED, d6-17 per game (ours vs Boey, 4-game
+    # tree vs 60 reference replays):
+    #   MOVE    1839 vs 1319  (1.39x)      DROP    99 vs 32   (3.06x)
+    #   PICKUP   152 vs   91  (1.67x)      PLACE    8 vs 43   (0.18x)
+    #   unit-turns 3122 vs 2933, acts 1197 vs 1462, REVENUE 40,577 vs 54,059.
+    # We have MORE turns and do FEWER acts: the whole gap is conversion, and a graph built
+    # on stocks kept reporting "tiles 1.0x, animals 0.76x" while the flow rotted.
+    # ---------------------------------------------------------------------
+    "move_ops2": M("MOVE ops", 2, "flow:MOVE", "sum", "none",
+                   "lower", 200, "src/scheduler.py::_pick + src/layout.py",
+                   "The absolute sibling of `move share`: a share can fall while the count "
+                   "rises. 1839 vs Boey's 1319 -- 520 turns a game spent walking."),
+    "acts2": M("acts per unit-turn", 2, "derived:acts_per_turn", "median", "none",
+               "higher", 0.08, "src/scheduler.py::plan",
+               "The conversion rate the whole section reduces to. Ours 0.384, Boey 0.498: "
+               "we have MORE unit-turns and do FEWER acts."),
+    # ---- THE CONVERSION NODES (added 2026-09-29, from `op_patterns` + `turn_budget`).
+    # MEASURED d6-17, 8 games each: unit-turns 3,077 vs 3,044 (EQUAL), acts 1,068 vs 1,670,
+    # moves 1,900 vs 1,294, moves/act 1.78 vs 0.77. The crew-hours are identical; the whole
+    # gap is that our turns are walks. `turn_budget` prices the closure: the reference's
+    # 1,641 acts/game at our 1.78 moves/act needs 4,653 turns (16.2 hands) against the 3,077
+    # we have, and fits at <=0.8 moves/act. These four nodes are how that gets tracked per
+    # day instead of read off a one-off tool run.
+    "moves_per_act2": M("moves per act", 2, "derived:moves_per_act", "median", "none",
+                        "lower", 0.25, "src/scheduler.py::plan (preop) + src/scheduler.py::_pick",
+                        "The conversion rate itself. 1.78 vs Boey's 0.77. A move is an act we "
+                        "did not do, and the two arms have the same turns, so this ratio IS "
+                        "the phase-2 gap."),
+    "chain_fert2": M("FERTILIZE chained %", 2, "derived:chain_FERTILIZE", "median", "none",
+                     "higher", 20, "src/scheduler.py::plan (preop chain exemption)",
+                     "Share of FERTILIZE ops whose very next op is another ACT (no walk). "
+                     "3.1 % vs Boey's 93.3 %. Root cause is the same-tile pre-pass floor "
+                     "`SAME_TILE_MIN_PRIORITY=70` against `P_FERTILIZE=54`, so a unit waters "
+                     "a tile and leaves before fertilizing it (3.00 vs 0.02 moves/op)."),
+    "chain_water2": M("WATER chained %", 2, "derived:chain_WATER", "median", "none",
+                      "higher", 8, "src/scheduler.py::plan (preop) + src/layout.py",
+                      "8.3 % vs Boey's 17.4 %. WATER is 40 % of all our walks; a water that "
+                      "is followed by another act is a tile finished in place."),
+    "runs_ge3_2": M("acts in act-runs >=3 %", 2, "derived:runs_ge3_share", "median", "none",
+                    "higher", 15, "src/scheduler.py::plan (preop) + src/scheduler.py::_pick",
+                    "Dwelling vs commuting. 24.3 % vs Boey's 47.1 %, and 6.3 % vs 29.4 % for "
+                    "runs of >=4 -- his signature is the whole tile stack in one stop."),
+    "drop_ops2": M("DROP ops", 2, "flow:DROP", "sum", "none",
+                   "lower", 20, "src/scheduler.py::_deposit_op",
+                   "3.06x Boey's. HARVEST puts produce in the UNIT'S INVENTORY and DROP is "
+                   "the only mid-day exit -- but `_drop_inventories_to_shed` clears every "
+                   "unit for free at `_end_of_day`, so a mid-day trip is only needed to free "
+                   "the hands or to reach the bell. We drop once per harvest (98 HARVEST -> "
+                   "99 DROP); Boey drops once per five (160 -> 32)."),
+    "pickup_ops2": M("PICKUP ops", 2, "flow:PICKUP", "sum", "none",
+                     "lower", 30, "src/scheduler.py::_pick + src/herd_plan.py::jobs",
+                     "1.67x Boey's -- the inbound half of the same shed round trip. `PICKUP` "
+                     "is refused while the unit holds anything (`_eligible`), which is what "
+                     "forces the pair: harvest -> deposit -> fetch -> walk back."),
+    "place_ops2": M("PLACE ops", 2, "flow:PLACE", "sum", "none",
+                    "higher", 10, "src/herd_plan.py::jobs",
+                    "0.18x Boey's. An animal bought into the shed is not an animal on the "
+                    "board until it is walked out and placed; this is the herd gap appearing "
+                    "as a flow, and it is why `animals` can sit at 16 with structures built."),
+    "plant_ops2": M("PLANT ops", 2, "flow:PLANT", "sum", "none",
+                    "higher", 25, "src/crop_plan.py::plant_queue + src/scheduler.py::_plant_jobs",
+                    "Turnover, not tile count. `planted_tiles2` matches Boey at 1.0x and this "
+                    "is the same crop turning over half as often."),
+    "harvest_per_planted2": M("HARVEST per planted tile", 2, "derived:harvest_per_planted",
+                              "mean", "none", "higher", 0.2, "src/scheduler.py::_pick",
+                              "The honest volume metric: output per unit of standing crop."),
     "watered_per_tile": M("WATER ops per planted tile", 2, "derived:water_per_tile", "mean", "water_per_tile",
                           "range", 0.3, "src/scheduler.py::_pick",
                           "If this is low the crew is not reaching the crops it owns."),
@@ -401,6 +484,52 @@ EDGES = [
     # and still loses $4,708 (0/16, p=0.0000), because phase-3 FERTILIZER collection falls
     # 1,885 -> 668 units and every other line falls with it. See S3.1r.
     ("collect_ops2", "weeds2", "digging is done by the units that would collect fertilizer"),
+    # THE FLOW EDGES. These are the dependencies the stock graph could not express, and
+    # they are what makes the turnover defect visible as a CHAIN rather than a ratio.
+    ("harvests2", "drop_ops2", "HARVEST fills the unit's inventory; DROP is the only "
+                               "mid-day exit and the end-of-day clear is free"),
+    ("collect_ops2", "drop_ops2", "with FERTILIZE disabled the only exit for a carried "
+                                  "fertilizer is the shed"),
+    ("shed2", "drop_ops2", "a carried unit with no job in band deposits rather than "
+                           "walking to the nearest job"),
+    ("drop_ops2", "move_ops2", "every deposit is a walk to the shed and back"),
+    ("pickup_ops2", "move_ops2", "every fetch is the other half of that round trip"),
+    ("animals2", "place_ops2", "buying an animal creates the placement job"),
+    ("place_ops2", "animals2", "a shed animal is not a board animal until it is placed"),
+    ("plant_ops2", "harvests2", "nothing is harvested that was not planted"),
+    ("plant_ops2", "harvest_per_planted2", "turnover, not standing crop, is the volume"),
+    # MEASURED 2026-09-29. The sell side is NOT the midgame's binding constraint.
+    # WHEAT is the deepest, most liquid line (near-flat log curve: $25 at I0, $20 at
+    # +500, $18 at +8,000), so there is no scarcity spike to HOLD for. Boey treats it
+    # as a trade: over d6-17 he REQUESTED 3,249 wheat sells and 1,838 wheat buys per
+    # game against our 239 and 324 (13.6x / 5.7x), and the harness audit shows the
+    # sells execute -- we sold 164 units, he ~2,000.
+    # The decisive experiment: `WHEAT_SELL_RESERVE_P2=5` (phase-2 only) buys exactly
+    # the right midgame number -- revenue 64,516 -> 70,053, wheat sold 164 -> 308 --
+    # and still LOSES the season, 46,088 -> 44,672. Selling the reserve borrows from
+    # phase 3, which then buys feed back at retail. So volume is bounded UPSTREAM.
+    ("wheat_tiles2", "revenue2", "wheat is the deep liquid line, but only what the "
+                                 "tiles GROW is sellable; thinning the reserve in P2 "
+                                 "borrows from P3 (MEASURED: +$5.5k revenue, -$1.4k final)"),
+    ("plant_ops2", "revenue2", "WHEAT is a one-shot crop: every harvest empties the "
+                               "tile, so sale volume is a function of plant TURNOVER"),
+    ("move_ops2", "acts2", "walking is the denominator of the conversion rate"),
+    # THE CONVERSION CHAIN. `moves_per_act2` is the quantity; the chain nodes are its
+    # causes. A unit that leaves a tile before finishing it pays a walk it did not need,
+    # which is why the fix order is chaining -> moves/act -> acts -> the op counts.
+    ("chain_fert2", "moves_per_act2", "a fertilize applied on the tile the unit already "
+                                      "stands on costs 0 moves (3.00 -> 0.02 mv/op)"),
+    ("chain_water2", "moves_per_act2", "one water per visit is one walk per water"),
+    ("runs_ge3_2", "moves_per_act2", "dwelling in a tile stack is the inverse of commuting"),
+    ("moves_per_act2", "acts2", "with unit-turns fixed, every move is a lost act"),
+    ("moves_per_act2", "water_ops2", "the turns not spent walking are the turns that water"),
+    ("moves_per_act2", "harvests2", "and the turns that harvest"),
+    # THE FERTILIZATION CHAIN, added 2026-09-29 with `tools/labour/crop_cycle.py`.
+    # (`fert_ops2 -> harvests2` already exists above; these are the two it did not have.)
+    ("fert_ops2", "revenue2", "more units per standing tile on the deep liquid lines; the "
+                              "reference's fertilized wheat is 5.35 units against 3.17"),
+    ("fert_ops2", "plants_died2", "the fertilize turns compete with survival water for the "
+                                  "same crew -- the trade to watch when the node moves"),
     ("move_pct2", "water_ops2", "walking is a turn not spent watering"),
     ("move_pct2", "harvests2", "walking is a turn not spent harvesting"),
     ("move_pct2", "collect_ops2", "walking is a turn not spent collecting"),

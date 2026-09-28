@@ -187,7 +187,7 @@ def jobs(state):
                              or CROPS[t["crop"]]["ongoing"])
                         and (not params.FERTILIZE_ONESHOT_ONLY
                              or not CROPS[t["crop"]]["ongoing"])
-                        and (state.in_water_window(t) or CROPS[t["crop"]]["ongoing"])):
+                        and state.fert_window_open(t)):
                     out.append(Job(P_FERTILIZE, pos, "FERTILIZE", None))
             elif state.is_weed(pos) and not retire:
                 out.append(Job(P_DIG, pos, "DIG", None))
@@ -251,7 +251,7 @@ def _worth_fertilizing(state):
                 if params.FERTILIZE_ONESHOT_ONLY and CROPS[t["crop"]]["ongoing"]:
                     continue
                 if t.get("fertilized_until_day", -1) < state.day and \
-                        (state.in_water_window(t) or CROPS[t["crop"]]["ongoing"]):
+                        state.fert_window_open(t):
                     return True
     return False
 
@@ -301,6 +301,16 @@ def market_intents(state):
             want = scripted - _crop_count(state, crop) - in_hand
         else:
             want = buffer - in_hand
+        # SEED_FILL_BUFFER: when the farm has bare ground the flat `SEED_BUFFER` (6/crop)
+        # is the binding constraint on filling it -- the queue asks for a 15-22 tile wheat
+        # deficit while we hold 6 seeds, and the engine voids the whole PLANT batch when
+        # the requests exceed the seeds held. Size the ask to the crop's own deficit,
+        # capped by free tiles, and always allow a partial fill so an unaffordable top-up
+        # is not a silent no-op. See params.SEED_FILL_BUFFER.
+        _fill = params.at("SEED_FILL_BUFFER", state.day)
+        if _fill:
+            deficit = max(0, plan["target"] - _crop_count(state, crop))
+            want = max(want, min(_free_tiles(state), deficit))
         if want <= 0:
             continue
         price = CROPS[crop]["seed"]
@@ -310,7 +320,7 @@ def market_intents(state):
         # back, it silently bought ZERO -- measured, STRAWBERRY tiles stayed at 0
         # through d5 while the ramp wanted 8. Gated because it was only ever measured
         # inside a net-negative package; SEE params.SEED_PARTIAL_FILL.
-        if not params.SEED_PARTIAL_FILL:
+        if not (params.SEED_PARTIAL_FILL or _fill):
             cost = price * want
             if spendable >= cost:
                 out.append(["BUY_SEED", crop, want])

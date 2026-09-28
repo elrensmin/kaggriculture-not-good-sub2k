@@ -49,4 +49,11 @@ Every tool that hardcoded the #1's name now resolves the arm through `tools/team
 - **Boey's `margin.txt` guard totals are summed over 359 all-seat games**; per-game medians in
   `dsm_profile.txt` are the comparable ones.
 - Boey's `herd_econ` revenue is inflated by **bought-and-resold fertilizer**: it buys 728/game, sells
-  4,622/game at $38.7 — that is a trading line, not herd output. Read `fertilizer_flow.txt` beside it.
+  487/game shed-capped at $41.1 — that is a trading line, not herd output. Read
+  `fertilizer_flow.txt` beside it.
+- **Volume figures are now shed-capped.** Boey's replays carry no audit, and they send
+  sentinel-sized `SELL <item> 1000` orders, so the old requested-order sums (`6,786` wheat,
+  `2,025` egg, `4,622` fertilizer per game) overstated executed volume ~2x. `dsm_profile`
+  labels the estimator `src=action (shed-capped)`; the corrected medians are wheat **2,542**,
+  egg **147**, fertilizer **487**, milk **17**, wool **53**. `tools/report/phase_sells.py`
+  prints the same caveat.

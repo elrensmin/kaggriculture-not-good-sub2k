@@ -1,0 +1,315 @@
+
+############ scratch_vs_kaggriculture-master-engine-v3_seed4362837462.json  (d6-d17) ############
+   total moves 1879   empty 766 (41%)   carrying 1113 (59%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    344     900    2.62       47.9%
+   FEED                     146     276    1.89       14.7%
+   COLLECT_FERTILIZER       145     227    1.57       12.1%
+   CARE                     155     131    0.85        7.0%
+   DROP                      59     122    2.07        6.5%
+   HARVEST                  114      86    0.75        4.6%
+   PICKUP                    49      61    1.24        3.2%
+   START                      0      35     nan        1.9%
+   PLANT                     95      16    0.17        0.9%
+   BUILD_PASTURE              5      11    2.20        0.6%
+   BUILD_COOP                 5      11    2.20        0.6%
+   PLACE                     10       2    0.20        0.1%
+   DIG                        9       1    0.11        0.1%
+
+############ scratch_vs_kaggriculture-master-engine-v3_seed4362837463.json  (d6-d17) ############
+   total moves 1859   empty 767 (41%)   carrying 1092 (59%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    320     861    2.69       46.3%
+   COLLECT_FERTILIZER       145     256    1.77       13.8%
+   FEED                     149     242    1.62       13.0%
+   DROP                      67     144    2.15        7.7%
+   CARE                     154     133    0.86        7.2%
+   HARVEST                   89      81    0.91        4.4%
+   PICKUP                    42      47    1.12        2.5%
+   START                      0      41     nan        2.2%
+   PLANT                     93      20    0.22        1.1%
+   BUILD_COOP                 4      15    3.75        0.8%
+   BUILD_PASTURE              5      14    2.80        0.8%
+   DIG                       26       3    0.12        0.2%
+   PLACE                      9       2    0.22        0.1%
+
+############ scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837462.json  (d6-d17) ############
+   total moves 1879   empty 766 (41%)   carrying 1113 (59%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    344     900    2.62       47.9%
+   FEED                     146     276    1.89       14.7%
+   COLLECT_FERTILIZER       145     227    1.57       12.1%
+   CARE                     155     131    0.85        7.0%
+   DROP                      59     122    2.07        6.5%
+   HARVEST                  114      86    0.75        4.6%
+   PICKUP                    49      61    1.24        3.2%
+   START                      0      35     nan        1.9%
+   PLANT                     95      16    0.17        0.9%
+   BUILD_PASTURE              5      11    2.20        0.6%
+   BUILD_COOP                 5      11    2.20        0.6%
+   PLACE                     10       2    0.20        0.1%
+   DIG                        9       1    0.11        0.1%
+
+############ scratch_vs_kaggriculture-pipe7-wheat-microstructure_seed4362837463.json  (d6-d17) ############
+   total moves 1859   empty 767 (41%)   carrying 1092 (59%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    320     861    2.69       46.3%
+   COLLECT_FERTILIZER       145     256    1.77       13.8%
+   FEED                     149     242    1.62       13.0%
+   DROP                      67     144    2.15        7.7%
+   CARE                     154     133    0.86        7.2%
+   HARVEST                   89      81    0.91        4.4%
+   PICKUP                    42      47    1.12        2.5%
+   START                      0      41     nan        2.2%
+   PLANT                     93      20    0.22        1.1%
+   BUILD_COOP                 4      15    3.75        0.8%
+   BUILD_PASTURE              5      14    2.80        0.8%
+   DIG                       26       3    0.12        0.2%
+   PLACE                      9       2    0.22        0.1%
+
+############ DSM episode-112076061-replay.json  (d6-d17) ############
+   total moves 1374   empty 409 (30%)   carrying 965 (70%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    623     757    1.22       55.1%
+   COLLECT_FERTILIZER       198     195    0.98       14.2%
+   HARVEST                  206     113    0.55        8.2%
+   CARE                     184     102    0.55        7.4%
+   PICKUP                    99      99    1.00        7.2%
+   PLACE                     53      51    0.96        3.7%
+   START                      0      28     nan        2.0%
+   FEED                     182      12    0.07        0.9%
+   DROP                      21       9    0.43        0.7%
+   FERTILIZE                 77       8    0.10        0.6%
+   PLANT                    148       0    0.00        0.0%
+   BUILD_COOP                11       0    0.00        0.0%
+   BUILD_PASTURE              5       0    0.00        0.0%
+   DIG                        1       0    0.00        0.0%
+
+############ DSM episode-112077395-replay.json  (d6-d17) ############
+   total moves 1412   empty 454 (32%)   carrying 958 (68%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    588     785    1.34       55.6%
+   COLLECT_FERTILIZER       199     212    1.07       15.0%
+   HARVEST                  180     106    0.59        7.5%
+   PICKUP                   104      92    0.88        6.5%
+   CARE                     182      92    0.51        6.5%
+   PLACE                     59      57    0.97        4.0%
+   START                      0      34     nan        2.4%
+   DROP                      25      12    0.48        0.8%
+   FEED                     180      10    0.06        0.7%
+   FERTILIZE                 74       8    0.11        0.6%
+   BUILD_PASTURE              7       4    0.57        0.3%
+   BUILD_COOP                 8       0    0.00        0.0%
+   PLANT                    127       0    0.00        0.0%
+   DIG                        1       0    0.00        0.0%
+
+############ DSM episode-112078523-replay.json  (d6-d17) ############
+   total moves 1344   empty 405 (30%)   carrying 939 (70%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    567     630    1.11       46.9%
+   COLLECT_FERTILIZER       221     261    1.18       19.4%
+   PICKUP                   114     122    1.07        9.1%
+   HARVEST                  185     120    0.65        8.9%
+   CARE                     212     108    0.51        8.0%
+   PLACE                     56      33    0.59        2.5%
+   START                      0      26     nan        1.9%
+   FEED                     211      18    0.09        1.3%
+   FERTILIZE                 73      16    0.22        1.2%
+   DROP                      31       7    0.23        0.5%
+   PLANT                    136       3    0.02        0.2%
+   BUILD_PASTURE             13       0    0.00        0.0%
+   BUILD_COOP                 6       0    0.00        0.0%
+   DIG                        5       0    0.00        0.0%
+
+############ DSM episode-112079649-replay.json  (d6-d17) ############
+   total moves 1401   empty 416 (30%)   carrying 985 (70%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    592     762    1.29       54.4%
+   COLLECT_FERTILIZER       200     212    1.06       15.1%
+   PICKUP                   109     114    1.05        8.1%
+   HARVEST                  170      96    0.56        6.9%
+   CARE                     190      78    0.41        5.6%
+   PLACE                     59      76    1.29        5.4%
+   START                      0      30     nan        2.1%
+   FEED                     188      18    0.10        1.3%
+   FERTILIZE                 69       8    0.12        0.6%
+   DROP                      19       6    0.32        0.4%
+   BUILD_PASTURE              8       1    0.12        0.1%
+   BUILD_COOP                 7       0    0.00        0.0%
+   PLANT                    118       0    0.00        0.0%
+   DIG                        2       0    0.00        0.0%
+
+############ DSM episode-112080747-replay.json  (d6-d17) ############
+   total moves 1407   empty 442 (31%)   carrying 965 (69%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    621     728    1.17       51.7%
+   COLLECT_FERTILIZER       208     214    1.03       15.2%
+   HARVEST                  214     127    0.59        9.0%
+   PICKUP                   103     101    0.98        7.2%
+   CARE                     185      97    0.52        6.9%
+   PLACE                     55      61    1.11        4.3%
+   START                      0      34     nan        2.4%
+   FEED                     184      21    0.11        1.5%
+   DROP                      26      13    0.50        0.9%
+   FERTILIZE                 67       5    0.07        0.4%
+   PLANT                    163       4    0.02        0.3%
+   DIG                        3       2    0.67        0.1%
+   BUILD_COOP                11       0    0.00        0.0%
+   BUILD_PASTURE              5       0    0.00        0.0%
+
+############ DSM episode-112081862-replay.json  (d6-d17) ############
+   total moves 1327   empty 342 (26%)   carrying 985 (74%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    391     444    1.14       33.5%
+   COLLECT_FERTILIZER       298     368    1.23       27.7%
+   PICKUP                   147     158    1.07       11.9%
+   CARE                     321     130    0.40        9.8%
+   HARVEST                  153      85    0.56        6.4%
+   FEED                     317      53    0.17        4.0%
+   PLACE                     72      27    0.38        2.0%
+   START                      0      26     nan        2.0%
+   DROP                      26      18    0.69        1.4%
+   FERTILIZE                 64      12    0.19        0.9%
+   BUILD_PASTURE             31       3    0.10        0.2%
+   DIG                        4       3    0.75        0.2%
+   PLANT                     99       0    0.00        0.0%
+
+############ DSM episode-112082957-replay.json  (d6-d17) ############
+   total moves 1402   empty 416 (30%)   carrying 986 (70%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    596     743    1.25       53.0%
+   COLLECT_FERTILIZER       211     231    1.09       16.5%
+   PICKUP                   112     117    1.04        8.3%
+   CARE                     199      95    0.48        6.8%
+   HARVEST                  173      92    0.53        6.6%
+   PLACE                     60      55    0.92        3.9%
+   START                      0      33     nan        2.4%
+   FEED                     197      16    0.08        1.1%
+   FERTILIZE                 75      11    0.15        0.8%
+   DROP                      20       8    0.40        0.6%
+   DIG                        7       1    0.14        0.1%
+   BUILD_COOP                13       0    0.00        0.0%
+   PLANT                    127       0    0.00        0.0%
+   BUILD_PASTURE              8       0    0.00        0.0%
+
+############ DSM episode-112084083-replay.json  (d6-d17) ############
+   total moves 1338   empty 387 (29%)   carrying 951 (71%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    526     607    1.15       45.4%
+   COLLECT_FERTILIZER       251     300    1.20       22.4%
+   CARE                     253     119    0.47        8.9%
+   PICKUP                   127     117    0.92        8.7%
+   HARVEST                  167      69    0.41        5.2%
+   PLACE                     66      47    0.71        3.5%
+   START                      0      26     nan        1.9%
+   FEED                     252      26    0.10        1.9%
+   DROP                      22      12    0.55        0.9%
+   FERTILIZE                 84       8    0.10        0.6%
+   BUILD_PASTURE             21       7    0.33        0.5%
+   PLANT                    120       0    0.00        0.0%
+   BUILD_COOP                 6       0    0.00        0.0%
+   DIG                        6       0    0.00        0.0%
+
+############ DSM episode-112085198-replay.json  (d6-d17) ############
+   total moves 1397   empty 466 (33%)   carrying 931 (67%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    594     725    1.22       51.9%
+   COLLECT_FERTILIZER       201     189    0.94       13.5%
+   HARVEST                  203     142    0.70       10.2%
+   PICKUP                    98     102    1.04        7.3%
+   CARE                     179      93    0.52        6.7%
+   PLACE                     51      53    1.04        3.8%
+   START                      0      31     nan        2.2%
+   FEED                     177      30    0.17        2.1%
+   DROP                      27      23    0.85        1.6%
+   FERTILIZE                 81       9    0.11        0.6%
+   BUILD_COOP                12       0    0.00        0.0%
+   PLANT                    137       0    0.00        0.0%
+   BUILD_PASTURE              4       0    0.00        0.0%
+   DIG                        1       0    0.00        0.0%
+
+############ DSM episode-112086290-replay.json  (d6-d17) ############
+   total moves 1387   empty 428 (31%)   carrying 959 (69%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    605     723    1.20       52.1%
+   COLLECT_FERTILIZER       199     213    1.07       15.4%
+   HARVEST                  201     108    0.54        7.8%
+   PICKUP                   106     108    1.02        7.8%
+   CARE                     179      88    0.49        6.3%
+   PLACE                     56      71    1.27        5.1%
+   START                      0      34     nan        2.5%
+   FEED                     177      17    0.10        1.2%
+   DROP                      28      15    0.54        1.1%
+   FERTILIZE                 66       6    0.09        0.4%
+   DIG                        4       3    0.75        0.2%
+   BUILD_PASTURE              7       1    0.14        0.1%
+   BUILD_COOP                 8       0    0.00        0.0%
+   PLANT                    138       0    0.00        0.0%
+
+############ DSM episode-112087432-replay.json  (d6-d17) ############
+   total moves 1393   empty 410 (29%)   carrying 983 (71%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    596     732    1.23       52.5%
+   COLLECT_FERTILIZER       201     212    1.05       15.2%
+   PICKUP                   113     119    1.05        8.5%
+   HARVEST                  169     117    0.69        8.4%
+   CARE                     181      86    0.48        6.2%
+   PLACE                     58      66    1.14        4.7%
+   START                      0      28     nan        2.0%
+   FERTILIZE                 78      12    0.15        0.9%
+   FEED                     179      11    0.06        0.8%
+   DROP                      23       9    0.39        0.6%
+   BUILD_PASTURE              9       1    0.11        0.1%
+   BUILD_COOP                 8       0    0.00        0.0%
+   PLANT                    115       0    0.00        0.0%
+   DIG                        2       0    0.00        0.0%
+
+############ DSM episode-112088551-replay.json  (d6-d17) ############
+   total moves 1398   empty 430 (31%)   carrying 968 (69%)
+
+   -- moves charged to the act that preceded them --
+   after act                ops   moves   mv/op  % of moves
+   WATER                    563     660    1.17       47.2%
+   COLLECT_FERTILIZER       230     292    1.27       20.9%
+   PICKUP                   114     119    1.04        8.5%
+   CARE                     215      98    0.46        7.0%
+   HARVEST                  186      90    0.48        6.4%
+   PLACE                     64      62    0.97        4.4%
+   START                      0      31     nan        2.2%
+   FEED                     213      23    0.11        1.6%
+   DROP                      31      11    0.35        0.8%
+   FERTILIZE                 79      10    0.13        0.7%
+   BUILD_PASTURE             14       1    0.07        0.1%
+   DIG                        2       1    0.50        0.1%
+   PLANT                    135       0    0.00        0.0%
+   BUILD_COOP                 6       0    0.00        0.0%

@@ -134,7 +134,8 @@ def _one(arg):
            "crop_day": {}, "shed_day": {}, "shed_comp": {},
            "inv_hist": defaultdict(Counter), "inv_hist_end": defaultdict(Counter),
            "quad_day": {}, "disc": Counter(),
-           "wheat": [0, 0, 0], "yarn_day": None, "src": "audit" if audit else "action"}
+           "wheat": [0, 0, 0], "yarn_day": None,
+           "src": "audit" if audit else "action (shed-capped)"}
     seen = set()
     seen_q = set()
     for i in range(len(steps)):
@@ -229,16 +230,21 @@ def _one(arg):
                 out["land_day"][d] += 1
             elif o[0] == "BUY_PRODUCT" and len(o) >= 3 and o[1] == "WHEAT":
                 out["wheat"][0] += max(0, int(o[2]))
-        # Curve table fallback (no audit): distribute the requested volume across
-        # this step's orders. Our tape sends `SELL <item> 1000` sentinels, so this
-        # is only trustworthy for replays without an audit; the audit pass below
-        # supersedes it.
+        # Curve table fallback (no audit). CAP EACH ORDER BY THE SHED, not by the
+        # requested `o[2]`: audit-less arms (DSM, Boey) send sentinel-sized SELL orders
+        # (`SELL WHEAT 1000`), so summing the request overstates executed volume by ~2x
+        # and manufactured the "13.6x wheat volume" reading. The cap is per turn and the
+        # shed is decremented across the turn's orders so several orders on one step do
+        # not each see the full shed. `src` is labelled accordingly below.
         if not audit:
+            remaining = dict(shed)
             for o in (act.get("market") or []):
                 if not (o and o[0] == "SELL" and len(o) >= 3 and o[1] in SELL_PRODUCTS):
                     continue
                 item = o[1]
                 q = max(0, int(o[2]))
+                q = min(q, max(0, int(remaining.get(item, 0))))
+                remaining[item] = remaining.get(item, 0) - q
                 p = float(prices.get(item, 0) or 0)
                 out["inv_hist"][item][_bucket(int(inv.get(item, 0)))] += q
                 cell = out["sell"].setdefault(item, [0, 0.0, 0])
