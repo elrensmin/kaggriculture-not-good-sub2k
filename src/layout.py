@@ -14,13 +14,18 @@ def _quadrant(x: int, y: int) -> str:
     return ("N" if y < 5 else "S") + ("W" if x < 5 else "E")
 
 
-def slice_partition(state, n_units: int):
-    """Per-worker slices: contiguous blocks of the shed-outward tile order.
+def holdback_tiles(state) -> set:
+    """The STRUCTURE_HOLDBACK nearest-to-shed owned tiles, reserved for herd housing.
 
-    Each worker owns one contiguous shed-outward band (~8 tiles), so its jobs stay
-    clustered near the shed and it stops chasing work across the whole 100-tile
-    board. This is the layout-aligned version (shed rings, not quadrants).
+    Crops are never sown there (they are removed from the crop bands), so a BARE tile
+    inside this set is RESERVED, not "empty land doing nothing". Shared by
+    ``slice_partition`` and the graph's ``empty`` reader so diagnosis and layout cannot
+    disagree about which tiles are wasted.
     """
+    holdback = int(params.at("STRUCTURE_HOLDBACK", state.day))
+    if holdback <= 0:
+        return set()
+
     def shed_dist(p):
         return min(abs(p[0] - s[0]) + abs(p[1] - s[1]) for s in params.SHED_ACCESS)
 
@@ -30,18 +35,29 @@ def slice_partition(state, n_units: int):
         for x in range(params.BOARD)
         if state.owned((x, y))
     ]
+    return set(sorted(owned, key=shed_dist)[:holdback])
+
+
+def slice_partition(state, n_units: int):
+    """Per-worker slices: contiguous blocks of the shed-outward tile order.
+
+    Each worker owns one contiguous shed-outward band (~8 tiles), so its jobs stay
+    clustered near the shed and it stops chasing work across the whole 100-tile
+    board. This is the layout-aligned version (shed rings, not quadrants).
+    """
     # NOTE (DSM layout, measured): DSM puts animals in the inner ring (mean
     # shed-distance 1.78) and crops on the boundary (4.50), because animals need
     # ~3 visits/day. We reserve the STRUCTURE_HOLDBACK nearest-to-shed owned tiles
     # so herd_plan has somewhere to build -- it builds shed-outward, so it claims
     # exactly these. A count, not a radius: the geometric ANIMAL_ZONE reserved 40
     # of 100 tiles and left almost nothing for crops in a 25-tile opening quadrant.
-    holdback = int(params.at("STRUCTURE_HOLDBACK", state.day))
-    held = []
-    if holdback > 0:
-        held = sorted(owned, key=shed_dist)[:holdback]
-        set_held = set(held)
-        owned = [p for p in owned if p not in set_held]
+    held = holdback_tiles(state)
+    owned = [
+        (x, y)
+        for y in range(params.BOARD)
+        for x in range(params.BOARD)
+        if state.owned((x, y)) and (x, y) not in held
+    ]
     # snake (boustrophedon) order: contiguous chunks are compact horizontal strips,
     # so walking inside a worker's band is short and the crops stay grouped.
     # `LAYOUT_RADIAL` orders the same contiguous chunks by SHED DISTANCE instead of by row,

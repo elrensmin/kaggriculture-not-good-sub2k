@@ -375,7 +375,10 @@ SEED_PARTIAL_FILL = False
 # reference wastes 2.4 %, and the queue asks for a 15-22 tile wheat deficit while
 # `crop_plan` holds only `SEED_BUFFER = 6` seeds per crop. This turns a wiped-out batch
 # into a partial one. See docs/DSM-vs-us(v0).md S3.10.
-PLANT_CAP_BY_SEEDS = False
+# ON: the engine's collective-PLANT rule voids the WHOLE per-crop batch when requests exceed
+# seeds, and we waste 9 % of WHEAT plants by over-requesting (51.5 asked / 46.9 sown). Capping
+# the ask at the seeds held turns a wiped batch into a partial one.
+PLANT_CAP_BY_SEEDS = True
 PLANT_CAP_BY_SEEDS_P2 = None
 PLANT_CAP_BY_SEEDS_P3 = None
 # SEED_FILL_BUFFER -- size the seed ask to the crop's own deficit (capped by free tiles)
@@ -430,6 +433,22 @@ CEILING = 100  # never sell a ceiling good when inventory >= I0 + CEILING
 # extra produce could not leave the shed. 0 = today's behaviour; positive values sell
 # further down the curve to convert stock into cash (watch the floor% / px tail).
 SELL_CEILING_BOOST = 0
+# SELL_FLOOR_BASE -- for knife-edge goods (STRAWBERRY/MILK/WOOL/MELON/CARROT/TOMATO), never
+# sell a unit below the product's BASE price, even when the shelf sits below I0+CEILING. The
+# inventory gate alone sells into the part of the curve that is already below base (measured:
+# premium_below_base_frac ~0.9 on the shipped arm). A below-base unit is a loss against holding
+# it for the town drain to lift the price. Off by default so it A/Bs against the shipped rule.
+SELL_FLOOR_BASE = False
+SELL_FLOOR_BASE_P2 = None
+SELL_FLOOR_BASE_P3 = None
+# SELL_LOOKAHEAD -- decide sell-vs-hold per product with `demand.best_sell_now` (the town
+# drain lifts the future price; the opponent's observed sells lower it). A hard floor alone
+# was measured to overflow the shed (discarded +309), because holding past the price PEAK is
+# as wrong as selling into the trough. Off by default; the lookahead is the aggressive-but-
+# timed half of the portfolio sell rule.
+SELL_LOOKAHEAD = False
+SELL_LOOKAHEAD_P2 = None
+SELL_LOOKAHEAD_P3 = None
 # melon's quadratic above-curve floors at ~158 net units: sell below that.
 MELON_CEILING = 150
 # endgame liquidation: from this day sell everything (ignore the scarcity hold).
@@ -1236,7 +1255,9 @@ GRAPH_STEER_CAP_P2 = None
 GRAPH_STEER_CAP_P3 = None
 # LAND_FROM_PRIORS -- buy the 2nd/3rd quadrant on the day HIS measured cumulative reaches them
 # (priors.LAND_BY_QUADRANT: NE d6, SW d8, SE d9) instead of `LAND_TARGET_DAY` (d6/d9/d10).
-LAND_FROM_PRIORS = False
+# ON: the priors are the single land schedule ("buy early"); `LAND_TARGET_DAY` was the
+# hand-set duplicate owner and ran SW/SE a day late each.
+LAND_FROM_PRIORS = True
 LAND_FROM_PRIORS_P2 = None
 LAND_FROM_PRIORS_P3 = None
 STATE_GRAPH_P2 = None

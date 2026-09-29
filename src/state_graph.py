@@ -76,7 +76,8 @@ NODES = {
     # (BUY_SEED). Naming both lets the market layer be steered by the same node as the crew.
     "empty":      Node("priors", "empty", "lower", ("PLANT", "BUY_SEED"), "season", (0, 26)),
     "animals":    Node("priors", "total_animals", "higher",
-                       ("PLACE", "BUILD_PASTURE", "BUILD_COOP", "PICKUP"), "season", (0, 24)),
+                       ("PLACE", "BUILD_PASTURE", "BUILD_COOP", "PICKUP", "BUY_ANIMAL"),
+                       "season", (0, 24)),
     "structures": Node("priors", "structs", "higher",
                        ("BUILD_PASTURE", "BUILD_COOP"), "season", (0, 20)),
     "quadrants":  Node("priors", "n_quadrants", "higher", ("BUY_LAND",), "window", (0, 12)),
@@ -131,8 +132,10 @@ EDGES = (
     ("empty", "planted"),
     ("planted", "money"),
     ("animals", "money"),
-    ("structures", "animals"),
+    ("animals", "structures"),
     ("quadrants", "planted"),
+    ("quadrants", "empty"),
+    ("labour", "empty"),
     ("unfed", "animals"),
     ("dry_plants", "planted"),
     ("weeds", "planted"),
@@ -258,6 +261,21 @@ def preposition(state):
     return out
 
 
+def _empty_plantable(s):
+    """Bare owned tiles OUTSIDE the reserved animal ring.
+
+    ``empty`` is meant to be "land doing nothing" (a rent). A bare tile inside
+    ``layout.holdback_tiles`` is RESERVED for future herd housing, not wasted -- it is
+    exactly the tile ``scheduler`` refuses to sow by construction. Counting it here made
+    ``empty`` break on d1 in the opening (7 reserved ring tiles) and mis-flag the whole
+    opening as under-planted, when the crew had in fact sown every plantable tile.
+    """
+    from . import layout
+    held = layout.holdback_tiles(s)
+    return sum(1 for y, row in enumerate(s.tiles) for x, t in enumerate(row)
+               if t is None and s.owned((x, y)) and (x, y) not in held)
+
+
 _LIVE = {
     "weeds": lambda s: sum(1 for row in s.tiles for t in row
                            if isinstance(t, dict) and t.get("kind") == "WEED"),
@@ -273,8 +291,7 @@ _LIVE = {
     "structures": lambda s: sum(1 for row in s.tiles for t in row
                                 if isinstance(t, dict)
                                 and t.get("kind") in ("COOP", "PASTURE")),
-    "empty": lambda s: sum(1 for y, row in enumerate(s.tiles) for x, t in enumerate(row)
-                           if t is None and s.owned((x, y))),
+    "empty": _empty_plantable,
     "shed": lambda s: s.shed_total(),
     "money": lambda s: s.money,
     "quadrants": lambda s: len(s.unlocked),

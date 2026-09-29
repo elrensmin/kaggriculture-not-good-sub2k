@@ -163,6 +163,47 @@ PYTHONPATH=. python -m tools.graph.graph_diag --run-dir diag-replays/<arm> --sec
 mechanics as the graph sees them (gap, lead, band, budget). A node that **breaks and stays
 broken** is a root the graph failed to close — that is a structural bug, not a tuning problem.
 
+## Current strategic direction — market-first, Boey as philosophy (NOT parity)
+
+**Chasing Boey's exact per-day state parity is exhausted. Stop.** Measured this sprint
+(matched pairs, 4 games each), every phase-1 knob that pushed one state node toward his
+value rippled into a negative node:
+
+| knob | ripple (via `cause_trace --effects`) |
+|---|---|
+| `STRUCTURE_HOLDBACK=6` | unfed escapes +1 (4/4), sell −$6.6k |
+| `FEED_STOCK_DAYS=2` | shed stranded +$1.1k (4/4) |
+| `WHEAT_TARGET_FROM_HERD=1` | displaces strawberry revenue |
+| `FILL_LAND=1` | idle +92 (crew cannot keep up) |
+| `SELL_FLOOR_BASE=1` | discarded +309 (holding past the peak overflows the shed) |
+
+The cause: on a 25-tile opening you cannot hold 20 crops **and** 12–20 animals **and** a
+busy crew at once. His state is a SYSTEM — cloning one node without its causes (land + herd
++ crew) just trades one leak for another. So:
+
+1. **Boey is the guiding philosophy, not the per-day target.** Buy early, sell aggressively
+   but **across the portfolio** (never dump one product), and make **wheat the driving
+   engine** (feed reserve + carry + wheat sales fund everything). Encode these as rules in
+   `src/priors.py`/`sell_policy.py`/`trade.py` and adhere to them — they are already
+   codegen'd into `src/priors.py` and `src/benchmark.py` (targeted IL, no training).
+2. **Market-first, not opponent-first.** The opponent reaches us only through the shared
+   price/shop signal (their sells lower the price; shops drain the same market for both).
+   `src/demand.py` models this exactly — react to the price, not the opponent's farm.
+3. **Targeted IL, not RL/full-IL.** `src/priors.py` + `src/benchmark.py` ARE the learned
+   model (extracted from Boey's replays). Wire them into decisions; do not train anything.
+4. **Reverse-engineer structure from the engine, do not tune.** `docs/engine_audit.md`
+   lists each `kaggriculture.py` rule against our compliance. Fix a **rule violation**
+   (e.g. the collective-PLANT over-request, fixed via `PLANT_CAP_BY_SEEDS=1`), never a
+   proxy metric.
+5. **Diagnose with the trace tool before touching a knob.** `tools/graph/cause_trace.py`
+   prints the node's `KNOBS:` (which param owns it) and `--effects BASE ARM` prints the
+   per-node ripple of a change, so the tradeoff is visible BEFORE the A/B. When a hypothesis
+   fails, the tool — not the knob — was wrong: fix the tool (this sprint found and fixed a
+   backwards `structures→animals` edge and a missing `BUY_ANIMAL` op this way).
+
+Judge every change on **`result` (WIN/LOSS)** via matched pairs (`arm_diff`), never on a
+proxy mean or a single-node move.
+
 ## HOW TO EXPERIMENT AND FIND THINGS TO WORK ON (IMPORTANT)
 
 > Read this before writing any experiment. It exists because dozens of
@@ -178,6 +219,18 @@ broken** is a root the graph failed to close — that is a structural bug, not a
    An experiment aimed at a *symptom* is the single most common way to spend a day
    and "find nothing" — the graph tells you which chain to cut, and which metrics are
    merely downstream of a root you have not touched.
+
+   **When you catch yourself A/B-ing several knobs in a row, STOP — that is the
+   signal you are guessing instead of diagnosing.** Re-run the DAG diagnostic and read
+   the actual root before the next change:
+   `PYTHONPATH=. python -m tools.graph.graph_diag --run-dir diag-replays/<arm> --section break`
+   (`break` = the first day each root goes deficient and STAYS deficient; `demand` =
+   what the graph *demands* vs what we actually did — a demand with no delivery is the
+   unplugged graph; `plug` = which modules still bypass the graph). Knob-guessing on a
+   symptom costs a full round and "finds nothing" more often than it lands a fix.
+   Form the hypothesis FROM the root the diagnostic prints, then change exactly one
+   thing, then confirm the root moved. This is the same rule as point 0, applied to
+   the *in-game* DAG (`state_graph.py`) instead of the phase DAG (`dag.py`).
 1. **Point at a measured defect first.** Hunt in `games.csv` /
    `days_seed<S>.csv` for a concrete, seed-independent leak: stranded stock at the
    bell, endgame conversion, overflow discards, missed harvests, unwatered plants,

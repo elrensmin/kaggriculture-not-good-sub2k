@@ -409,7 +409,11 @@ def plan(state):
         # until now -- the scheduler rebuilt the same list without the herd bonus, so
         # BUILD/PICKUP/PLACE (60/60/95) lost the race to PLANT/WATER (85/90) and only
         # 1 of the 5 d0 animals got placed, against Boey's 5.
-        jobs = opening.jobs(state)
+        # PLANT is the scheduler's own (`_plant_jobs` via `crop_plan.plant_queue`); the
+        # tape's `opening.jobs` stopped emitting it when its `plant_jobs` owner was
+        # deleted, so the opening branch must add it back or the d0-d5 seed ask ($690)
+        # is bought and never sown.
+        jobs = opening.jobs(state) + _plant_jobs(state, used, slices, n, limit=plant_limit)
     else:
         # EMPTY DEFICIENT -> PLANT GLOBALLY. With `PLANT_GLOBAL=0` a worker may only sow inside
         # ITS OWN BAND, so an empty tile whose band has no spare worker never gets sown -- which

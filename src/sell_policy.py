@@ -74,8 +74,25 @@ def market_intents(state):
         n = int(state.shed.get(item, 0))
         if n <= 0:
             continue
-        if not liquidating and not _sellable(item, state.inventory.get(item, params.I0)):
+        inv = state.inventory.get(item, params.I0)
+        if not liquidating and not _sellable(item, inv):
             continue
+        # SELL_FLOOR_BASE: never sell a knife-edge good below its base price. The inventory
+        # gate alone admits the part of the curve that has already crashed below base (the
+        # measured 0.9 premium-below-base leak). Hold instead; the town drain lifts the price.
+        if (not liquidating and params.at("SELL_FLOOR_BASE", state.day)
+                and market.is_knife_edge(item) and market.price(item, inv) < market.base(item)):
+            continue
+        # SELL_LOOKAHEAD: hold unless today's price beats the best price the town drain will
+        # produce within the rest of the day. The floor alone over-holds (overflow); this is
+        # the timed half -- sell at the peak, hold through the trough.
+        if not liquidating and params.at("SELL_LOOKAHEAD", state.day):
+            from . import demand
+            sell_now = demand.best_sell_now(item, inv, n, state.shops,
+                                            max(1, 24 - state.hour),
+                                            floor=market.base(item))
+            if sell_now <= 0:
+                continue
         # ADAPTIVE RATE. `TRICKLE` is a per-turn cap, and MEASURED it is BELOW our own
         # late-game production: phase-3 MILK sells 104 units at $116.8 in the shipped arm
         # and 100 units at **$73.2** in the round-6 portfolio -- same volume, 37 % worse
