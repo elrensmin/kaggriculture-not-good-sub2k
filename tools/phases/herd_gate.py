@@ -23,7 +23,7 @@ Columns:
 
 Usage:
   PYTHONPATH=. python -m tools.phases.herd_gate --pa 1-4 --batch 4
-  PYTHONPATH=. python -m tools.phases.herd_gate --days 6-17 --pa 1-3 --batch 2
+  PYTHONPATH=. python -m tools.phases.herd_gate --days 11-20 --pa 1-3 --batch 2
   PYTHONPATH=. python -m tools.phases.herd_gate --ref-from replays/Boey/v1 --ref-max 20 --team Boey
 """
 from __future__ import annotations
@@ -162,7 +162,7 @@ def main(argv=None):
     ap.add_argument("--batch", type=int, default=4, help="seeds per opponent")
     ap.add_argument("--seed", type=int, default=4362837462)
     ap.add_argument("--workers", type=int, default=None)
-    ap.add_argument("--days", default="6-17", help="day window, e.g. 6-17")
+    ap.add_argument("--days", default="11-20", help="day window, e.g. 11-20")
     ap.add_argument("--ref-from", default=None, help="replay dir to probe instead (e.g. Boey)")
     ap.add_argument("--ref-max", type=int, default=20)
     ap.add_argument("--team", default=None)

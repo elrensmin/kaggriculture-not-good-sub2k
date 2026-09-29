@@ -168,8 +168,8 @@ def trace(obj, seat, label, max_turns, show_all):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="0-5",
-                    help="day window to trace (default 0-5 = the opening)")
+    ap.add_argument("--days", default="0-10",
+                    help="day window to trace (default 0-10 = the opening)")
     ap.add_argument("--max-turns", type=int, default=72,
                     help="cap the per-turn lines printed (0 = none)")
     ap.add_argument("--no-turns", action="store_true", help="summary only")

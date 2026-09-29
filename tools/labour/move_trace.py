@@ -19,9 +19,9 @@ delivery/fetch problem.
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.move_trace --days 6-17 --dir diag-replays/arm
-  PYTHONPATH=. python -m tools.labour.move_trace --days 6-17 --pa 1 --seed 4362837462
-  PYTHONPATH=. python -m tools.labour.move_trace --days 6-17 --dir replays/DSM/v1 \
+  PYTHONPATH=. python -m tools.labour.move_trace --days 11-20 --dir diag-replays/arm
+  PYTHONPATH=. python -m tools.labour.move_trace --days 11-20 --pa 1 --seed 4362837462
+  PYTHONPATH=. python -m tools.labour.move_trace --days 11-20 --dir replays/DSM/v1 \
       --glob '*.json' --max-games 8 --seat auto --compare
 """
 from __future__ import annotations
@@ -131,7 +131,7 @@ def analyse(obj, seat, label, window_label):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="6-17", help="day window (default 6-17 = the midgame)")
+    ap.add_argument("--days", default="11-20", help="day window (default 6-17 = the midgame)")
     ap.add_argument("--pa", type=int, default=1)
     ap.add_argument("--seed", type=int, default=4362837462)
     ap.add_argument("--seat", default="auto")

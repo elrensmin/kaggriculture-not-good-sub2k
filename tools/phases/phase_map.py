@@ -5,7 +5,7 @@ The thesis this tool implements: *everything downstream has roots in the beginni
 but you only find the root by connecting the measurements*. So it does three things:
 
   1. **Runs the agent in-memory** against the public field with the episode
-     truncated at the phase boundary (d5 / d17 / the bell). The agent is stateless
+     truncated at the phase boundary (d10 / d20 / the bell). The agent is stateless
      and never reads the horizon, so a truncated game has the same d0..N behaviour
      as a full one -- and it is ~5x cheaper. No replay files, no CSVs: the metrics
      are read straight out of ``env.steps``.

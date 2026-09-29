@@ -311,8 +311,14 @@ def _free_tiles(state):
     )
 
 
-def market_intents(state):
-    """Buy seeds to keep a small in-hand buffer for every active calendar crop.
+def seed_ask(state):
+    """The midgame seed ASK, as (crop, qty) pairs -- AN ASK, NOT AN ORDER.
+
+    Returns tuples rather than BUY_SEED orders so this is not a second EMITTER of the op:
+    `plan.seed_intents` is the single owner that turns asks into orders. See
+    tools/audit/duplicate_owners.py -- the audit counts order LISTS, not asks.
+
+    Buy seeds to keep a small in-hand buffer for every active calendar crop.
 
     The buffer is capped by the tiles we could actually plant right now, plus a
     small plant-now margin. Seed inventory is cash that cannot buy the next
@@ -368,9 +374,9 @@ def market_intents(state):
         if not (params.SEED_PARTIAL_FILL or _fill):
             cost = price * want
             if spendable >= cost:
-                out.append(["BUY_SEED", crop, want])
+                out.append((crop, want))
             continue
         n = min(want, int(spendable // price)) if price else want
         if n > 0:
-            out.append(["BUY_SEED", crop, n])
+            out.append((crop, n))
     return out

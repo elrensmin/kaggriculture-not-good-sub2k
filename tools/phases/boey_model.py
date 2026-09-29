@@ -365,7 +365,7 @@ def main(argv=None):
     ap.add_argument("--ref-max", type=int, default=120)
     ap.add_argument("--ref-seat", default="auto")
     ap.add_argument("--team", default=None)
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--label", default=None)
     ap.add_argument("--out-json", default=None)
     ap.add_argument("--out-md", default=None)

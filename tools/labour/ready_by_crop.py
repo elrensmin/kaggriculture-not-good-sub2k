@@ -10,7 +10,7 @@ hour 23).
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.ready_by_crop --days 6-17 --dir diag-replays/step10-ship
+  PYTHONPATH=. python -m tools.labour.ready_by_crop --days 11-20 --dir diag-replays/step10-ship
 """
 from __future__ import annotations
 
@@ -150,7 +150,7 @@ def report(label, dirpath, seat_mode, max_games, window):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--seat", default="1")
     ap.add_argument("--max-games", type=int, default=8)

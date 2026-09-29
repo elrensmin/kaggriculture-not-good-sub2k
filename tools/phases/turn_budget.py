@@ -93,7 +93,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--phase", default="phase2")
-    ap.add_argument("--days", default=None, help="override the phase window, e.g. 6-17")
+    ap.add_argument("--days", default=None, help="override the phase window, e.g. 11-20")
     ap.add_argument("--pa", default="2,3")
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--seed", type=int, default=4362837462)

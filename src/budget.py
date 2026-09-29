@@ -66,7 +66,17 @@ def market_intents(state):
             break
         # hands+ground lockstep: buy land only when we can keep working it after
         # the purchase (cash reserve guards against a pre-revenue bankruptcy).
-        if (state.day >= params.LAND_TARGET_DAY[q]
+        # WHEN TO BUY LAND IS A PRIOR. `priors.LAND_BY_QUADRANT` derives the due day from his
+        # measured cumulative (NE d6, SW d8, SE d9). `params.LAND_TARGET_DAY` said d6/d9/d10 --
+        # the 2nd and 3rd quadrants a day late EACH, and a quadrant is 25 tiles of production.
+        # The same schedule feeds `state_graph.schedule`, so the land decision and the seed lead
+        # cannot disagree about when the ground arrives.
+        if params.at("LAND_FROM_PRIORS", state.day):
+            from . import priors as _priors
+            due = _priors.LAND_BY_QUADRANT.get(q, params.LAND_TARGET_DAY[q])
+        else:
+            due = params.LAND_TARGET_DAY[q]
+        if (state.day >= due
                 and state.money >= params.LAND_COST[q] + land_reserve + _fill_capital(state)):
             out.append(["BUY_LAND"])
         break  # one BUY_LAND per turn; the engine fills quadrants in order anyway

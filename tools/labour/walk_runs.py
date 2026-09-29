@@ -14,7 +14,7 @@ Usage
 -----
   PYTHONPATH=. python -m tools.labour.walk_runs --dir diag-replays/p2-h12 --glob '*.json'
   PYTHONPATH=. python -m tools.labour.walk_runs --dir replays/Boey/v1 --glob '*.json' --seat auto
-  PYTHONPATH=. python -m tools.labour.walk_runs --days 6-17 --dir A --compare-dir B
+  PYTHONPATH=. python -m tools.labour.walk_runs --days 11-20 --dir A --compare-dir B
 """
 from __future__ import annotations
 

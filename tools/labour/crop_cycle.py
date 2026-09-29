@@ -36,9 +36,9 @@ observation's farm, and `HARVEST` carries no crop argument — the crop is read 
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.crop_cycle --days 6-17 --dir diag-replays/arm \\
+  PYTHONPATH=. python -m tools.labour.crop_cycle --days 11-20 --dir diag-replays/arm \\
       --ref-from replays/Boey/v1 --ref-max 40 --team Boey
-  PYTHONPATH=. python -m tools.labour.crop_cycle --days 6-17 --dir /tmp/arm --seat 1
+  PYTHONPATH=. python -m tools.labour.crop_cycle --days 11-20 --dir /tmp/arm --seat 1
 """
 from __future__ import annotations
 
@@ -252,7 +252,7 @@ def report(label, dirpath, seat_mode, max_games, window, glob="*.json"):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--glob", default="*.json")
     ap.add_argument("--seat", default="1")

@@ -104,39 +104,6 @@ def _standing(state, crop):
                if isinstance(x, dict) and x.get("kind") == "PLANT" and x.get("crop") == crop)
 
 
-def tile_plan(state):
-    """Day-aware standing targets. d0-d1 sow the WHEAT feed base first; d2+ the melon /
-    strawberry mix with wheat tapering to 3. Tiles are chosen shed-outward and deterministic."""
-    return crop_target(state.day)
-
-
-def plant_jobs(state):
-    """PLANT jobs for the day's crop targets, on deterministic named tiles.
-
-    WHEAT has priority on d0-d1 (feed base); MELON/STRAWBERRY from d2 (their windows).
-    """
-    struct = _structure_positions(state)
-    order = _owned_shed_order(state)
-    empties = [p for p in order if p not in struct and state.is_empty_owned(p)]
-    target = capacity_target(state)
-    seq = (("WHEAT", "MELON") if state.day <= 1 else ("MELON", "STRAWBERRY", "WHEAT"))
-    out, i, avail = [], 0, dict(state.seeds)
-    for crop in seq:
-        want = int(target.get(crop, 0))
-        if want <= 0:
-            continue
-        plan = params.CROP_PLAN.get(crop)
-        if plan is None or not (plan["start"] <= state.day <= plan["end"]):
-            continue
-        need = max(0, want - _standing(state, crop))
-        while need > 0 and i < len(empties) and avail.get(crop, 0) > 0:
-            out.append(Job(P_PLANT, empties[i], "PLANT", crop))
-            i += 1
-            need -= 1
-            avail[crop] -= 1
-    return out
-
-
 def _herd_target(day):
     """The day's standing herd, by species.
 
@@ -247,6 +214,47 @@ def _buy_herd(state, feed_days):
     return out
 
 
+def seed_ask(state):
+    """The OPENING tape's seed ask, as (crop, qty) pairs -- AN ASK, NOT AN ORDER.
+
+    Returns tuples rather than BUY_SEED orders so this is not a second EMITTER of the
+    op: `plan.seed_intents` is the single owner that turns asks into orders. See
+    tools/audit/duplicate_owners.py -- the audit counts order lists, not asks.
+    """
+    # self-contained: these were locals of `market_intents` before the extraction
+    unfed = _unfed(state)
+    wheat = int(state.shed.get("WHEAT", 0))
+    feed_days = max(1, 3 - state.day)
+    seed_orders = []
+    if state.day <= params.OPENING_HERD_UNTIL_DAY:
+        urgent = [c for c in params.PLANT_ORDER
+                  if params.CROP_PLAN[c]["end"] - state.day <= params.WINDOW_URGENT_DAYS]
+        seq = list(crop_target(state.day).keys()) + urgent + list(params.PLANT_ORDER)
+        seen, plan_order = set(), []
+        for c in seq:
+            if c not in seen:
+                seen.add(c)
+                plan_order.append(c)
+        need_feed = max(0, unfed * feed_days - wheat)
+        # Reserve the day's un-bought animals before the seed ask -- but ONLY on d0-d1,
+        # where the seed block is funded FIRST (below, `if state.day <= 1`). From d2 the
+        # animals are funded before the seeds positionally, so reserving again starved
+        # the MELON top-up and the whole STRAWBERRY block (measured: STRAWBERRY 0 tiles
+        # and empty tiles 3 -> 10 from d4 as the harvested wheat went unreplanted).
+        reserve_animals = _animal_budget(state) if state.day <= 1 else 0
+        budget = state.money - params.FEED_PRICE_GUESS * need_feed - reserve_animals
+        for crop in plan_order:
+            n = _seed_need(state, crop)
+            if n > 0 and budget > 0:
+                price = max(1, params.CROPS[crop]["seed"])
+                k = min(n, int(budget // price))
+                if k > 0:
+                    seed_orders.append((crop, k))
+                break
+
+    return seed_orders
+
+
 def market_intents(state):
     """Opening market list in FUNDING order.
 
@@ -260,6 +268,7 @@ def market_intents(state):
     # 3->1 day reserve: zeroing it from d3 measured WORSE (animals 6->5.5, idle 13.3->15.5,
     # revenue $2,498->$2,427 -- docs/v0/sc-p1-tape20.txt): the gate's feed cover protects
     # production. Restored.
+    from . import plan as _plan
     feed_days = max(1, 3 - state.day)
     params.OPENING_BUY_FEED = True
     params.OPENING_FEED_DAYS = feed_days
@@ -322,34 +331,9 @@ def market_intents(state):
     if unfed > 0 and wheat < unfed + 2 and state.money >= 100:
         out.append(["BUY_PRODUCT", "WHEAT", min(params.FEED_BUY_CHUNK, unfed + 2 - wheat)])
 
-    # the seed order for this turn (at most one crop)
-    seed_orders = []
-    if state.day <= params.OPENING_HERD_UNTIL_DAY:
-        urgent = [c for c in params.PLANT_ORDER
-                  if params.CROP_PLAN[c]["end"] - state.day <= params.WINDOW_URGENT_DAYS]
-        seq = list(crop_target(state.day).keys()) + urgent + list(params.PLANT_ORDER)
-        seen, plan_order = set(), []
-        for c in seq:
-            if c not in seen:
-                seen.add(c)
-                plan_order.append(c)
-        need_feed = max(0, unfed * feed_days - wheat)
-        # Reserve the day's un-bought animals before the seed ask -- but ONLY on d0-d1,
-        # where the seed block is funded FIRST (below, `if state.day <= 1`). From d2 the
-        # animals are funded before the seeds positionally, so reserving again starved
-        # the MELON top-up and the whole STRAWBERRY block (measured: STRAWBERRY 0 tiles
-        # and empty tiles 3 -> 10 from d4 as the harvested wheat went unreplanted).
-        reserve_animals = _animal_budget(state) if state.day <= 1 else 0
-        budget = state.money - params.FEED_PRICE_GUESS * need_feed - reserve_animals
-        for crop in plan_order:
-            n = _seed_need(state, crop)
-            if n > 0 and budget > 0:
-                price = max(1, params.CROPS[crop]["seed"])
-                k = min(n, int(budget // price))
-                if k > 0:
-                    seed_orders.append(["BUY_SEED", crop, k])
-                break
-
+    # SEED IS DELEGATED. `plan.seed_intents` is the ONE owner of every BUY_SEED order; the
+    # opening decides only WHERE in the funding order its seeds sit.
+    seed_orders = _plan.seed_intents(state)
     if state.day <= 1:
         out += seed_orders
     if params.HERD_ENABLED:
@@ -426,7 +410,11 @@ def jobs(state):
             j = j._replace(priority=j.priority + params.OPENING_HERD_PRIORITY_BONUS)
         out.append(j)
     early = _early_harvest(state) if params.OPENING_TAPER_BOEY else []
-    return out + early + crop_plan.jobs(state) + plant_jobs(state) + endgame.jobs(state)
+    # `plant_jobs` REMOVED. It was the dormant second owner of PLANT: a CROP_BY_DAY table
+    # authored for a 25-tile farm and CLAMPED at d5, so from d6 it asked for 16 plants while we
+    # owned 75 tiles and emitted ZERO jobs. Measured: changing it left the game BYTE-IDENTICAL,
+    # which is how it was caught. `scheduler._plant_jobs` is the live owner.
+    return out + early + crop_plan.jobs(state) + endgame.jobs(state)
 
 
 def capacity_target(state):

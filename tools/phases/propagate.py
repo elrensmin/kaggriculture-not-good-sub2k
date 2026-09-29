@@ -265,7 +265,7 @@ def main(argv=None):
     ap.add_argument("--set", action="append", default=[],
                     help="node=+N (repeatable), e.g. --set wheat_tiles2=+8")
     ap.add_argument("--from-day", type=int, default=6)
-    ap.add_argument("--days", default="6-17", help="window to report/propagate (default d6-17)")
+    ap.add_argument("--days", default="11-20", help="window to report/propagate (default d11-20)")
     ap.add_argument("--to-target", action="store_true",
                     help="report the gap to the reference and what closing it implies")
     ap.add_argument("--ref-dir", default="replays/Boey/v1")

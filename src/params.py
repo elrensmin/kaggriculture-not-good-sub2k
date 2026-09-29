@@ -30,16 +30,25 @@ I0 = 10000
 # not.
 #
 # Mechanism: a knob `X` keeps its shipped value (the phase-1 / season base) and
-# `X_P2` / `X_P3` override it for days 6-17 / 18-29. `None` (the default) = no override,
+# `X_P2` / `X_P3` override it for days 11-20 / 21-29. `None` (the default) = no override,
 # so phase 1 is bit-identical until someone asks otherwise. Layers that run in more than
 # one phase must read the knob with `params.at("X", day)`, never `params.X`.
 # Both `X` and `X_P2` are SCRATCH_PARAMS-settable.
-PHASE1_LAST_DAY = 5      # the opening script's last day
-PHASE2_LAST_DAY = 17     # the midgame's last day
+# The phase boundaries. NOTE these are NOT the opening SCRIPT's length: `OPENING_HERD_UNTIL_DAY`
+# (d5) is the horizon of Boey's measured d0-d5 tape and is a separate concept -- it is the length
+# of a measured script, not a phase boundary, so it is deliberately unchanged here.
+PHASE1_LAST_DAY = 10     # phase 1 (opening)  : days 0-10
+PHASE2_LAST_DAY = 20     # phase 2 (midgame)  : days 11-20;  phase 3 (endgame): days 21-29
 
 
 def phase_of(day: int) -> int:
-    """1 = opening (d0-5), 2 = midgame (d6-17), 3 = endgame (d18-29)."""
+    """1 = opening (d0-10), 2 = midgame (d11-20), 3 = endgame (d21-29).
+
+    Historical note: measurement comments throughout this file cite windows like `d6-17` or
+    `d18-29`. Those are the windows that were ACTUALLY MEASURED under the previous boundaries
+    (PHASE1_LAST_DAY=5, PHASE2_LAST_DAY=17) and are left as-is so the evidence stays truthful;
+    they are not statements about the current phase ranges.
+    """
     if day <= PHASE1_LAST_DAY:
         return 1
     if day <= PHASE2_LAST_DAY:
@@ -1114,6 +1123,47 @@ PLANT_GLOBAL_WHEN_EMPTY_P3 = None
 SEED_FROM_EMPTY = False
 SEED_FROM_EMPTY_P2 = None
 SEED_FROM_EMPTY_P3 = None
+
+# SEED_LEAD_DAYS -- THE SEQUENCED SEED BUY. Not extra spend, the SAME spend, one day earlier.
+#
+# MEASURED (Round 31): `empty` is not a seed-budget leak, it is the PRICE of the land schedule.
+# Seed cash and land cash are the same dollar, so enlarging the seed budget is strictly negative
+# (`SEED_FILL_BUFFER=1`: $44,341 -> $30,386, $40,308 -> $24,278, $34,233 -> $20,646) -- buying
+# seed early starves the quadrant. The gap against Boey is **lead time, not quantity**: he buys
+# land and sows it the same day (19 plants on d6, `empty` 0 every day), we buy on d6/d8 with no
+# seed for the ground and it sits bare 1-2 days.
+#
+# So the seed for a quadrant is bought `SEED_LEAD_DAYS` BEFORE the land, out of the same budget,
+# and the order is placed AHEAD of BUY_LAND inside MAX_ORDERS=10 (seed is otherwise the last
+# entry and the first casualty of the cap -- the reason we bought quadrants and never sowed them).
+# Enabled, `plan.seed_lead` is the single owner of every BUY_SEED, replacing the after-land
+# buffer in `crop_plan.market_intents`, so the total ask is unchanged rather than doubled.
+# CAPEX_ALLOCATOR -- hand, seed, land and animal buys are ONE ranked list under one cash budget.
+# Remove the per-decision "when" rules and let NPV rank them: the market list is a funding order,
+# so rank IS scheduling (see plan.capex_intents).
+# GRAPH_MARKET -- route every order-emitting layer through `state_graph.apply_to_market`.
+# MEASURED: only 4/27 modules imported the graph and none of the market surfaces did, so the graph
+# could not influence land, seed, animals or sells at all. This is the one choke point that puts
+# them all under it without editing each layer.
+GRAPH_MARKET = True
+GRAPH_MARKET_P2 = None
+GRAPH_MARKET_P3 = None
+CAPEX_ALLOCATOR = False
+CAPEX_ALLOCATOR_P2 = None
+CAPEX_ALLOCATOR_P3 = None
+SEED_LEAD_ENABLED = False
+SEED_LEAD_ENABLED_P2 = None
+SEED_LEAD_ENABLED_P3 = None
+SEED_LEAD_DAYS = 1
+SEED_LEAD_DAYS_P2 = None
+SEED_LEAD_DAYS_P3 = None
+# Share of the incoming quadrant whose FEED base is bought up front. The new ground's first sow
+# is WHEAT (Boey sows the wheat base on d0 and again into each new quadrant), and wheat is $10 a
+# seed, so ~half a quadrant is $125 -- small enough to sit alongside the land money, large enough
+# that the quadrant is sowed the hour it settles instead of the day after.
+SEED_LEAD_WHEAT_SHARE = 0.5
+SEED_LEAD_WHEAT_SHARE_P2 = None
+SEED_LEAD_WHEAT_SHARE_P3 = None
 HIRE_FROM_WORKLOAD = False
 HIRE_FROM_WORKLOAD_P2 = None
 HIRE_FROM_WORKLOAD_P3 = None
@@ -1126,7 +1176,69 @@ VISIT_PLANNER_P3 = None
 ALLOC_ACTUATOR = False
 ALLOC_ACTUATOR_P2 = None
 ALLOC_ACTUATOR_P3 = None
+# ON. The graph computes a pressure per op class; `apply_to_jobs` is the ONLY thing that turns
+# those pressures into crew behaviour, and it was off, so every pressure the graph produced was
+# discarded. MEASURED (`tools/graph/graph_diag.py --section demand`): `DIG` carried the single
+# highest pressure in the whole graph (band 4.00 at d12) and the crew dug 1.0 tile a day;
+# BUILD_COOP/BUILD_PASTURE were demanded at 1.14-1.60 and delivered ZERO, which is why `animals`
+# and `structures` broke on d3 and stayed broken in 18/21 games. A graph whose actuator is off is
+# a report, not a nervous system.
+# OFF, AND THE MEASUREMENT IS THE REASON. `apply_to_jobs` multiplies each job
+# priority by its op class pressure, and it is monotonically harmful:
+#   cap 1.0 (off) $58,899 / died 59 / rev $99,078
+#   cap 1.1       $50,716 / died 56 / rev $95,313
+#   cap 1.25      $47,228 / died 54 / rev $85,257
+#   cap 1.5       $37,175 / died 58 / rev $80,002
+# It buys a few fewer deaths at a terrible exchange rate on revenue. Structural
+# reason, from the diagnostic: every node we are behind on (`empty`, `planted`,
+# `animals`) is deficient EVERY day, so their ops sit permanently boosted while a
+# SATISFIED survival node (`dry_plants`) rides at 1.0x -- the crew plants and digs
+# while the crops go dry. `job.py` already encodes the correct RELATIVE order of
+# the op classes; a second, incomparable scale destroys that calibration.
+# The graph MARKET choke point (emit.apply_to_market) is KEPT -- it measured
+# positive. The end state is for the graph to REPLACE the priority kernel, not
+# multiply it.
 STATE_GRAPH = False
+# GRAPH_STEER_CAP -- how far the graph may move a job's priority, as a multiplier.
+#
+# UNCAPPED WAS MEASURED DESTRUCTIVE ($58,899 -> $25,731 on PA=1). The reason is calibration:
+# `job.py`'s constants already encode the correct RELATIVE order of the op classes, and
+# multiplying by raw pressures (1.5-3.9) destroyed it. Every structurally-behind node is
+# deficient EVERY day -- `empty`, `planted`, `animals` -- so their ops sat permanently at 2.5-3.9x
+# while `dry_plants` was satisfied and WATER rode at 1.0x. The crew planted and dug while the
+# crops went dry (deaths 59 -> 74). The graph must NUDGE the kernel it was tuned against, not
+# overrule it: a bounded multiplier can break ties and express preference without crossing the
+# survival bands. Set to 1.0 to disable steering entirely.
+GRAPH_STEER_CAP = 1.25
+# GRAPH_DEFICIT_JOBS -- the graph's own actuator (state_graph.deficit_jobs): issue
+# a work order for a demand whose PRECONDITION EXISTS and which no layer supplied.
+# Measured: DIG carried the highest pressure in the whole graph and the crew dug
+# 1.0 tile a day, because crop_plan only emits DIG for a tile ALREADY a weed.
+# Independent of STATE_GRAPH, which controls only the harmful multiplier.
+GRAPH_DEFICIT_JOBS = True
+GRAPH_DEFICIT_JOBS_P2 = None
+GRAPH_DEFICIT_JOBS_P3 = None
+# GRAPH_KERNEL -- the graph REPLACES the priority kernel instead of multiplying it.
+# Rank the crew by DOLLARS (crew.job_value) time-ramped by the graph urgency, so there
+# is one currency and one ranking. See state_graph.value_kernel.
+# OFF. MEASURED: $42,446 vs $58,899 with it off, deaths 94 vs 59, harvests 169 vs 300.
+# Ranking the crew by normalised `crew.job_value` loses the survival ordering that
+# `job.py` encodes, so plants die. TOGETHER WITH the multiplier result (harmful at every
+# cap) this is a firm finding, not a failed attempt:  **`job.py`'s constants carry real
+# information that NEITHER graph pressure NOR a pure dollar ranking reproduces.** The
+# crew ordering is the product of a long measured tuning and must be treated as tuned
+# state, not as a placeholder. The graph's job is to be the decision engine for the
+# MARKET (measured positive, kept) and the diagnostic frame for everything else.
+GRAPH_KERNEL = False
+GRAPH_KERNEL_P2 = None
+GRAPH_KERNEL_P3 = None
+GRAPH_STEER_CAP_P2 = None
+GRAPH_STEER_CAP_P3 = None
+# LAND_FROM_PRIORS -- buy the 2nd/3rd quadrant on the day HIS measured cumulative reaches them
+# (priors.LAND_BY_QUADRANT: NE d6, SW d8, SE d9) instead of `LAND_TARGET_DAY` (d6/d9/d10).
+LAND_FROM_PRIORS = False
+LAND_FROM_PRIORS_P2 = None
+LAND_FROM_PRIORS_P3 = None
 STATE_GRAPH_P2 = None
 STATE_GRAPH_P3 = None
 BENCH_STEER = False

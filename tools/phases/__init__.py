@@ -2,7 +2,7 @@
 
 `phase_map` runs the agent in-memory against the public field, truncated at a phase
 boundary, and reports the phase's structural metrics against the #1's, then walks a
-causal DAG over them to separate root causes from downstream casualties. `--days 0-5`
+causal DAG over them to separate root causes from downstream casualties. `--days 0-10`
 scopes it to a custom window and `--dag phase1` prints the opening subgraph.
 
 `state_value` prices the state at the phase boundary (cash + shed, plus a model for

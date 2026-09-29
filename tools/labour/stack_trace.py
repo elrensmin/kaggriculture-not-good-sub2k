@@ -28,8 +28,8 @@ Pairing is the verified one: the action decided from `steps[t]["observation"]` l
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.stack_trace --days 6-17 --dir /tmp/arm-ship --seat 1
-  PYTHONPATH=. python -m tools.labour.stack_trace --days 6-17 --dir /tmp/arm-ship --seat 1 \
+  PYTHONPATH=. python -m tools.labour.stack_trace --days 11-20 --dir /tmp/arm-ship --seat 1
+  PYTHONPATH=. python -m tools.labour.stack_trace --days 11-20 --dir /tmp/arm-ship --seat 1 \
       --ref-from replays/Boey/v1 --ref-max 8 --team Boey
 """
 from __future__ import annotations
@@ -220,7 +220,7 @@ def report(label, dirpath, seat_mode, max_games, window, glob="*.json"):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--glob", default="*.json")
     ap.add_argument("--seat", default="1")

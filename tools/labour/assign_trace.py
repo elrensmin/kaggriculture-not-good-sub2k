@@ -20,9 +20,9 @@ broken one it deposits nearly every turn and the farm stalls. It also reports th
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.assign_trace --days 6-17 --pa 1
+  PYTHONPATH=. python -m tools.labour.assign_trace --days 11-20 --pa 1
   SCRATCH_PARAMS='EXACT_ASSIGN=1' PYTHONPATH=. python -m tools.labour.assign_trace \
-      --days 6-17 --pa 1          # trace the broken arm and compare
+      --days 11-20 --pa 1          # trace the broken arm and compare
 """
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _in(day):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--pa", type=int, default=1)
     ap.add_argument("--seed", type=int, default=4362837462)
     ap.add_argument("--top", type=int, default=6, help="days to print in the per-day table")

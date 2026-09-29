@@ -90,10 +90,19 @@ def pressure(metric, day, ours, slope=1.0, cap=4.0, width=None):
     w = width if width else ((hi - lo) or max(1.0, abs(mid) * 0.25))
     return min(cap, 1.0 + slope * (excess / max(1e-9, w)))
 '''
-TARGET_METRICS = ("plants_died", "weeds_max", "animals_escaped", "discarded_units",
-                  "max_shed_total", "end_shed_total", "idle_share_pct", "unit_turns",
-                  "end_money", "premium_below_base_frac", "feed_surplus",
-                  "plants_watered", "plants_fertilized", "animals_fed", "animals_cared")
+# EVERY measured column becomes a target. The previous list was a hand-picked subset and it
+# silently dropped the ones the decision engine needed most: `n_move` and `n_pass` (the ACTS
+# chain), `hires`/`hands_end` (the crew), `plants_planted_*` (the planting rate) and `revenue`
+# (the conversion). A target that is not in this table cannot be steered to, so a subset here
+# is a blind spot in the graph. Derived from the JSON, never hand-listed again.
+TARGET_METRICS = None
+
+
+def _all_metrics(bench):
+    ks = set()
+    for _d, row in bench.items():
+        ks |= {k for k, v in row.items() if isinstance(v, dict) and v.get("p50") is not None}
+    return tuple(sorted(ks))
 SIGNALS = {
     "weeds": ("weeds_max", "DIG"),
     "plants_at_risk": ("plants_died", "WATER"),
@@ -110,8 +119,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     b = json.load(open(a.json))
     days = sorted(int(d) for d in b)
+    metrics = TARGET_METRICS or _all_metrics(b)
     T = {}
-    for m in TARGET_METRICS:
+    for m in metrics:
         rows = {}
         for d in days:
             c = b.get(str(d), {}).get(m)

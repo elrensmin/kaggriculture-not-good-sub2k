@@ -20,8 +20,8 @@ Output per tile-day (crops) and per animal-day (herd) come from the same run, so
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.production --days 6-17 --dir diag-replays/step10-ship
-  PYTHONPATH=. python -m tools.labour.production --days 6-17 --dir diag-replays/step10-ship \
+  PYTHONPATH=. python -m tools.labour.production --days 11-20 --dir diag-replays/step10-ship
+  PYTHONPATH=. python -m tools.labour.production --days 11-20 --dir diag-replays/step10-ship \
       --ref-from replays/Boey/v1 --ref-max 12
 """
 from __future__ import annotations
@@ -143,7 +143,7 @@ def report(label, dirpath, seat_mode, max_games, window):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--seat", default="1")
     ap.add_argument("--max-games", type=int, default=8)

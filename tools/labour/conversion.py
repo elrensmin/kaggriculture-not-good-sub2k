@@ -264,7 +264,7 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True)
     ap.add_argument("--glob", default="*.json")
-    ap.add_argument("--days", default="11-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--seat", default="auto")
     ap.add_argument("--team", default="Boey")
     ap.add_argument("--max-games", type=int, default=2)

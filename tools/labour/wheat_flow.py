@@ -15,8 +15,8 @@ that produced nothing: 32 standing tiles mean nothing if they weed.
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.labour.wheat_flow --days 6-17 --dir diag-replays/arm
-  PYTHONPATH=. python -m tools.labour.wheat_flow --days 6-17 --dir replays/DSM/v1 \
+  PYTHONPATH=. python -m tools.labour.wheat_flow --days 11-20 --dir diag-replays/arm
+  PYTHONPATH=. python -m tools.labour.wheat_flow --days 11-20 --dir replays/DSM/v1 \
       --glob '*.json' --max-games 4 --seat auto
   PYTHONPATH=. python -m tools.labour.wheat_flow --days 0-29 --compare --dsm-max 4
 """
@@ -155,7 +155,7 @@ def report(rows, label, win):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", default=None)
     ap.add_argument("--glob", default="*.json")
     ap.add_argument("--max-games", type=int, default=4)

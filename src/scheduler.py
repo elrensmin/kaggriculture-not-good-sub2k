@@ -382,27 +382,6 @@ def _pick(jobs, assigned, pos, inv, only_delivery, prefer=None, claimed=None,
     return None
 
 
-def _urgent_window_seeds(state):
-    """BUY_SEED orders for crops whose planting window closes within WINDOW_URGENT_DAYS.
-
-    Returned so `plan` can place them immediately after the sells (and ahead of hires,
-    the herd and the discretionary seed buffer), because the market list is capped at
-    MAX_ORDERS=10 and the seed ask is otherwise the first entry dropped.
-    """
-    out = []
-    for crop in params.PLANT_ORDER:
-        plan = params.CROP_PLAN.get(crop)
-        if plan is None:
-            continue
-        if plan["end"] - state.day > params.WINDOW_URGENT_DAYS:
-            continue
-        have = int(state.seeds.get(crop, 0))
-        deficit = plan["target"] - have     # coarse: the market layer buys the rest
-        if deficit > 0:
-            out.append(["BUY_SEED", crop, min(deficit, 8)])
-    return out
-
-
 def plan(state):
     cost = routing.default_cost(state)
     n = state.unit_count()
@@ -485,7 +464,25 @@ def plan(state):
     # STATE GRAPH: the benchmark heuristics (docs/boey_bench.md / docs/boey_priors.md) as a
     # causal graph evaluated IN-STATE with a time dimension, re-weighting priorities so the
     # machine is forced toward his curves. See src/state_graph.py.
-    if params.at("STATE_GRAPH", state.day):
+    # THE GRAPH'S ACTUATOR, on its own gate. It issues a work order for a demand whose
+    # PRECONDITION EXISTS and which no layer supplied -- see state_graph.deficit_jobs. Kept
+    # independent of STATE_GRAPH, which controls only the priority MULTIPLIER (measured harmful
+    # at every cap: 1.0 $58,899 -> 1.25 $47,228 -> 1.5 $37,175).
+    if params.at("GRAPH_DEFICIT_JOBS", state.day):
+        from . import state_graph
+        try:
+            jobs = jobs + state_graph.deficit_jobs(state, jobs)
+        except Exception:                                      # noqa: BLE001
+            pass
+    if params.at("GRAPH_KERNEL", state.day):
+        # THE GRAPH REPLACES THE KERNEL: rank by dollars, ramped by the graph's deadline urgency.
+        from . import state_graph
+        try:
+            jobs = state_graph.value_kernel(jobs, state)
+        except Exception:                                      # noqa: BLE001
+            pass
+    elif params.at("STATE_GRAPH", state.day):
+        # the old multiplier -- measured harmful at every cap, kept only to A/B against it
         from . import state_graph
         jobs = state_graph.apply_to_jobs(jobs, state)
     # Binding-root controller: re-weight every job by how far its op class is behind
@@ -824,45 +821,50 @@ def plan(state):
     # and land in the list. `budget.market_intents` refuses a hand it cannot afford, so
     # front-running it cannot overspend. See params.MARKET_HIRE_FIRST_HOURS.
     _hire_first = state.hour < int(params.at("MARKET_HIRE_FIRST_HOURS", state.day))
+    # ============================================================================================
+    # THE MARKET LIST **IS** THE FUNDING ORDER. `emit` truncates at `MAX_ORDERS=10` and drops the
+    # tail SILENTLY, so a position is a decision: sells are the only inflow and must stay first,
+    # and everything after them is ordered by graph pressure in `emit.apply_to_market`.
+    #
+    # SEED HAS EXACTLY ONE OWNER: `plan.seed_intents`. It used to have SIX emitters
+    # (`crop_plan.market_intents`, `opening.market_intents`, an `opening` helper, `plan.seed_lead`,
+    # `plan.capex_intents`, `scheduler._urgent_window_seeds`) -- which is why every seed
+    # experiment came back weak or byte-identical: each was one of six competing claims.
+    # The other five are now ASKERS returning `(crop, qty)` and own no order.
+    # ============================================================================================
+    def _seeds():
+        try:
+            from . import plan as plan_mod
+            return list(plan_mod.seed_intents(state))
+        except Exception:                                      # noqa: BLE001
+            return []
+
     if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
-        # The tape owns the opening market list (sells + full seed basket in one ordered
-        # block); the per-turn layers do not also jostle for the 10 slots.
+        # The tape owns the opening list (sells + its seed position); the per-turn layers do not
+        # also jostle for the 10 slots. `opening.market_intents` calls `plan.seed_intents` itself.
         market = list(opening.market_intents(state))
         market += budget.market_intents(state)
     elif _hire_first:
-        market = list(budget.market_intents(state))
-        market += list(sell_policy.market_intents(state))
+        # SELLS, then SEED (ahead of the land/hire block: it is ~$125 of WHEAT and must settle
+        # before BUY_LAND eats the cash), then land/hires.
+        market = list(sell_policy.market_intents(state))
+        market += _seeds()
+        market += list(budget.market_intents(state))
         market += trade.sell_intents(state) if params.TRADE_MIDGAME else []
         if params.HERD_ENABLED:
             market += herd_plan.market_intents(state)
-        market += crop_plan.market_intents(state)
     else:
         market = list(sell_policy.market_intents(state))
-        # SEED BEFORE DISCRETIONARY BUYS. `empty` deficient -> the op class is BUY_SEED, and the
-        # ask is `empty_tiles x the recipe crop's seed`. Slotted immediately after the SELLS (the
-        # only inflow) and AHEAD of hires/animals/feed, because an empty owned tile is a rent --
-        # it spawns weeds, lengthens every trip and earns nothing. Emitted last, it was the first
-        # thing dropped by the MAX_ORDERS=10 cap, which is why we bought quadrants and never
-        # sowed them.
-        if params.at("SEED_FROM_EMPTY", state.day):
-            try:
-                from . import plan as plan_mod
-                for crop_s, qty_s in plan_mod.seed_need(state):
-                    market.append(["BUY_SEED", crop_s, qty_s])
-            except Exception:                             # noqa: BLE001
-                pass
-        # THE CARRY RUNS ALL SEASON, not just the opening. It was wired only into the
-        # tape (d0-d5), so 24 of 30 days had no market engine: `sell_policy` sold WHEAT
-        # at TRICKLE and nothing ever bought it back. Boey's 6,786 wheat sales a season
-        # are the same carry, run continuously. Its sell half sits with the other
-        # inflows; its buy half is emitted last, with the herd's feed reserved.
+        # THE CARRY RUNS ALL SEASON, not just the opening: Boey's 6,786 wheat sales are the same
+        # carry run continuously. Its sell half sits with the other inflows.
         market += trade.sell_intents(state) if params.TRADE_MIDGAME else []
-        if params.WINDOW_SEED_FIRST:
-            market += _urgent_window_seeds(state)
+        # SEED BEFORE THE LAND. This ordering IS the fix for `quadrants bought and never sown`:
+        # the land days are when cash is tightest, so a seed order emitted after BUY_LAND was the
+        # first casualty of the MAX_ORDERS cap.
+        market += _seeds()
         market += budget.market_intents(state)
         if params.HERD_ENABLED:
             market += herd_plan.market_intents(state)
-        market += crop_plan.market_intents(state)
     market += crop_plan.fertilizer_buy_intent(state)
     market += endgame.market_intents(state)
     if params.TRADE_MIDGAME and not (params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY):

@@ -121,3 +121,96 @@ def tolerance(kind):
     """How far a plan may sit from a target before it needs a priced justification."""
     return dict(cash=0.0, land=0, animals=2.0, crops=4.0, hires=2,
                 fert=4).get(kind, 0.0)
+
+
+# ============================================================================ LAND PLAN
+# WHEN TO BUY LAND. Derived from the measured cumulative so it cannot drift from the data:
+#   LAND_CUM  d5 0 -> d6 1 -> d8 2 -> d9 3   =>   NE due d6, SW due d8, SE due d9
+# This is what lets the land decision be a SCHEDULE the graph can look ahead along, instead of
+# a hand-set `params.LAND_TARGET_DAY`.
+_LAND_ORDER = ("NE", "SW", "SE")
+
+
+def _land_schedule():
+    out, prev = {}, 0.0
+    for day in sorted(LAND_CUM):
+        cur = LAND_CUM[day]
+        if cur > prev:
+            for i in range(int(prev), int(cur)):
+                if i < len(_LAND_ORDER):
+                    out[_LAND_ORDER[i]] = day
+            prev = cur
+    return out
+
+
+LAND_BY_QUADRANT = _land_schedule()
+
+
+def land_due_day(owned_quadrants):
+    """The day the NEXT quadrant is due, or None when the land plan is complete."""
+    for i in range(int(owned_quadrants), len(_LAND_ORDER)):
+        d = LAND_BY_QUADRANT.get(_LAND_ORDER[i])
+        if d is not None:
+            return d
+    return None
+
+
+def land_lead(day, owned_quadrants):
+    """Days until the next quadrant is due. NEGATIVE = overdue, None = complete.
+
+    The single number the land decision and the seed lead both read, so the two cannot
+    disagree about when the ground arrives.
+    """
+    d = land_due_day(owned_quadrants)
+    return None if d is None else d - int(day)
+
+
+# ============================================================================ THE OPS CHAIN
+# The measured targets behind `acts -> watering -> production -> revenue`. These are FLOWS, so
+# they cannot be read from a single observation -- but they are exactly what the crew has to
+# hit, so the graph compares the STOCK that drives each flow against the flow target.
+def _bench_med(metric, day):
+    from . import benchmark
+    return benchmark.target(metric, day)
+
+
+def water_target(day):
+    """plants_watered -- the watering head of the chain."""
+    return _bench_med("plants_watered", day)
+
+
+def fert_target_bench(day):
+    """plants_fertilized -- the yield multiplier."""
+    return _bench_med("plants_fertilized", day)
+
+
+def hire_ops_target(day):
+    """hires -- the crew he rebuilds each morning (the crew is wiped nightly)."""
+    return _bench_med("hires", day)
+
+
+def hands_target(day):
+    """hands_end -- the crew size he runs with. The `labour` node's target."""
+    return _bench_med("hands_end", day)
+
+
+def revenue_target(day):
+    """revenue -- the conversion target for the `revenue_per_day` node."""
+    return _bench_med("revenue", day)
+
+
+def acts_target(day):
+    """Acting turns in the day = unit_turns - n_move - n_pass.
+
+    The head of the chain: d10 -> 297 - 135 - 5 = 157, which matches the measured 127-163
+    range. This is the number every downstream target is gated by.
+    """
+    ut, mv, ps = _bench_med("unit_turns", day), _bench_med("n_move", day), _bench_med("n_pass", day)
+    if ut is None:
+        return None
+    return ut - (mv or 0.0) - (ps or 0.0)
+
+
+def move_target(day):
+    """n_move -- his walking. Ours is the cost we are trying to remove."""
+    return _bench_med("n_move", day)

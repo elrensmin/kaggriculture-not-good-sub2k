@@ -11,8 +11,8 @@ replay and ours are measured identically.
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.report.phase_sells --days 6-17 --dir diag-replays/step10-ship
-  PYTHONPATH=. python -m tools.report.phase_sells --days 6-17 --dir replays/Boey/v1 --seat auto
+  PYTHONPATH=. python -m tools.report.phase_sells --days 11-20 --dir diag-replays/step10-ship
+  PYTHONPATH=. python -m tools.report.phase_sells --days 11-20 --dir replays/Boey/v1 --seat auto
 """
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def merge(mine, theirs):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--seat", default="1")
     ap.add_argument("--glob", default="*.json")

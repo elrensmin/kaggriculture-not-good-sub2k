@@ -22,6 +22,7 @@ turn -- with the graph as its objective function and the priors as its default:
 from __future__ import annotations
 
 import collections
+from collections import defaultdict
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS
 
@@ -229,6 +230,9 @@ def seed_need(state, prices=None):
     return [(crop, n)] if n > 0 else []
 
 
+# ============================================================================ THE FILL MODEL
+
+
 def days_left(state):
     return max(0, 29 - int(state.day))
 
@@ -246,21 +250,75 @@ def capex(state, prices):
         return []
     out = []
     # land: LAND_PRICES[0, 2000, 4000] for the 2nd/3rd/4th quadrant, 25 tiles each
-    from kaggle_environments.envs.kaggriculture.kaggriculture import LAND_PRICES
+    from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS, LAND_PRICES
     owned_q = len(state.unlocked)
     if owned_q < 4:
         cost = LAND_PRICES[max(0, owned_q - 1)]
         per_tile = recipes.best_crop_per_tile_day(prices, state.day)[1]
         npv = 25 * per_tile * d - cost
         if npv > 0:
-            out.append(("BUY_LAND", None, npv))
+            out.append(("BUY_LAND", None, npv, float(cost)))
     # animals: the recipe for the herd, minus feed
     for sp in ANIMALS:
         v = value.animal_value(sp, state.day, prices.get(
             {"COW": "MILK", "SHEEP": "WOOL", "GOOSE": "EGG"}[sp], 0.0),
             prices.get("FERTILIZER", 0.0), d, prices.get("WHEAT", 0.0))
         if v > 0:
-            out.append(("BUY_ANIMAL", sp, v))
+            out.append(("BUY_ANIMAL", sp, v, float(ANIMALS[sp].get("cost", 0.0))))
+    # ---- SEEDS. Seed is CAPITAL, exactly like a hand or a quadrant ----------------------
+    # A seed costs dollars and returns tile-days of production for the rest of the horizon, so it
+    # is one more claim on the LAST DOLLAR and belongs in this list, ranked by the same NPV as
+    # land and animals. Modelling it as a special case with its own day offset was the mistake:
+    # it made "when to buy seed" a hand-set constant instead of a consequence of the schedule.
+    #
+    # Ranking it here also makes the ORDERING problem disappear. Seed was emitted LAST in the
+    # market list and BUY_LAND ate the cash first, so on exactly the land days -- when cash is
+    # tightest -- the seed ask was the first casualty of MAX_ORDERS=10 and the quadrant landed
+    # bare. A $10 wheat seed into ground we already own pays back inside its 3-day cycle, so its
+    # NPV per dollar beats a $1,000 quadrant's over a short horizon and it sorts ABOVE BUY_LAND
+    # on merit. The ordering fix and the timing fix are the same fix.
+    #
+    # The CLAIM is sized by the graph's PROJECTED empty -- bare tiles now plus every quadrant the
+    # schedule says is arriving -- and scaled by the graph's pressure on `empty`, which is itself
+    # anticipatory. So the seed claim appears while there is still time to act on it, and the lead
+    # day comes from `state_graph.schedule`, never from a knob.
+    try:
+        from . import state_graph as _sg
+        gap = float(_sg.projected_empty(state))
+        press = float(_sg.pressures(state).get("BUY_SEED", 1.0))
+    except Exception:                                         # noqa: BLE001
+        gap, press = 0.0, 1.0
+    if gap > 0:
+        for crop in CROPS:
+            spec = params.CROP_PLAN.get(crop)
+            if spec and not (spec["start"] <= state.day <= spec["end"]):
+                continue
+            # MINUS THE SEED ALREADY IN THE SHED. Without this the claim is re-issued in full
+            # every turn and the farm buys 38 strawberry seeds a turn forever -- MEASURED, seed
+            # cost went $6,750-$8,370 a game to $26,070-$30,470 and the median bank halved
+            # ($37,270 -> $19,702). Seed is INVENTORY, so the claim is a SHORTFALL, not a level.
+            tiles = int(max(0.0, gap - float(state.seeds.get(crop, 0))))
+            if tiles <= 0:
+                continue
+            # and never past what the crop plan itself wants standing
+            if spec:
+                tiles = min(tiles, int(max(0, spec["target"] -
+                                            sum(1 for row in state.tiles for t in row
+                                                if isinstance(t, dict) and t.get("kind") == "PLANT"
+                                                and t.get("crop") == crop))))
+            if tiles <= 0:
+                continue
+            cyc = value.cycle_days(crop)
+            if cyc <= 0:
+                continue
+            units, seed_in = value.cycle_revenue(crop)
+            margin = units * float(prices.get(crop, 0.0)) - seed_in
+            if margin <= 0:
+                continue
+            seed_cost = float(CROPS[crop]["seed"]) * tiles
+            npv = tiles * (margin / cyc) * d - seed_cost
+            if npv > 0:
+                out.append(("BUY_SEED", crop, npv * press, seed_cost))
     return sorted(out, key=lambda t: -t[2])
 
 
@@ -336,3 +394,132 @@ def fill_report(state):
     return (f"empty {g['empty']:>3}  sowable {g['sowable']:>3}  "
             f"seeds {g['seed_cap']:>3}  turns {g['turn_cap']:>4} "
             f"({g['units']}u x {g['turns_left']}h)  BINDING {g['binding']}")
+
+
+# ============================================================================ SEQUENCED SEED BUY
+
+
+# ============================================================================ THE SEED OWNER
+def _window_ask(state):
+    """Ask for crops whose planting window closes within WINDOW_URGENT_DAYS.
+
+    Lifted out of `scheduler._urgent_window_seeds`, which was one of six BUY_SEED emitters.
+    The urgency logic is right; owning the ORDER was not its job.
+    """
+    out = []
+    for crop in params.PLANT_ORDER:
+        spec = params.CROP_PLAN.get(crop)
+        if spec is None:
+            continue
+        if spec["end"] - state.day > params.WINDOW_URGENT_DAYS:
+            continue
+        deficit = spec["target"] - int(state.seeds.get(crop, 0))
+        if deficit > 0:
+            out.append((crop, min(deficit, 8)))
+    return out
+
+
+def _lead_ask(state):
+    """Ask for the WHEAT feed base of the incoming quadrant, funded from the surplus above the
+    land threshold. See params.SEED_LEAD_ENABLED and plan.fill_gates."""
+    if not params.at("SEED_LEAD_ENABLED", state.day):
+        return []
+    from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS as _CROPS
+    from . import crop_plan, herd_plan
+    base = crop_plan.seed_ask(state)
+    owned = set(state.unlocked)
+    nxt = next((q for q in ("NE", "SW", "SE") if q not in owned), None)
+    if nxt is None:
+        return []
+    lead = int(params.at("SEED_LEAD_DAYS", state.day))
+    if state.day + lead < params.LAND_TARGET_DAY[nxt]:
+        return []
+    share = float(params.at("SEED_LEAD_WHEAT_SHARE", state.day))
+    want = max(0, int(round(25 * share)) - int(state.seeds.get("WHEAT", 0))
+               - sum(int(q) for c, q in base if c == "WHEAT"))
+    if want <= 0:
+        return []
+    reserve = (params.CASH_RESERVE_OPENING
+               if state.day <= params.OPENING_HERD_UNTIL_DAY else params.CASH_RESERVE)
+    land_reserve = params.at("LAND_CASH_RESERVE", state.day)
+    if land_reserve is None:
+        land_reserve = reserve
+    keep = float(params.LAND_COST[nxt]) + float(land_reserve)
+    spendable = min(state.money - herd_plan.feed_reserve(state), state.money - keep)
+    price = float(_CROPS["WHEAT"]["seed"])
+    n = max(0, min(want, int(spendable // price))) if price > 0 else want
+    return [("WHEAT", n)] if n > 0 else []
+
+
+def _capex_ask(state):
+    """Ask from the value-ranked capex list, funded only from the surplus ABOVE the atomic
+    claims (land is indivisible; seed is not). See params.CAPEX_ALLOCATOR."""
+    if not params.at("CAPEX_ALLOCATOR", state.day):
+        return []
+    from . import crew, herd_plan
+    from . import state_graph as _sg
+    from kaggle_environments.envs.kaggriculture.kaggriculture import CROPS as _CROPS
+    budget = state.money - herd_plan.feed_reserve(state)
+    land_reserve = float(params.at("LAND_CASH_RESERVE", state.day) or 0.0)
+    for op, _off, arg in _sg.schedule(state):
+        if op == "BUY_LAND":
+            need = float(params.LAND_COST.get(arg, 0.0)) + land_reserve
+            if state.money >= need:
+                budget -= need
+    if budget <= 0:
+        return []
+    out = []
+    for op, item, _npv, dollars in capex(state, crew.prices(state)):
+        if op != "BUY_SEED" or not item:
+            continue
+        price = float(_CROPS[item]["seed"])
+        if price <= 0:
+            continue
+        n = int(min(dollars, budget) // price)
+        if n > 0:
+            out.append((item, n))
+            budget -= n * price
+    return out
+
+
+def seed_intents(state):
+    """*** THE SINGLE OWNER OF EVERY `BUY_SEED` ORDER. ***
+
+    MEASURED: this decision had SIX emitters -- `crop_plan.market_intents`,
+    `opening.market_intents`, a helper in `opening`, `plan.seed_lead`, `plan.capex_intents`
+    and `scheduler._urgent_window_seeds` (tools/audit/duplicate_owners.py --section ops).
+    That is why every seed experiment this round came back weak or byte-identical: each was
+    one of six competing claims on the same decision, and whichever ran won.
+
+    The other five are now ASKERS: they return `(crop, qty)` pairs and own no order. This
+    function is the only place a `["BUY_SEED", ...]` list is constructed, so the funding
+    order, the budget and the graph's pressure all meet in exactly one place.
+
+    Per crop the ask is the SUM of the contributors, CAPPED by the crop plan's own standing
+    target. MAX was tried first and cost $16,159 ($58,899 -> $42,756, revenue $99,078 ->
+    $84,400, idle 2.5 -> 7.9): the contributors are not redundant, they are *partial* asks
+    (the buffer wants a floor, the window ask wants urgency, the lead wants the feed base), so
+    taking the max discards the ones that asked for more. The cap is what stops the sum from
+    becoming an over-buy that trips the engine's collective-PLANT rule, which voids the WHOLE
+    batch for a crop when the requests exceed the seeds held.
+    """
+    from . import crop_plan, opening
+    asks = defaultdict(int)
+    try:
+        if params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY:
+            for c, n in opening.seed_ask(state):
+                asks[c] += int(n)
+        else:
+            for fn in (_window_ask, crop_plan.seed_ask, _lead_ask, _capex_ask):
+                try:
+                    for c, n in fn(state):
+                        asks[c] += int(n)
+                except Exception:                              # noqa: BLE001
+                    pass
+    except Exception:                                          # noqa: BLE001
+        return []
+    # NO standing cap: the contributors already express deficits, and capping on STANDING
+    # (rather than on the ask) suppressed the replant/feed top-up whenever the farm was at
+    # target -- which is exactly when a harvest is about to free a tile.
+    return [["BUY_SEED", c, n] for c, n in
+            sorted(asks.items(), key=lambda kv: -kv[1]) if n > 0]

@@ -37,6 +37,15 @@ def assemble(state, ops, market):
     hands += [["PASS"]] * max(0, n_units - 1 - len(hands))
     units = [farmer] + hands
     plant_guard(units, state.seeds)
+    # THE MARKET CHOKE POINT. Every order-emitting layer's list passes through the graph here,
+    # so funding priority is decided by graph pressure instead of by the order the layers happen
+    # to be concatenated in `scheduler`. See `state_graph.apply_to_market`.
+    try:
+        if params.at("GRAPH_MARKET", state.day):
+            from . import state_graph as _sg
+            market = _sg.apply_to_market(market, state)
+    except Exception:                                          # noqa: BLE001
+        pass
     mkt = [m for m in market if isinstance(m, list) and m][: params.MAX_ORDERS]
     return {"farmer": units[0], "hands": units[1:], "market": mkt}
 

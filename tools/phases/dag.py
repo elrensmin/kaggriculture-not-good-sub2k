@@ -28,11 +28,12 @@ from __future__ import annotations
 # the structural state at the boundary.
 # ---------------------------------------------------------------------------
 PHASES = {
-    "phase1": {"name": "opening",  "days": (0, 5),  "steps": 144,
+    # steps = (last_day + 1) * 24 -- the game is truncated at the phase's last day.
+    "phase1": {"name": "opening",  "days": (0, 10),  "steps": 264,
                "question": "did we commit the land, the crew and the first production?"},
-    "phase2": {"name": "midgame",  "days": (6, 17), "steps": 432,
+    "phase2": {"name": "midgame",  "days": (11, 20), "steps": 504,
                "question": "is the farm big, watered, fed and harvested?"},
-    "phase3": {"name": "endgame",  "days": (18, 29), "steps": 720,
+    "phase3": {"name": "endgame",  "days": (21, 29), "steps": 720,
                "question": "did we convert the farm into sold goods and release the herd?"},
 }
 

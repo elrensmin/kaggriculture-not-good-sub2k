@@ -8,11 +8,31 @@ puts it on `sys.path` itself).
 | group | question it answers |
 |---|---|
 | `tools/diagnose/` | run the agent, write replays + CSVs, re-diagnose saves, render graphs |
+| `graph/` | **is the state graph actually driving the agent, and where do we diverge from Boey?** See `graph/README.md` |
+| `audit/` | which decisions have more than one owner, and what is dead? |
 | `gates/` | did this change help, and what else did it break? |
 | `report/` | what does the #1 actually do, and where by day do we lose? |
 | `market/` | what did we sell, at what price, and who bought it? |
 | `labour/` | where are the wasted turns? |
 | `fetch/` | pull live tournament opponents and their replays from Kaggle |
+
+### The graph tools — start here when the agent "feels wrong"
+
+`tools/graph/` and `tools/audit/` are the diagnostics for the decision engine itself. They find
+**structural** bugs — a node with no reader, a demand with no actuator, a knob nobody reads, a
+decision with two owners — which no CSV column can show you.
+
+```bash
+PYTHONPATH=. python -m tools.graph.graph_diag   --run-dir diag-replays/<arm> --section break
+PYTHONPATH=. python -m tools.graph.transplant_diff --max-games 8 --days 4-12 --section diff
+PYTHONPATH=. python -m tools.audit.duplicate_owners --section ops
+```
+
+Full usage, the invariants to re-check after any change, and the measured findings behind them are
+in **`tools/graph/README.md`**. The headline results so far: only 4 of 27 `src/` modules imported the
+graph and none of the market layers; two graph nodes were **dead** (silently removing SELL, HARVEST
+and HIRE from its reach); `dry_plants` counted *every plant at hour 0* and stayed broken from d1 in
+16/17 games; and `BUY_SEED` had **seven** competing owners.
 
 ## Read this before quoting any number
 
@@ -73,7 +93,7 @@ any more; A/B testing is two run dirs plus `report/arm_diff.py` (below).
 
 `phase_map` is the tool for **fixing the game from the beginning**. It runs the agent
 in-memory against the public field with the episode **truncated at a phase boundary**
-(d5 / d17 / the bell) and measures only *structural* metrics — land, crew, crops,
+(d10 / d20 / the bell) and measures only *structural* metrics — land, crew, crops,
 animals, water, feed, weeds, shed, throughput — against the #1's measured per-day
 state. Then it walks an explicit **causal DAG** (`tools/phases/dag.py`) and separates
 **roots** (deficient with a healthy upstream) from **symptoms** (deficient because an
@@ -94,7 +114,7 @@ full one — so a phase run costs a fraction of a full sweep.
 | `--replay-dir D` / `--replay F` | analyse SAVED games instead of running them |
 | `--seat auto\|0\|1` | which seat to analyse (`auto` finds the team named DSM) |
 | `--ref-from D` `--ref-max N` | derive the targets from another arm's replays |
-| `--days 0-5` | **custom day window, overrides `--phase`** (e.g. `0-5`, `0-5,12-17`); the same flag is on every labour/market/report analysis tool |
+| `--days 0-10` | **custom day window, overrides `--phase`** (e.g. `0-10`, `0-10,12-17`); the same flag is on every labour/market/report analysis tool |
 | `--spread` | also print **p10 / p25 / median / p75 / p90 / min / max** per metric for ours and the reference arm. Use it: a median over a bimodal population hides the defect you are hunting. The opening is near-deterministic (every metric `min == max`), but d6+ is not — **run d6+ at `--batch 4 --spread`, never `--batch 1`** |
 | `--dag phase1` | print only that phase's subgraph plus the edges **leaving** it |
 
@@ -147,7 +167,7 @@ idle%/crop tiles), reduced over the phase with the **same aggregation** as ours,
 comparison is tool-internal. Metrics with no counterpart in his table are reported
 **without a status** and can never be roots.
 
-Add `--days 0-5` (or `0-5,12-17`) to override `--phase` with a custom window, and
+Add `--days 0-10` (or `0-10,12-17`) to override `--phase` with a custom window, and
 `--dag phase1` to print only the opening subgraph plus the edges *leaving* it (the
 opening's downstream reach). Every analysis tool in `tools/` takes `--days` too, so
 "the opening only" is one flag everywhere.
@@ -195,7 +215,7 @@ gap: the share of harvests that were **fertilized**, the fertilized-vs-unfertili
 split, water-days per cycle, missed bonus-window days, and the implied units/tile-day.
 
 ```bash
-PYTHONPATH=. python -m tools.labour.crop_cycle --days 6-17 --dir diag-replays/arm \
+PYTHONPATH=. python -m tools.labour.crop_cycle --days 11-20 --dir diag-replays/arm \
     --ref-from replays/Boey/v1 --ref-max 40 --team Boey
 ```
 
@@ -425,11 +445,11 @@ PYTHONPATH=. python -m tools.report.dsm_profile --compare \
 | `missed_work.py` | Enumerates, per turn, the farm work that exists but is not being done (WATER / HARVEST / FEED / CARE / FERT / DIG), incl. the exact steps. | `python -m tools.labour.missed_work --dir D --glob 'scratch_vs_*.json' --summary-only` |
 | `idle_pool.py` | Classifies every idle (PASS) turn by how it could be recovered — no-movement vs needs-movement vs not recoverable. | `python -m tools.labour.idle_pool --dir D --glob 'scratch_vs_*.json' --summary-only` |
 | `unit_trace.py` | **The one that found the d0 livelock.** Per-unit, per-turn op + inventory timeline (farmer + hands), with a per-unit `(op, item)` tally, `PICKUP -> DROP` round trips (carried for nothing) and turns spent holding an item while only moving. Live or replay, so it runs on the #1's games too. Aggregate tools cannot see this: a PICKUP and a DROP both look like work. | `python -m tools.labour.unit_trace --days 0-0 --max-turns 26` · `... --dir replays/DSM/v1 --glob '*.json'` · `... --no-turns` for the summary |
-| `wheat_flow.py` | **Where the wheat goes.** Tiles -> PLANT ops -> HARVEST ops -> units fed / bought / sold, plus **wheat tiles that died unharvested** and a **per-hire work split** (FEED vs FIELD vs CARE), so "is the feeding scheduled onto the right worker" is answerable. It found that we lose 25 wheat tiles a game to weeds against the #1's 1, and that he spreads feeding across 13 units while we funnel 81 % of it onto the farmer. | `python -m tools.labour.wheat_flow --days 6-17 --dir diag-replays/arm --compare --dsm-max 4` |
-| `stack_trace.py` | **Tile-day completion: does a visit finish the tile, or split it?** Groups every op into visits (one unit, one tile, consecutive turns) and reports `ops/visit`, `extra trips`, revisit %, and the **split-pair matrix** — the last op of one visit against the first op of the next on the same tile-day. MEASURED (d6-17, 8 games): ops/visit **1.55 vs 1.93**, tile-days touched **3,480 vs 5,238**, and our top split pair is `WATER -> FERTILIZE` (175), which the reference does in one visit. | `python -m tools.labour.stack_trace --days 6-17 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 8 --team Boey` |
-| `hop_regret.py` | **Geometry vs kernel.** For every act reached by a walk: `hop` (MOVEs since the previous act), `nearest` (distance from where the walk started to the closest tile offering the same op), and `regret = hop - nearest`. `sum(regret)/moves` is the share of walking a nearest-job rule would save. MEASURED: **30.2 % ours vs 21.1 % Boey**, with **78 % of our regret in WATER (2,773) + HARVEST (862)** — the work was nearby, the choice was not. FEED/CARE/COLLECT regret is ~0.3, i.e. geometric. | `python -m tools.labour.hop_regret --days 6-17 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 8 --team Boey` |
-| `move_trace.py` | **The midgame cost sheet.** Charges every MOVE turn to the act that preceded it, so you get `WATER: 408 ops, 2.55 moves each, 50 % of all moves` instead of a single aggregate. Also splits moves by carried state (empty vs carrying) -- the two need different fixes. Found that the #1 carries something on 70 % of his moves against our 25 %. | `python -m tools.labour.move_trace --days 6-17 --dir diag-replays/arm` · `... --compare --dsm-max 4` to put his games beside ours |
-| `crop_cycle.py` | **Per-crop agronomy, and the instrument that found the fertilize root.** Every crop and both seats: harvest count, age and yield distributions, **% fertilized at harvest**, plant->plant cycle, replant gap, water-days per cycle, missed bonus-window days, units/tile-day, and FERTILIZE **moves/op**. Cycle is reported as `age + gap`, never from plant->plant action alignment (the ~8 % mismatch makes the raw cycle read below the harvest age). Found that the reference fertilizes 57 % of its wheat (1,390 ops) at 0.09 moves/op while we run 0 at 3.3. | `python -m tools.labour.crop_cycle --days 6-17 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 40 --team Boey` |
+| `wheat_flow.py` | **Where the wheat goes.** Tiles -> PLANT ops -> HARVEST ops -> units fed / bought / sold, plus **wheat tiles that died unharvested** and a **per-hire work split** (FEED vs FIELD vs CARE), so "is the feeding scheduled onto the right worker" is answerable. It found that we lose 25 wheat tiles a game to weeds against the #1's 1, and that he spreads feeding across 13 units while we funnel 81 % of it onto the farmer. | `python -m tools.labour.wheat_flow --days 11-20 --dir diag-replays/arm --compare --dsm-max 4` |
+| `stack_trace.py` | **Tile-day completion: does a visit finish the tile, or split it?** Groups every op into visits (one unit, one tile, consecutive turns) and reports `ops/visit`, `extra trips`, revisit %, and the **split-pair matrix** — the last op of one visit against the first op of the next on the same tile-day. MEASURED (d6-17, 8 games): ops/visit **1.55 vs 1.93**, tile-days touched **3,480 vs 5,238**, and our top split pair is `WATER -> FERTILIZE` (175), which the reference does in one visit. | `python -m tools.labour.stack_trace --days 11-20 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 8 --team Boey` |
+| `hop_regret.py` | **Geometry vs kernel.** For every act reached by a walk: `hop` (MOVEs since the previous act), `nearest` (distance from where the walk started to the closest tile offering the same op), and `regret = hop - nearest`. `sum(regret)/moves` is the share of walking a nearest-job rule would save. MEASURED: **30.2 % ours vs 21.1 % Boey**, with **78 % of our regret in WATER (2,773) + HARVEST (862)** — the work was nearby, the choice was not. FEED/CARE/COLLECT regret is ~0.3, i.e. geometric. | `python -m tools.labour.hop_regret --days 11-20 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 8 --team Boey` |
+| `move_trace.py` | **The midgame cost sheet.** Charges every MOVE turn to the act that preceded it, so you get `WATER: 408 ops, 2.55 moves each, 50 % of all moves` instead of a single aggregate. Also splits moves by carried state (empty vs carrying) -- the two need different fixes. Found that the #1 carries something on 70 % of his moves against our 25 %. | `python -m tools.labour.move_trace --days 11-20 --dir diag-replays/arm` · `... --compare --dsm-max 4` to put his games beside ours |
+| `crop_cycle.py` | **Per-crop agronomy, and the instrument that found the fertilize root.** Every crop and both seats: harvest count, age and yield distributions, **% fertilized at harvest**, plant->plant cycle, replant gap, water-days per cycle, missed bonus-window days, units/tile-day, and FERTILIZE **moves/op**. Cycle is reported as `age + gap`, never from plant->plant action alignment (the ~8 % mismatch makes the raw cycle read below the harvest age). Found that the reference fertilizes 57 % of its wheat (1,390 ops) at 0.09 moves/op while we run 0 at 3.3. | `python -m tools.labour.crop_cycle --days 11-20 --dir diag-replays/arm --ref-from replays/Boey/v1 --ref-max 40 --team Boey` |
 | `leverage.py` | Counterfactual: what is an idle hand about to do next (read from the replay's own committed trajectory), and what would re-routing it forfeit? | `python -m tools.labour.leverage --dir D --glob 'scratch_vs_*.json'` |
 | `crew_extract.py` | **The per-unit-turn work-stream cache** every crew analysis reads from. Parses each replay once into `[turn, unit, op, x, y, crop, age, watered, yield, kind]`. Key insight: **every op is performed on the tile the unit stands on** — the engine action is `["WATER"]` with no coordinates, because the target lives in our own Job, which a replay does not record. So the only replay-visible measure of allocation quality is the **transition between a unit's consecutive work tiles**, which works identically on the #1's replays and on ours. 123 games parse in ~20 s with all cores. | `python -m tools.labour.crew_extract --dir replays/DSM/v1 --out diag-replays/crew-dsm` · `--agent --pa 1-12 --batch 3 --out diag-replays/crew-us` |
 | `crew_patterns.py` (lives in `report/`) | **The crew/plant/move breakdown by phase**, over that cache: unit-turn budget, op mix, walk share, **chain distance** between consecutive work tiles, walk-turns between them, tiles touched per unit-day, op radius from the shed, harvest age/yield per crop. `--chains` prints the **consecutive-op transition matrix** — the crew-management fingerprint. | `python -m tools.report.crew_patterns --dsm diag-replays/crew-dsm --us diag-replays/crew-us` · `--chains --phase 2` |

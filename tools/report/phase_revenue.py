@@ -26,8 +26,8 @@ never a pooled mean.
 
 Usage
 -----
-  PYTHONPATH=. python -m tools.report.phase_revenue --days 6-17 --dir diag-replays/step10-ship
-  PYTHONPATH=. python -m tools.report.phase_revenue --days 6-17 \
+  PYTHONPATH=. python -m tools.report.phase_revenue --days 11-20 --dir diag-replays/step10-ship
+  PYTHONPATH=. python -m tools.report.phase_revenue --days 11-20 \
       --dir diag-replays/step10-pre --compare diag-replays/step10-ship
 """
 from __future__ import annotations
@@ -149,7 +149,7 @@ def report(label, rows):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", default="6-17")
+    ap.add_argument("--days", default="11-20")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--glob", default="*.json")
     ap.add_argument("--compare", default=None)
