@@ -1184,7 +1184,14 @@ SEED_LEAD_WHEAT_SHARE = 0.5
 SEED_LEAD_WHEAT_SHARE_P2 = None
 SEED_LEAD_WHEAT_SHARE_P3 = None
 HIRE_FROM_WORKLOAD = False
-HIRE_FROM_WORKLOAD_P2 = None
+# SHIPPED 2026-09-29. Phase-2 ONLY, and the phase scoping IS the finding: the whole-season
+# arm is noisy and roughly flat (median +$1,017, 5/8, p=0.73, idle_share +2.55 8/8 worse --
+# the workload target over-hires on a 25-tile opening with nothing to do). Scoped to
+# phase 2+ it is the strongest signal measured: median +$1,478, mean +$4,126, **7/8 better,
+# p=0.070**, distribution tight (p10 +$1,201), idle NEUTRAL (+0.10), escapes neutral.
+# Guards watched: plants_died +4 (8/8, ~9%), unwatered_eod +8, discarded +12 -- all small
+# against the money gain. 8 matched games (`arm_diff` d4-cur vs a1-hirep2).
+HIRE_FROM_WORKLOAD_P2 = True
 HIRE_FROM_WORKLOAD_P3 = None
 FILL_LAND = False
 FILL_LAND_P2 = None
@@ -1889,6 +1896,107 @@ HERD_SHED_WHEAT_CREDIT = 0
 # ANIMAL_SHED_LIMIT -- shed size at which the herd stops buying. See herd_plan.market_intents.
 ANIMAL_SHED_LIMIT = 95
 WHEAT_TARGET_FROM_HERD = False
+# WHEAT_LEADS_FEED_BASE -- while the standing wheat base is BELOW the herd's feed gate
+# (`wheat_tiles >= WHEAT_TILES_PER_ANIMAL * (herd+1)`), put WHEAT first in the plant queue's
+# interleave instead of last. MEASURED (state_sheet, shipped arm): `PLANT_ORDER` puts WHEAT
+# last, so MELON/STRAWBERRY preempt it and the wheat base sticks at **3 tiles against the
+# reference's 6.5-10** through d6-d8, which holds the feed gate shut after
+# `HERD_OPENING_DAYS=2`, so the herd cannot grow and the farm buys feed at retail
+# (`feed_surplus` -265..-338/game). Once the base clears the gate the value order resumes.
+WHEAT_LEADS_FEED_BASE = True
+WHEAT_LEADS_FEED_BASE_P2 = None
+WHEAT_LEADS_FEED_BASE_P3 = None
+# HERD_SHOP_RESPONSIVE -- set each species' target from the shops actually UNLOCKED, using
+# the reference's own shop->species medians (`priors.HERD_BY_SHOP`: YARN_STORE->SHEEP 9 vs 2,
+# PIZZA/ICE_CREAM/SMOOTHIE->COW 7-8 vs 4, BAKERY/BRUNCH_SPOT->GOOSE 7 vs 3) instead of the
+# unconditional season ramp, which fixes COW at 9 whatever the town buys. A product with no
+# volume buyer is only absorbed by the 1/day town centre, so over-breeding it is a glut.
+# d6+ only: the opening draw is one shop in 36/36 games, so opening reactivity is vacuous.
+HERD_SHOP_RESPONSIVE = True
+# CROP_SHOP_RESPONSIVE -- the CROP half of A6. The herd now breeds to the unlocked shops, but
+# the crop calendar still ignores them: a crop whose product has no volume buyer is absorbed only
+# by the 1/day town centre, so over-planting it is a glut (and a floor sale). When on, crops whose
+# product HAS a volume buyer get a slot bonus in `plant_queue` and lead the interleave.
+# CROP_SHOP_BOOST is that bonus (1.5 = +50% slots).
+# MARKET_RESERVED_SLOTS -- slots at the TAIL of the MAX_ORDERS=10 market list reserved for the
+# ATOMIC STRUCTURAL claims (BUY_ANIMAL, BUY_LAND). The engine drops the tail SILENTLY, and the
+# funding order puts sells / trade sells / seeds / hires / feed ahead of the animal buy, so a long
+# sell list truncates it: MEASURED on the shipped tree at d12, the market list hits exactly 10
+# orders/turn and `BUY_ANIMAL` appears only 2 times in 24 turns while cash, the feed gate (24 wheat
+# vs 17 needed at herd 9) and housing are ALL green. A dropped BUY_ANIMAL leaves no trace in any
+# metric, which is why this survived every diagnostic. 0 = old behaviour.
+# DEPLOY_NODE -- register the graph's CAPITAL-DEPLOYMENT node. `money` is
+# Node("bench","end_money","higher",("SELL",)): HIGHER IS BETTER and it licenses ONLY SELL, so at
+# d8 -- where we hold $2,681 against the priors' $27 -- the graph reads hoarding as HEALTH and no
+# node ever presses acquisition. MEASURED (`graph_diag --section demand`, shipped tree):
+# `BUY_ANIMAL` unsteered at d1 and "NOT ORDERED" at d8/d10 while demanded at band 1.57/1.74, and
+# `BUY_SEED` demanded at 3.22 but not ordered. The `deploy` node makes "cash above the reference's
+# trail" a DEFICIENCY that licenses BUY_ANIMAL/BUY_LAND/BUY_SEED, so the graph can spend early and
+# collect later the way the priors do.
+# GRAPH_WEIGHTS -- let the LEARNED node->op weights decide how strongly each node's deviation
+# presses each op, instead of the binary `NODES[node].ops` membership only. The weights come from
+# `tools/phases/fit_graph.py` over 359 of his replays (held-out R2 BY GAME: WATER +0.32,
+# COLLECT +0.42, CARE +0.33, HARVEST +0.27, FEED +0.26, FERTILIZE +0.22) -- i.e. his op mix IS a
+# function of his own deviation, so it can be learned rather than declared.
+# WORK_ORDERS -- the graph's CREW actuator. `deficit_jobs` (shipped) is hardcoded to DIG alone, so
+# the graph's pressure had no live path to a crew decision at all (`apply_to_jobs` and
+# `VALUE_KERNEL` are both measured-rejected, and `pressures()` otherwise only reaches the market).
+# `work_orders` issues jobs for the ops whose LEARNED gain clears zero, quantity from
+# `graph_weights.W`, and ONLY where the precondition object exists -- the measured rule from
+# `deficit_jobs`' docstring (fabricating BUILD jobs for animals never bought cost $58,209->$27,622).
+# TURN_BUDGET -- the graph ALLOCATES the crew: `turn_budget` turns the learned node->op weights into
+# a share of the crew per op class (cap[op] = ceil(n_units * gain[op] / sum gain)). Crew turns are
+# fixed and the layers already emit one job per precondition object, so the decision that matters is
+# ALLOCATION, not issuance. This is a CAP, not a re-ranking: `job.py`'s survival bands still order the
+# jobs, the graph only bounds how much of each op class survives into `_pick`. (Both prior attempts --
+# `apply_to_jobs` and `VALUE_KERNEL` -- re-ranked and were measured harmful; a cap cannot reorder.)
+# It scales the shares to the CREW SIZE on purpose: an ABSOLUTE cap can only remove jobs, and measured
+# -$32,378 with 40.4% idle. With shares, sum(cap) >= n_units, so no turn is idled by the budget itself.
+# FIX_DEAD_NODES -- two graph nodes could never emit a pressure, and neither raised, so every
+# existing check passed. `dry_plants` read `t.get("age", 0)` on a tile schema with no `age` key, and
+# then -- even with the age fixed -- selected only plants PAST their water window, of which there are
+# 11 in 36,051 samples and all 11 are harvest-ready. `melon_tiles` had metric "melon", which is not a
+# `priors.CROPS` key, so its target was 0.0 on all 30 days and `ours >= 0` pinned p at 1.0. MEASURED:
+# both reported p == 1.000 on every one of 259,559 reference state-rows. With this on, `dry_plants`
+# counts plants IN their water window that are not yet watered (~21% of plant-tiles) and the melon
+# target is the recovered per-day median (10 tiles at d3-6, his documented opening invariant).
+# Set 0 to restore the dead behaviour for an A/B.
+FIX_DEAD_NODES = True
+FIX_DEAD_NODES_P2 = None
+FIX_DEAD_NODES_P3 = None
+TURN_BUDGET = False
+TURN_BUDGET_P2 = None
+TURN_BUDGET_P3 = None
+WORK_ORDERS = False
+WORK_ORDERS_P2 = None
+WORK_ORDERS_P3 = None
+# the share of the day's remaining unit-turns the work orders may claim. Crew turns are fixed and
+# survival must win: without this budget the actuator over-issues and starves watering (measured:
+# `P_DIG=80` cost `plants_died` +22, 8/8).
+WORK_ORDER_TURN_FRAC = 0.35
+WORK_ORDER_TURN_FRAC_P2 = None
+WORK_ORDER_TURN_FRAC_P3 = None
+# learned gain -> ops/day. One constant, because the weights are normalised per op.
+WO_SCALE = 6.0
+WO_SCALE_P2 = None
+WO_SCALE_P3 = None
+GRAPH_WEIGHTS = False
+GRAPH_WEIGHTS_P2 = None
+GRAPH_WEIGHTS_P3 = None
+DEPLOY_NODE = False
+DEPLOY_NODE_P2 = None
+DEPLOY_NODE_P3 = None
+MARKET_RESERVED_SLOTS = 0
+MARKET_RESERVED_SLOTS_P2 = None
+MARKET_RESERVED_SLOTS_P3 = None
+CROP_SHOP_RESPONSIVE = False
+CROP_SHOP_RESPONSIVE_P2 = None
+CROP_SHOP_RESPONSIVE_P3 = None
+CROP_SHOP_BOOST = 1.5
+CROP_SHOP_BOOST_P2 = None
+CROP_SHOP_BOOST_P3 = None
+HERD_SHOP_RESPONSIVE_P2 = None
+HERD_SHOP_RESPONSIVE_P3 = None
 WHEAT_TILES_PER_ANIMAL = 1.7
 # wheat kept in the shed (beyond unfed animals) before any is sold for cash
 WHEAT_SELL_RESERVE = 15

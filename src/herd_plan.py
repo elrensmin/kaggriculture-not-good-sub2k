@@ -28,11 +28,31 @@ def _targets(state):
     if params.HERD_ENABLED and state.day <= params.OPENING_HERD_UNTIL_DAY:
         return {a: int(params.OPENING_HERD.get(a, 0)) for a in ("COW", "SHEEP", "GOOSE")}
     yarn = state.has_yarn()
-    return {
+    base = {
         "COW": params.HERD["COW"]["target"],
         "SHEEP": params.HERD["SHEEP"]["target_yarn" if yarn else "target_noyarn"],
         "GOOSE": params.HERD["GOOSE"]["target_yarn" if yarn else "target_noyarn"],
     }
+    # SHOP-RESPONSIVE (see params.HERD_SHOP_RESPONSIVE): produce what the town actually buys.
+    # The reference's own medians say a cow shop lifts COW 4->7-8, a goose shop GOOSE 3->7, and
+    # YARN lifts SHEEP 2->9 -- but the season ramp here fixes COW at 9 with no regard for the
+    # draw, so a no-cow-shop game over-breeds milk into the 1/day town centre.
+    if params.at("HERD_SHOP_RESPONSIVE", state.day):
+        from . import priors as _priors
+        shops = set(state.shops)
+        for sp in ("COW", "SHEEP", "GOOSE"):
+            withs, without = [], None
+            for shop, (species, w, wo) in _priors.HERD_BY_SHOP.items():
+                if species != sp:
+                    continue
+                without = wo if without is None else max(without, wo)
+                if shop in shops:
+                    withs.append(w)
+            if withs:
+                base[sp] = int(max(withs))
+            elif without is not None:
+                base[sp] = int(without)
+    return base
 
 
 def _animal_counts(state):
@@ -222,7 +242,19 @@ def market_intents(state):
         _have = _wheat_tiles(state)
         if _credit:
             _have += int(state.shed.get("WHEAT", 0)) / float(_credit)
+        # PRESSURE-AWARE VETO. When the graph says we are holding capital the reference already
+        # deployed (`state_graph.deploy_pressure > 1`), the standing-tile gate yields: the herd
+        # may be fed from bought wheat, which is the reference's own behaviour ("he does not gate
+        # on standing wheat at all -- he gates on CASH and buys the feed"). Without this the graph
+        # could compute the deployment deficiency and nothing could act on it (measured: graded
+        # DEPLOY_NODE was byte-identical, +$0).
+        try:
+            from . import state_graph as _sg
+            _deploy = _sg.deploy_pressure(state) > 1.0
+        except Exception:                                      # noqa: BLE001
+            _deploy = False
         can_feed = (_have >= need
+                    or _deploy
                     or state.day <= params.HERD_OPENING_DAYS
                     or (params.OPENING_BUY_FEED
                         and state.day <= params.OPENING_HERD_UNTIL_DAY))

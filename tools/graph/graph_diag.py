@@ -280,6 +280,106 @@ def section_demand(rows, days, every):
 
 
 # --------------------------------------------------------------------------- 4. BREAK
+def section_health(rows):
+    """Every `_LIVE` reader must EVALUATE, not merely exist.
+
+    `read()` wraps each reader in `except Exception: continue`, so a reader that RAISES is
+    silently dropped: the node never evaluates, never presses, and `set(NODES)-set(_LIVE)`
+    still comes back empty -- the documented dead-node check PASSES. MEASURED: `_output_per_day`
+    called `value.animal_output_per_day` with `value` un-imported, so `output_per_day` raised on
+    every state and the revenue chain `output_per_day -> revenue_per_day -> money` was severed
+    in the middle for an unknown number of rounds. This section is the check that catches it.
+    """
+    print()
+    print("=" * 100)
+    print("0. LIVE READER HEALTH -- a reader that RAISES is DEAD (swallowed by read())")
+    print("=" * 100)
+    bad = {}
+    for _g, d, st, _rep, _t in rows[:20]:
+        for node, fn in state_graph._LIVE.items():
+            try:
+                fn(st)
+            except Exception as exc:                                  # noqa: BLE001
+                bad.setdefault(node, (d, repr(exc)[:90]))
+    if not bad:
+        print(f"  all {len(state_graph._LIVE)} readers evaluate cleanly")
+    for node, (d, err) in sorted(bad.items()):
+        print(f"  *** DEAD: {node:<16} raises at d{d}: {err}")
+
+    # --- CAN THIS NODE EVER EMIT A PRESSURE? -------------------------------------------------
+    # `set(NODES) - set(_LIVE)` being empty proves a reader EXISTS; it does not prove the node can
+    # ever go deficient. Two measured ways a node is dead while looking perfectly healthy:
+    #   * the READER returns a constant -- `_dying_today` read `t.get("age", 0)`, a key the tile
+    #     schema does not have, so it returned 0 on every step of every game while 43.6 % of sampled
+    #     plant-tiles were in fact dry;
+    #   * the TARGET is degenerate -- `melon_tiles` is `better="higher"` with target 0.0 on all 30
+    #     days (its prior was never transcribed), and `ours >= 0` is always true, so p == 1.0.
+    # Neither RAISES, so `read()` swallows nothing, `set(NODES)-set(_LIVE)` is empty, every reader
+    # "evaluates cleanly", and the node still never presses. The only symptom is that its pressure
+    # never moves -- which is exactly what this checks, over every node, every sampled day.
+    print()
+    print("-" * 100)
+    print("   NODES THAT CAN NEVER PRESS -- constant over every sampled state "
+          "(dead reader or degenerate target)")
+    print("-" * 100)
+    press = defaultdict(list)
+    for _g, _d, st, _rep, _t in rows[:40]:
+        try:
+            for node, _o, _tgt, p, _u in state_graph.deviation(st):
+                press[node].append(float(p))
+        except Exception:                                             # noqa: BLE001
+            continue
+    immobile = []
+    sample_day = rows[0][1] if rows else 0
+    for node in sorted(state_graph.NODES):
+        v = press.get(node)
+        if not v or len(v) < 3 or max(v) > 1.0 + 1e-9:
+            continue
+        spec = state_graph.NODES[node]
+        try:
+            tgt = state_graph.target_of(node, sample_day)
+        except Exception:                                             # noqa: BLE001
+            tgt = "?"
+        immobile.append(node)
+        print(f"  *** NEVER PRESSES: {node:<16} better={spec.better:<7} metric={spec.metric!r:<18}"
+              f" target(d{sample_day})={tgt!r:<8} p in [{min(v):.3f}, {max(v):.3f}]")
+        print(f"      ops={spec.ops}  -> the reader is constant, or the target makes `p > 1` unreachable")
+    if not immobile:
+        print(f"  all {len(press)} evaluated nodes can press")
+
+    # --- the LEARNED table, and the allocation that consumes it ------------------------------
+    # `state_graph`'s lazy `import graph_weights` is wrapped in `except Exception: return {}`, so a
+    # module that does not even PARSE (measured: a codegen run that dropped the closing `"""` of the
+    # docstring) degrades to "no weights" in total silence -- indistinguishable from "the graph has
+    # no opinion today". And `turn_budget` has an invariant the ABSOLUTE-cap version violated:
+    # sum(cap) >= n_units, i.e. the budget never manufactures idle turns. Both are asserted here.
+    try:
+        from src import graph_weights as _gw
+    except Exception as exc:                                          # noqa: BLE001
+        print(f"  *** DEAD: graph_weights does not import: {exc!r}"[:160])
+        print("      -> `W` is empty, so EVERY learned weight is silently inert. Re-codegen.")
+        return bad
+    print(f"  graph_weights: {len(_gw.W)} ops, windows={getattr(_gw, 'WINDOWS', None)}"
+          f"{'' if getattr(_gw, 'W', None) else '   *** EMPTY TABLE ***'}")
+    starved = 0
+    for _g, d, st, _rep, _t in rows[:20]:
+        try:
+            caps = state_graph.turn_budget(st)
+            n_units = max(1, int(st.unit_count()))
+        except Exception as exc:                                      # noqa: BLE001
+            print(f"  *** DEAD: turn_budget raises at d{d}: {repr(exc)[:90]}")
+            break
+        if not caps:
+            continue
+        if sum(caps.values()) < n_units:
+            starved += 1
+            print(f"  *** IDLE HAZARD d{d}: sum(cap)={sum(caps.values())} < n_units={n_units}"
+                  f"  caps={caps}")
+    if not starved:
+        print("  turn_budget: sum(cap) >= n_units on every sampled day (no idle manufactured)")
+    return bad
+
+
 def section_break(rows, days):
     """First day each node goes deficient and STAYS deficient -- where the chain snaps."""
     print()
@@ -449,7 +549,8 @@ def main(argv=None):
     ap.add_argument("--days", default="0-29")
     ap.add_argument("--every", type=int, default=2, help="print every Nth day")
     ap.add_argument("--section", default="all",
-                    choices=["all", "plug", "nodes", "demand", "break", "chain", "seed"])
+                    choices=["all", "plug", "health", "nodes", "demand", "break", "chain",
+                             "seed"])
     ap.add_argument("--hour", type=int, default=23, help="hour at which each day is sampled")
     a = ap.parse_args(argv)
     lo, hi = (int(x) for x in a.days.split("-"))
@@ -467,6 +568,8 @@ def main(argv=None):
         return
     print()
     print(f"loaded {len(rows)} (game, day) states from {src_dir}")
+    if want in ("all", "health"):
+        section_health(rows)
     if want in ("all", "nodes"):
         section_nodes(rows, days, a.every)
     if want in ("all", "demand"):

@@ -6,14 +6,58 @@
 |---|---|---|
 | `src/` | **the agent.** An onion of small layers; `src/__init__.py` exposes `agent(observation, configuration)`. | **YES — this is the product** |
 | `tools/diagnose/` | the harness: run the agent, write replays + CSVs, re-diagnose saves, render graphs | yes |
-| `tools/` (rest) | read-only analysis: labour, market, report, gates | yes (add tools freely) |
+| `tools/graph/` | the graph diagnostics (`graph_diag`, `graph_audit`) | yes |
+| `tools/phases/` | the phase/data tools (`phase_map`, `parse_replays`, `causal_panel`, codegens) | yes |
+| `tools/report/` | matched-pair A/B (`arm_diff`) | yes |
+| `tools/fetch/` | data acquisition | yes |
 | `public_agents/` | the 12 public "cloning" opponents | yes |
 | `package.py` | builds the single-file Kaggle bundle from `src/` | yes |
 | `GAME_DYNAMICS.md` | authoritative mechanics (crops, animals, market, turn order) | yes |
-| `docs/DSM-vs-us(v0).md` | the data-backed diagnosis of this agent vs the #1 | yes |
-| `docs/dsm_v1.md` | the #1 team's full anatomy | yes |
+| `docs/revenue_report.md` | **the live handoff narrative** — read this first | yes |
+| `docs/boey_priors.md` / `docs/boey_bench.md` | the reference's measured policy + day-wise surface | yes |
+| `docs/engine_audit.md` | every engine rule against our compliance | yes |
+| `docs/graph_diagnosis.md` | the graph's own diagnosis | yes |
+| `docs/DSM-vs-us(v0).md`, `docs/dsm_v1.md` | **MISSING** — deleted; do not cite them | n/a |
 | `replays/DSM/v1/` | the #1's 123 leaderboard episodes (read-only reference) | **NO** |
+| `replays/Boey/v1/` | 359 episodes of Boey vs the live field — the reference corpus | **NO** |
 | `diag-replays/` | output of our runs (gitignored) | n/a |
+| `artifacts/` | parsed parquet + fitted tables (see the data-pipeline section) | n/a |
+
+### TOOL INVENTORY — check before following any other doc
+
+**Much of the tool directory documented below has been DELETED, and the docs still describe it.**
+Verified by existence check, not by reading:
+
+| documented | state |
+|---|---|
+| `tools/gates/` (`margin.py`, `balance.py`) | **MISSING — whole directory** |
+| `tools/labour/` (`op_patterns.py`, `ready_idle.py`) | **MISSING — whole directory** |
+| `tools/market/` (`shop_response.py`) | **MISSING — whole directory** |
+| `tools/audit/` (`duplicate_owners.py`) | **MISSING — whole directory** |
+| `tools/report/` | only `arm_diff.py` (rebuilt) — `day_gap.py`, `dsm_profile.py` are **gone** |
+| `tools/phases/` | `shadow_prices.py`, `state_value.py`, `boey_model.py`, `state_sheet.py` are **gone** |
+| `tools/graph/cause_trace.py` | exists but **BROKEN** — imports the deleted `tools.phases.state_sheet`, so it cannot run |
+| `tools/phases/priors_codegen.py` | exists but **STALE** — it regenerates a `src/priors.py` missing 13 names `src/` imports. It now REFUSES to write (API-preservation guard); do not defeat the guard |
+
+The same rust applies to the reference corpus tools: `boey_priors.py`, `boey_model.py` and
+`boey_bench.py` — which produced `docs/boey_priors.json` and `docs/boey_bench.json`, **the evidence
+behind the whole targeted-IL strategy** — are deleted, leaving only `__pycache__/*.pyc`. The priors
+can therefore not be refreshed through the sanctioned path; the `melon_tiles` curve was recovered
+from `artifacts/parsed/` instead. **Prefer tools that are self-contained** (import only `src/` and a
+replay directory) so they cannot rot this way: `graph_audit`, `parse_replays`, `causal_panel`,
+`arm_diff` and `fit_policy` all are.
+
+**Two silent-failure traps found the hard way, both now guarded — keep the guards:**
+
+* **A stale codegen can ship a crash that looks like a strategy.** Running the stale
+  `priors_codegen` produced an agent that raised on **every** turn; `src/__init__` swallowed it into
+  a legal `PASS`, and the harness wrote `final_money 3000.0, idle_share_pct 100.0` — indistinguishable
+  in `games.csv` from a merely bad arm. What exposed it was that **both A/B arms were byte-identical**,
+  which no real change can be. `priors_codegen` now refuses to write a module that drops public names.
+* **A generator that emits an unimportable module degrades to "no opinion".** `state_graph`'s lazy
+  `import graph_weights` is wrapped in `except Exception: return {}`, so a generated module with a
+  syntax error reads as "the graph has no weights today" rather than as a bug. Assert the generated
+  module **imports** and its table is **non-empty** before shipping it (`fit_graph` does).
 
 There is **no route tape, no `main.py` chassis and no patch layer.** Those were
 deleted when this agent was committed to. If you find a doc or a tool that still
@@ -53,7 +97,7 @@ the agent's "personality" lives.
 
 **30 modules.** The rule when adding a decision: find the module that already owns it, or state
 which one is giving up ownership. Two owners of one decision is this codebase's most expensive
-bug class (see `tools/audit/duplicate_owners.py`).
+bug class (the `tools/audit/duplicate_owners.py` that used to check this is **MISSING**).
 
 ### core — data and arithmetic, no policy
 | file | owns |
@@ -163,13 +207,126 @@ PYTHONPATH=. python -m tools.graph.graph_diag --run-dir diag-replays/<arm> --sec
 mechanics as the graph sees them (gap, lead, band, budget). A node that **breaks and stays
 broken** is a root the graph failed to close — that is a structural bug, not a tuning problem.
 
+## A NODE IS NOT ALIVE UNTIL IT IS *HEARD* — read this before tuning any node
+
+Three questions must ALL hold before a node can change any behaviour. Every diagnostic in this
+repo used to ask only the second one, which is why the graph sat inert for a whole session while
+every check passed. Ask them in this order, with `tools/graph/graph_audit.py`:
+
+```bash
+PYTHONPATH=. python -m tools.graph.graph_audit --run-dir diag-replays/<arm>
+```
+
+**1. Can it press?** A reader that returns a *constant*, or a target that makes `p > 1`
+*unreachable*, leaves the node pinned at 1.0 forever — and **nothing raises**, so `read()` swallows
+nothing, `set(NODES) - set(_LIVE)` is empty, and every reader "evaluates cleanly". MEASURED, both
+nodes reported `p == 1.000` on **every one of 259,559 reference state-rows**:
+
+| node | why it could never press | ops lost |
+|---|---|---|
+| `dry_plants` | reader did `t.get("age", 0)`; the tile schema has **no `age` key** (it has `planted_day`). Even with `crop_age` it selected only plants *past* their water window — of which there are **11 in 36,051** samples and all 11 are harvest-ready, absorbed by the `plant_ready` guard. Redefined to "not watered today AND **in** window" (~21 % of plant-tiles). | WATER |
+| `melon_tiles` | metric was `"melon"`, which is **not a `priors.CROPS` key**, so `crop_target` returned its `0.0` default on all 30 days and `ours >= 0` pinned p at 1.0. Target recovered from the parse (d3–6 = **10**, his documented opening invariant). | PLANT |
+
+`graph_diag --section health` now fails loudly on this class ("NODES THAT CAN NEVER PRESS").
+
+**2. Does it press?** A node that *can* press but never does is a report, not a decision.
+
+**3. Is it HEARD?** A pressure reaches a decision **only through a code path that is enabled**.
+This is the column that was missing, and it is the one that matters. MEASURED:
+
+```
+7 of 15 nodes press and are MUTE -- nothing enabled reads their pressure:
+  dry_plants (WATER), melon_tiles (PLANT), planted (PLANT), output_per_day
+  (PLANT,FERTILIZE,WATER,HARVEST), unfed (FEED,PICKUP), shed (DROP), structures (BUILD_*)
+```
+
+The only enabled consumers are `emit.apply_to_market` (`GRAPH_MARKET`, ON — market ops),
+`plan.seed_intents` (always on — `BUY_SEED`) and `state_graph.deficit_jobs`
+(`GRAPH_DEFICIT_JOBS`, ON, **verified DIG-only by reading its body**). `BENCH_STEER`,
+`VALUE_KERNEL`, `TURN_BUDGET` and `WORK_ORDERS` are all OFF. **WATER, PLANT, FERTILIZE, HARVEST,
+FEED, PICKUP, DROP and BUILD_* have no destination at all.**
+
+The proof is a matched A/B: fixing both dead readers, so that `dry_plants` presses on **85 % of
+days at the 4.00 cap**, changed the agent **byte-identically** across 4 games and 14 defect
+metrics. **A MUTE node is not a tuning problem** — no param, target or reader change can move
+behaviour until some enabled path consumes the pressure. If you are about to tune a node, run
+`graph_audit` first; if it says MUTE, you are tuning a number nothing reads.
+
+**The open work is the actuator, not the weights.** A per-op *count* cap is not an allocation
+(measured: absolute caps gave **−$32,378 with 40.4 % idle**, because jobs are *positions* and
+`_pick` matches unit→job by walk cost, so dropping the 30th WATER job can drop the only reachable
+one). The design that respects both lessons: **assign each unit an op class by expected $/turn,
+then let `_pick` choose the tile within the class.**
+
+## The reference data pipeline — `parse_replays` → parquet → fits
+
+`replays/Boey/v1` is 359 episodes (34.6 MB each, 720 steps × 2 seats). `tools/phases/parse_replays.py`
+turns them into three tidy tables with a **fixed 192-column schema** (fixed because a game with no
+TOMATO tile would otherwise emit a different column set and the shards would not unify):
+
+```
+artifacts/parsed/states.parquet        516,242 rows   board + market + town + private, both farms
+artifacts/parsed/unit_ops.parquet    5,115,442 rows   one row per unit per step   <- the `_pick` target
+artifacts/parsed/market_orders.parquet 2,551,159 rows one row per order, ORDER PRESERVED
+```
+
+Facts established by measurement, not assumption — **do not re-derive these**:
+
+* **`observation.player` == the seat index in 17,256/17,256** sampled steps, so `farms[player]` is
+  the observing seat's own farm. (Also stated in `state.py`: `self.farm = obs["farms"][self.player]`.)
+* **The causal pairing is `action[t+1]` ← `observation[t]`**: restricting to steps where the farmer
+  demonstrably moved, `action[t+1]` explains the move in **91.9 %** of cases and `action[t]` in
+  **21.9 %**. Anything fitted the other way learns that *ops move the state* — true, trivial, and
+  useless for control. An earlier day-resolution fit made exactly this mistake and scored a
+  healthy-looking R² +0.613 for it.
+* A tile is **six** schemas: `None`, the **string** `"LOCKED"`, `{kind:WEED}`, `{kind:PLANT,...}`,
+  an empty `{kind:COOP|PASTURE}`, and an occupied one.
+* Unit ops include **`DROP`** and **`PASS`**; market orders are `[kind, item, qty]` with the kind at
+  **index 0**, and include `NOOP` (297 k of them, **99.9 % from the reference**) used to pad the
+  list to 10. Real orders run **7.26/step**, and **29 % of steps are genuinely truncated** by
+  `maxMarketOrdersPerTurn: 10`.
+* **The private tables are the only seat-local data.** Exactly two readers depend on them —
+  `shed` and `revenue_per_day` (measured by blanking `private` and diffing `read()`). They are
+  dropped on the rival side rather than filled with our shed.
+* **`replays/Boey/v1` is NOT self-play**: Boey vs the real field, 177 games in seat 0, 180 in seat
+  1, only 2 self-play, 53 against DSM. Every row carries **`is_ref`** — an imitation target fitted
+  without filtering on it blends Boey with whoever he was playing.
+* Integrity invariant, checked on every row: the eight disjoint tile counters sum to **exactly 100**
+  (516,242/516,242, both farms). It caught two real bugs, one of them a regression introduced while
+  rewriting the parser.
+
+**The reference's funding order** (mean `pos` with NOOP removed): `SELL` 3.56 → `BUY_LAND` 3.83 →
+`BUY_PRODUCT` 4.64 → `HIRE` 5.07 → `BUY_SEED` 5.63 → `BUY_ANIMAL` 6.25.
+
+### Imitation is bounded by the reference's own equilibrium
+
+Where his policy is good, he never deviates, so there is no variation to imitate: `dry_plants`
+pressure is 1.000 on every one of his state-rows. The off-policy variation exists **on the rival's
+farm in the same game** (same market, same day, same shop draws) — 149 distinct opponents, most far
+worse. `tools/phases/causal_panel.py` exploits it: demean each farm over its own season (removes the
+permanent quality gap), then difference the two farms (removes the market, weather, shop RNG and the
+day).
+
+**MEASURED RESULT: this design cannot price a node, and the reason is identification, not code.**
+The between-farm difference *alone* is confounded by farm size — before demeaning, the
+"significant" dollar effects were `animals` −$2,832 and `output_per_day` −$1,040, and after
+within-farm demeaning they collapsed to −$2 and −$66. What survives is persistence and accounting
+(`weeds→weeds` −0.40 t=−8.0; `planted→plants` +1.38 t=+4.6; `revenue_per_day→money` −$939 t=−3.5),
+**not leverage**. `dry_plants→money` is −$123 at t=−0.4. The cause: *a farm that is dry is a farm
+whose crew is overwhelmed* — the deficiency is a **symptom** of being behind, and money falls for
+the same reason. There is no exogenous variation in deficiency in this data and no instrument in it.
+
+**So price nodes by INTERVENTION, not by observation.** Perturb a node's pressure in our own agent
+via `SCRATCH_PARAMS`, matched-pair on identical seeds (`tools/report/arm_diff.py`), and read the
+margin. That is the design every shipped win in this repo used.
+
 ## Current strategic direction — market-first, Boey as philosophy (NOT parity)
 
 **Chasing Boey's exact per-day state parity is exhausted. Stop.** Measured this sprint
 (matched pairs, 4 games each), every phase-1 knob that pushed one state node toward his
 value rippled into a negative node:
 
-| knob | ripple (via `cause_trace --effects`) |
+| knob | ripple (via the by-hand per-node ripple; `cause_trace` is BROKEN) |
 |---|---|
 | `STRUCTURE_HOLDBACK=6` | unfed escapes +1 (4/4), sell −$6.6k |
 | `FEED_STOCK_DAYS=2` | shed stranded +$1.1k (4/4) |
@@ -195,11 +352,13 @@ busy crew at once. His state is a SYSTEM — cloning one node without its causes
    lists each `kaggriculture.py` rule against our compliance. Fix a **rule violation**
    (e.g. the collective-PLANT over-request, fixed via `PLANT_CAP_BY_SEEDS=1`), never a
    proxy metric.
-5. **Diagnose with the trace tool before touching a knob.** `tools/graph/cause_trace.py`
-   prints the node's `KNOBS:` (which param owns it) and `--effects BASE ARM` prints the
-   per-node ripple of a change, so the tradeoff is visible BEFORE the A/B. When a hypothesis
-   fails, the tool — not the knob — was wrong: fix the tool (this sprint found and fixed a
-   backwards `structures→animals` edge and a missing `BUY_ANIMAL` op this way).
+5. **Audit the node before touching a knob.** Run
+   `python -m tools.graph.graph_audit --run-dir diag-replays/<arm>` FIRST: it prints, per node,
+   whether it can press, whether it does, and **whether any enabled code path reads it**. If the
+   verdict is MUTE, stop — you are tuning a number nothing consumes. (`tools/graph/cause_trace.py`
+   used to do part of this and is now **BROKEN**, importing the deleted `tools.phases.state_sheet`;
+   `graph_audit` replaces it and is self-contained.) When a hypothesis fails, the tool — not the
+   knob — was wrong: fix the tool.
 
 Judge every change on **`result` (WIN/LOSS)** via matched pairs (`arm_diff`), never on a
 proxy mean or a single-node move.
@@ -236,7 +395,8 @@ proxy mean or a single-node move.
    bell, endgame conversion, overflow discards, missed harvests, unwatered plants,
    a bad `avg_price_<p>` on a specific day, idle units on a ready tile. If you
    can't name the defect you watched, you don't have an experiment yet. The
-   current open list is §6 of `docs/DSM-vs-us(v0).md`.
+   current open list was §6 of `docs/DSM-vs-us(v0).md`, which is **MISSING**; use the defect
+   watchlist in `arm_diff` output and `graph_audit` instead.
 2. **Read the layer that owns it before changing it.** Every defect has a home:
    market timing lives in `sell_policy`, the crop calendar in `crop_plan` and
    `params.CROP_PLAN`, herd sizing in `herd_plan`, "who walks where" in
@@ -323,8 +483,9 @@ Consequences, for every table you read:
 - Seed+opponent pairing still holds (the episode seed is fixed); what diverges is
   everything downstream of the RNG.
 - Always print the shop mix beside a shop-conditioned metric
-  (`tools/market/shop_response.py` prints it first, and `dsm_profile.py` reports
-  the arm's YARN mix), and prefer unconditional metrics when judging a change.
+  (both `tools/market/shop_response.py` and `tools/report/dsm_profile.py` are **MISSING**, so
+  print the shop mix yourself from `games.csv`), and prefer unconditional metrics when judging a
+  change.
 
 ## Why "never trust averages" runs deeper: the win-vs-money objective
 
@@ -355,9 +516,9 @@ above is not just a workflow preference.
 - **Aggregate per opponent, then average — never the other way round.** A single
   pooled Φ folds between-opponent spread into σ and flatters you (~4pt here).
 - **Practical translation:** `tools/report/arm_diff.py` diffs the **same seed**
-  (matched opponents cancel) with a sign test; `tools/gates/margin.py` prints the
-  five-number ladder; `tools/report/day_gap.py` and `dsm_profile.py` normalise
-  **per-opponent median → median across opponents**. Trust `result` (WIN/LOSS);
+  (matched opponents cancel) with a sign test and prints the five-number margin ladder plus a
+  per-opponent median table (`tools/gates/margin.py`, `tools/report/day_gap.py` and
+  `dsm_profile.py` are **MISSING**; `arm_diff` now covers their role). Trust `result` (WIN/LOSS);
   treat `final_money` as the noisy-but-high-resolution readout, never the score.
 
 ## How the leaderboard is ranked (what we actually maximize)
@@ -426,11 +587,12 @@ Two mechanics that bite often in `src/`:
    the check a CSV diff cannot give you. If the root is unchanged, the patch missed.
 5. Inspect the JSON replays / CSVs for **concrete** per-game / per-day / per-step
    inefficiencies. **Never average anything across games** — see the anti-goal.
-6. Compare arms with `tools/report/arm_diff.py` (matched pairs) and read the
-   defect surface with `tools/gates/balance.py`.
+6. Compare arms with `tools/report/arm_diff.py` (matched pairs; pass the same explicit
+   `--seed` to both arms — it refuses disjoint seed sets).
 7. When the change is clearly better and stable, it is already in the product —
    `src/` is the agent. Record what you learned as a new edge in
-   `tools/phases/dag.py`, and keep `docs/DSM-vs-us(v0).md`'s open list current.
+   `tools/phases/dag.py`, and keep `docs/revenue_report.md` — the live handoff narrative —
+   current. (`docs/DSM-vs-us(v0).md`, the old open-fix list, is **MISSING**.)
 
 ### Harness commands
 
@@ -472,7 +634,8 @@ PYTHONPATH=. python -m tools.phases.phase_map --phase phase1 \
 instead of the transcribed per-day table, so every metric gets a target (including
 `cash committed` and `PLANT ops`) and there is no transcription risk. The table is the
 fast fallback. Running the #1's own replays through the same DAG is a self-check that
-should read all-OK — it is how the `structs=10` error in `docs/dsm_v1.md` was caught
+should read all-OK — it is how the `structs=10` error in the (now MISSING)
+`docs/dsm_v1.md` was caught
 (his replays show 5 pastures at d5, all five occupied, 20 plants, 25 tiles full, and
 `dag.py` now models his housing as build-to-order).
 
@@ -513,9 +676,9 @@ mechanism and re-order the roadmap.
 ### `--days 0-10` — every tool can be scoped to the opening
 
 `phase_map --days 0-10` replaces `--phase` with a custom window; `--dag phase1` prints
-only the opening subgraph plus the edges *leaving* it. Every analysis tool in
-`tools/labour/`, `tools/market/` and `tools/report/day_gap.py` takes the same `--days`
-flag, so "the opening only, nothing else" is one argument everywhere. Use it: a
+only the opening subgraph plus the edges *leaving* it. The `--days` flag was shared by the
+`tools/labour/`, `tools/market/` and `tools/report/day_gap.py` tools — **all of which are now
+MISSING**, so today `phase_map` is the only carrier of that flag. Use it: a
 whole-season aggregate buries a d0–d5 defect under 24 days of noise.
 
 **`open_dist` is descriptive, not an objective.** It is the L1 distance from the #1's
@@ -535,6 +698,9 @@ buyer one time in eight. Reactivity is a d6+ question. (This also explains why a
 games happen ~33 % of the time.)
 
 ### `state_value.py` — price the d5 state, and test which d5 feature predicts the finish
+
+> **`tools/phases/state_value.py` is MISSING.** The method below is worth rebuilding, but the
+> commands do not run today.
 
 `phase_map` counts structures; this **prices** them. Rationale: the opening is only
 ~6.5% of the season's revenue gap, and a whole-game margin has sigma ≈ $10k on 12
@@ -573,6 +739,10 @@ maintain. **A d5-state objective must be validated by a continuation, never by t
 alone** — and the continuation has to be a *valid policy for that state*.
 
 ### `shadow_prices.py` — one more unit of each resource, in dollars
+
+> **`tools/phases/shadow_prices.py` is MISSING.** Its *design* is the one this codebase now
+> needs most — see "price nodes by INTERVENTION, not by observation" above — so rebuild it
+> rather than inventing a new shape.
 
 A root with a large blast radius is **not** automatically worth fixing (that is how the
 opening herd, the graph's #1 phase-1 root, lost $15,020). Counting descendants cannot
@@ -652,8 +822,11 @@ pass `--gif-fps 4-5` for a quicker skim. `--animals` renders the season-constant
 1. **Same-seed paired diff.** Run two arms (see `SCRATCH_PARAMS` above) and use
    `python -m tools.report.arm_diff --a A --b B`: it joins on `(opponent, seed)`,
    reports the margin delta ladder, a **sign test**, the verdict flips, a
-   per-opponent table, and a defect-column watchlist. `tools/gates/balance.py`
-   gives the full paired balance sheet.
+   per-opponent table, and a defect-column watchlist. It **refuses to compare arms whose seed
+   sets are disjoint** — `tools.diagnose` draws RANDOM seeds if you omit `--seed`, and the
+   resulting "difference" is pure noise. Always pass `--seed` and use it on BOTH arms.
+   (`tools/gates/balance.py` and `tools/gates/margin.py` are **MISSING** — this tool absorbed
+   their role.)
 2. **Chase a non-zero signal.** Any of `idle_share_pct`, `idle_units_ready`,
    `shed_overflow_days`, `discarded_items`, `floor_sales`, `premium_below_base_frac`,
    `animal_escapes`, `at_risk_of_escape`, `plants_died`, `weeds_peak`,
@@ -680,8 +853,9 @@ pass `--gif-fps 4-5` for a quicker skim. `--animals` renders the season-constant
   harness's `replay_to_record` still pairs them at the same index, so
   **tile-conditioned** metrics (`idle_units_ready_total`, `locked_steps`,
   `missed_harvest_eod`, `near_shed_*`) are measured against the wrong step.
-  `tools/labour/op_patterns.py` and `tools/labour/ready_idle.py` use the correct
-  shifted form. Op-count and revenue aggregates are unaffected.
+  `tools/labour/op_patterns.py` and `tools/labour/ready_idle.py` used the correct
+  shifted form but are now **MISSING**, so the corrected versions exist nowhere: if you
+  re-derive one of these metrics, shift the action yourself.
 - **Harvest attribution is unreliable**: `plants_harvested_<crop>` misses most
   harvests. Prefer `sell_qty_<p>`/`avg_price_<p>`.
 - **`idle_steps` is near-useless**; use `idle_share_pct` and
@@ -704,9 +878,9 @@ pass `--gif-fps 4-5` for a quicker skim. `--animals` renders the season-constant
 | `src/*.py` | the agent (onion layers) | **YES — the product** |
 | `src/params.py` | every tunable knob (env-overridable) | YES |
 | `tools/diagnose/` | the harness | yes, when a feature is missing |
-| `tools/` (rest) | analysis tools | yes |
+| `tools/graph/`, `tools/report/` | graph + A/B diagnostics (see the TOOL INVENTORY) | yes |
 | `Makefile`, `scripts/sweep.sh` | run entry points | yes |
 | `package.py` | local bundle build | yes |
-| `docs/DSM-vs-us(v0).md` | the diagnosis + open fix list | yes — keep it current |
+| `docs/revenue_report.md` | the live handoff narrative | yes — keep it current |
 | `GAME_DYNAMICS.md`, `AGENTS.md`, `README.md`, `tools/readme.md` | docs | yes |
 | `replays/DSM/v1/` | the #1's replays (reference data) | **NO** |

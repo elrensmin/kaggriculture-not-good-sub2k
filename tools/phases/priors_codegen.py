@@ -192,7 +192,40 @@ def main(argv=None):
     body = HEADER
     for k, v in fields.items():
         body = body.replace("{" + k + "}", str(v))
-    Path(a.out).write_text(body)
+    # ---- REFUSE TO DESTROY THE MODULE ---------------------------------------------------------
+    # This generator is STALE: it emits the base tables but none of the derived helpers that
+    # `src/` actually imports. MEASURED: running it against the shipped `src/priors.py` dropped 13
+    # public names -- `LAND_BY_QUADRANT` (read by `budget.market_intents`) and the whole
+    # `acts_target` / `water_target` / `hands_target` / `revenue_target` / `land_due_day` /
+    # `land_lead` / `fert_target_bench` / `move_target` / `hire_ops_target` family. The agent then
+    # raised on EVERY turn, `src/__init__` swallowed it into a legal PASS, and the harness reported a
+    # $3,000 bank at 100 % idle -- a "strategy" that is really a crash. Nothing in the run said so.
+    # So: never overwrite with a module that has FEWER public names than the one on disk.
+    import ast
+    def _api(text):
+        try:
+            tree = ast.parse(text)
+        except SyntaxError as exc:
+            raise SystemExit(f"REFUSING to write {a.out}: generated module does not parse: {exc}")
+        names = set()
+        for n in tree.body:
+            if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name):
+                names.add(n.targets[0].id)
+            elif isinstance(n, (ast.FunctionDef, ast.ClassDef)):
+                names.add(n.name)
+        return names
+    out = Path(a.out)
+    if out.exists():
+        have, new_names = _api(out.read_text()), _api(body)
+        lost = sorted(have - new_names)
+        if lost:
+            print(f"REFUSING to write {out}: would DROP {len(lost)} public names that "
+                  f"`src/` may import:")
+            for n in lost:
+                print(f"    - {n}")
+            print("  Fix this generator to preserve them (or delete them from src/ first).")
+            return 2
+    out.write_text(body)
     print(f"wrote {a.out}  ({len(body)} bytes) from {a.json} "
           f"[{m['games']} games, d{m['days'][0]}-{m['days'][1]}]")
     return 0

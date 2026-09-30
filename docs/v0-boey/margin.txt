@@ -1,8 +1,0 @@
-
-=== boey-lb   (361 games) ===
-  W/L/T          305/56/0   win rate 84%
-  median margin  $       9,812   mean $      13,817
-  median WIN     $      13,657   (best $132,815)
-  median LOSS    $      -2,838   (worst $-21,468)
-  p10/p25/p75/p90 $   -1,749 $    2,365 $   21,677 $   30,135
-  guards         floor u 37,900  discard u 0  ovf days 458  escapes 2,237  idle% 2.5  stranded $15,206

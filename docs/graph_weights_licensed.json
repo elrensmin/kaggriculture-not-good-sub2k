@@ -1,0 +1,166 @@
+{
+ "weights": {
+  "WATER": {
+   "0": {
+    "output_per_day": 23.4967
+   },
+   "1": {
+    "output_per_day": 0.997
+   },
+   "4": {
+    "output_per_day": 32.5128
+   }
+  },
+  "FERTILIZE": {
+   "1": {
+    "output_per_day": 1.2755
+   },
+   "2": {
+    "output_per_day": 1.5548
+   },
+   "4": {
+    "output_per_day": 7.9013
+   }
+  },
+  "HARVEST": {
+   "0": {
+    "output_per_day": 6.9366
+   },
+   "1": {
+    "output_per_day": 16.9163
+   },
+   "2": {
+    "output_per_day": 4.8115
+   }
+  },
+  "PLANT": {
+   "1": {
+    "empty": 2.6323
+   },
+   "2": {
+    "empty": 1.4323
+   },
+   "4": {
+    "output_per_day": 20.9304
+   }
+  },
+  "FEED": {
+   "0": {
+    "unfed": 0.5576
+   },
+   "1": {
+    "unfed": 0.1748
+   },
+   "4": {
+    "unfed": 0.9416
+   }
+  },
+  "CARE": {},
+  "COLLECT_FERTILIZER": {},
+  "DIG": {
+   "1": {
+    "weeds": 0.1255
+   },
+   "2": {
+    "weeds": 0.2468
+   }
+  },
+  "PLACE": {},
+  "BUILD_PASTURE": {
+   "4": {
+    "animals": 0.0092
+   }
+  },
+  "BUILD_COOP": {}
+ },
+ "report": {
+  "WATER": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 36.38,
+   "heldout_r2": 0.642,
+   "median_bias": 34.475,
+   "weights": 3
+  },
+  "FERTILIZE": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 5.95,
+   "heldout_r2": 0.621,
+   "median_bias": 6.557,
+   "weights": 3
+  },
+  "HARVEST": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 16.96,
+   "heldout_r2": 0.811,
+   "median_bias": 16.089,
+   "weights": 3
+  },
+  "PLANT": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 8.63,
+   "heldout_r2": 0.349,
+   "median_bias": 8.436,
+   "weights": 3
+  },
+  "FEED": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 12.52,
+   "heldout_r2": 0.526,
+   "median_bias": 13.094,
+   "weights": 3
+  },
+  "CARE": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 12.94,
+   "heldout_r2": 0.502,
+   "median_bias": 13.938,
+   "weights": 0
+  },
+  "COLLECT_FERTILIZER": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 14.12,
+   "heldout_r2": 0.701,
+   "median_bias": 14.92,
+   "weights": 0
+  },
+  "DIG": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 1.1,
+   "heldout_r2": 0.328,
+   "median_bias": 0.252,
+   "weights": 2
+  },
+  "PLACE": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 2.75,
+   "heldout_r2": 0.414,
+   "median_bias": 2.037,
+   "weights": 0
+  },
+  "BUILD_PASTURE": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 0.51,
+   "heldout_r2": 0.211,
+   "median_bias": 0.154,
+   "weights": 1
+  },
+  "BUILD_COOP": {
+   "n_train": 7530,
+   "n_test": 3240,
+   "mean_label": 0.19,
+   "heldout_r2": 0.203,
+   "median_bias": 0.039,
+   "weights": 0
+  }
+ }
+}

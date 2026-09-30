@@ -475,7 +475,19 @@ def plan(state):
     if params.at("GRAPH_DEFICIT_JOBS", state.day):
         from . import state_graph
         try:
-            jobs = jobs + state_graph.deficit_jobs(state, jobs)
+            if params.at("TURN_BUDGET", state.day):
+                # THE GRAPH ALLOCATES THE CREW. Its shares decide which op classes are
+                # over-represented; `allocate` trims that surplus and RESTORES the dropped jobs if
+                # the clip would leave the crew with fewer jobs than it has turns -- so the graph
+                # re-allocates turns and can never manufacture idle time. `job.py`'s survival bands
+                # still decide who takes what (the list keeps its layer order).
+                jobs = state_graph.allocate(jobs, state)
+            if params.at("WORK_ORDERS", state.day):
+                # the graph's general crew actuator (learned quotas); `deficit_jobs` stays the
+                # DIG-only fallback so the two never double-issue.
+                jobs = jobs + state_graph.work_orders(state, jobs)
+            else:
+                jobs = jobs + state_graph.deficit_jobs(state, jobs)
         except Exception:                                      # noqa: BLE001
             pass
     if params.at("GRAPH_KERNEL", state.day):
@@ -874,5 +886,26 @@ def plan(state):
     if params.TRADE_MIDGAME and not (params.OPENING_TAPE and state.day <= params.OPENING_HERD_UNTIL_DAY):
         feed_cash = params.FEED_PRICE_GUESS * max(0, state.herd_count()) * params.TRADE_MIDGAME_FEED_DAYS
         market += trade.buy_intents(state, reserve=feed_cash)
+    # STRUCTURAL SLOT RESERVATION (params.MARKET_RESERVED_SLOTS). `emit` truncates the market list
+    # at MAX_ORDERS=10 and drops the tail silently. Sells/trade/seeds/hires/feed all precede the
+    # animal buy, so a long sell list deletes it -- measured at d12: list length = 10 every turn and
+    # BUY_ANIMAL present only 2/24 turns with cash, feed and housing all green.
+    _res = int(params.at("MARKET_RESERVED_SLOTS", state.day) or 0)
+    if _res <= 0:
+        # PRESSURE-AWARE TRUNCATION. The graph's deployment pressure decides how many tail slots
+        # the ATOMIC acquisition claims keep: a demanded buy must not vanish off the end of a
+        # 10-slot list (measured: BUY_ANIMAL "NOT ORDERED" at d8/d10 while demanded at band
+        # 1.57/1.74). Graded, so a weak signal reserves nothing.
+        try:
+            _dp = state_graph.deploy_pressure(state)
+            _res = 3 if _dp > 2.0 else (2 if _dp > 1.5 else (1 if _dp > 1.0 else 0))
+        except Exception:                                      # noqa: BLE001
+            _res = 0
+    if _res > 0:
+        _atomic = ("BUY_ANIMAL", "BUY_LAND")
+        _keep = [o for o in market if o and o[0] in _atomic]
+        _rest = [o for o in market if not (o and o[0] in _atomic)]
+        _cap = max(0, int(params.MAX_ORDERS) - _res)
+        market = _rest[:_cap] + _keep[:_res]
     ops = [o if o is not None else ['PASS'] for o in ops]
     return emit.assemble(state, ops, market)

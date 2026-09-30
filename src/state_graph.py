@@ -28,6 +28,7 @@ TWO DELIBERATE LIMITS, both stated rather than hidden:
 from __future__ import annotations
 
 import collections
+import math
 
 from kaggle_environments.envs.kaggriculture.kaggriculture import ANIMALS, CROPS
 
@@ -78,6 +79,13 @@ NODES = {
     "animals":    Node("priors", "total_animals", "higher",
                        ("PLACE", "BUILD_PASTURE", "BUILD_COOP", "PICKUP", "BUY_ANIMAL"),
                        "season", (0, 24)),
+    # ---- CAPITAL DEPLOYMENT (see params.DEPLOY_NODE) ------------------------------------
+    # The inverse of `money` for the investment phase: holding MORE cash than the reference's
+    # trail means capital that was never turned into capacity. "lower" is correct -- the
+    # deficiency is EXCESS cash -- and the ops are the acquisition set, so the graph presses
+    # buying early instead of only ever pressing SELL.
+    "deploy":     Node("priors", "cash_hold", "lower",
+                       ("BUY_ANIMAL", "BUY_LAND", "BUY_SEED"), "season", (0, 12)),
     "structures": Node("priors", "structs", "higher",
                        ("BUILD_PASTURE", "BUILD_COOP"), "season", (0, 20)),
     "quadrants":  Node("priors", "n_quadrants", "higher", ("BUY_LAND",), "window", (0, 12)),
@@ -86,7 +94,11 @@ NODES = {
     # the d10-d12 revenue event. MEASURED: we hold 4 age-10 melon tiles at d10 against his 7,
     # and d10 is a **$9k step** (bank $8 vs $9,054). As a node it is a deficiency the graph can
     # act on while there is still time, instead of a surprise at d10.
-    "melon_tiles": Node("priors", "melon", "higher", ("PLANT",), "window", (0, 3)),
+    # metric must be a `priors.CROPS` KEY. It read "melon", which was never a key -- `crop_target`
+    # therefore returned its `0.0` default on every day, and with `better="higher"` the test
+    # `ours >= 0` is always true, so the node was pinned at p == 1.0 and could never press PLANT.
+    # The sibling keys are `wheat_tiles` / `straw_tiles`; `melon_tiles` follows them.
+    "melon_tiles": Node("priors", "melon_tiles", "higher", ("PLANT",), "window", (0, 3)),
     # ---- THE REVENUE CHAIN --------------------------------------------------------------
     # `money` alone is a STOCK that starts near zero, so its ratio is binary and its pressure
     # saturates (measured: `1 + 9054/9054` = 2.0 at d10). The chain gives the gradient back and
@@ -300,23 +312,33 @@ _LIVE = {
     "output_per_day": lambda s: _output_per_day(s),
     "revenue_per_day": lambda s: _sellable_value(s),
     "labour": lambda s: float(s.unit_count()),
+    # the deployment reader is registered even when the node is off, so the DAG never carries a
+    # reader-less node (a node in NODES with no _LIVE entry is DEAD and silently never presses).
+    "deploy": lambda s: float(s.money),
 }
 
 
 def _dying_today(state):
-    """Plants that become a WEED tonight -- the REAL death risk, not the day's remaining work.
+    """Watering still OUTSTANDING that still PAYS: plants in their water window, not watered
+    today, and not yet harvestable.
 
-    `not watered_today` was measured WRONG. At hour 0 EVERY plant on the farm satisfies it, so the
-    node was maximally deficient every morning, WATER saturated against the pressure cap, and the
-    crew was pinned to watering while PLANT / HARVEST / FERTILIZE starved. Measured: `dry_plants`
-    broke on **d1 and never recovered in 16/17 games** -- the earliest break in the graph and not a
-    defect at all.
+    WHY THIS IS NOT `not watered_today` ALONE. Reading every unwatered plant was measured wrong: at
+    hour 0 EVERY plant satisfies it, the node saturated against the pressure cap every morning, and
+    the crew was pinned to watering while PLANT / HARVEST / FERTILIZE starved. The fix at the time
+    was to count only plants past their window -- but that selects the EMPTY SET, and the node has
+    therefore never fired. MEASURED over 36,051 plant-tile observations: only **11** are past their
+    window and **all 11 are harvest-ready**, so the `plant_ready` guard below absorbs every one of
+    them. `dry_plants` reported p == 1.000 on every one of 259,559 reference state-rows and 28,760
+    of ours, while 43.6 % of plant-tiles were in fact dry.
 
-    `consecutive_unwatered` cannot separate the risk set either: the engine increments it at day
-    end, so it reads 1 at the start of every day for every living plant. What CAN is the water
-    WINDOW. A dry plant at `age >= window_end` that is not yet harvestable is at its last chance --
-    it is lost tonight. Anything younger has tomorrow. So the node now reads terminal risk, which
-    is small and non-zero only when the crew is genuinely failing.
+    (It also read `t.get("age", 0)` -- a key the tile schema does NOT have, so even the empty set was
+    reached via a defaulted 0. That is fixed to `crop_age`.)
+
+    The honest risk set is the one the engine actually charges for: a plant **inside its water
+    window** that has not been watered today loses yield tonight, and the work to prevent it is a
+    WATER op. Plants younger than the window are safe (water adds nothing yet) and ripe plants want
+    HARVEST, so both are excluded. Measured: 7,690 of 36,051 plant-tiles (~21 %), against 0 for the
+    previous definition -- so the node can now carry information instead of being constant.
     """
     n = 0
     for row in state.tiles:
@@ -333,7 +355,11 @@ def _dying_today(state):
                 continue
             if win is None:
                 continue                           # ongoing crop: water adds yield, does not save
-            if int(t.get("age", 0)) >= int(win[1]):
+            age = int(state.crop_age(t))           # NOT t.get("age") -- the tile has no `age`
+            if params.at("FIX_DEAD_NODES", state.day):
+                if int(win[0]) <= age <= int(win[1]):
+                    n += 1
+            elif age >= int(win[1]):               # the OLD definition: selects the empty set
                 n += 1
     return n
 
@@ -375,7 +401,7 @@ def _output_per_day(state):
     `1/interval x price` per animal, and feeding costs one wheat per animal per day. This is the
     capacity number the bank is a lagging function of.
     """
-    from . import crew, recipes
+    from . import crew, recipes, value
     pr = crew.prices(state)
     total = 0.0
     for row in state.tiles:
@@ -394,7 +420,13 @@ def _output_per_day(state):
 # of saturating on the first unit.
 _WIDTH = {"dry_plants": ("planted", 0.05), "weeds": ("planted", 0.05),
           "unfed": ("animals", 0.10), "shed": (None, 0.10), "empty": ("planted", 0.10),
-          "structures": ("animals", 0.20)}
+          "structures": ("animals", 0.20),
+          # `deploy` compares our cash to the reference's trail, which is ~$27 at d8 -- so a
+          # ratio deviation saturates instantly and the acquisition ops jump the whole market
+          # queue. MEASURED: without a width, DEPLOY_NODE=1 lost median -$15,500 (0/4). The
+          # width grades it against roughly ONE DAY OF INCOME (~$2.5k), so a $2.3k excess reads
+          # as a real but not maximal deficiency. `(None, frac)` means width = frac * 100.
+          "deploy": (None, 25.0)}
 
 
 def read(state):
@@ -413,6 +445,8 @@ def target_of(node, day):
         return None
     if spec.source == "bench":
         return _bench.target(spec.metric, day)
+    if spec.metric == "melon_tiles" and not params.at("FIX_DEAD_NODES", day):
+        return 0.0                                 # the OLD target: p == 1.0 forever
     if spec.metric == "total_animals":
         return _priors.total_animals(day)
     if spec.metric == "n_quadrants":
@@ -420,6 +454,9 @@ def target_of(node, day):
     if spec.metric == "sellable_value":
         # our sellable stock vs HIS daily production value: the conversion gap, in dollars
         return target_of("output_per_day", day)
+    if spec.metric == "cash_hold":
+        # the reference's own cash trail: EXCESS above it is the deployment deficiency.
+        return float(_priors.CASH.get(int(day), 0.0))
     if spec.metric == "units":
         # `hands_end` is his crew SIZE directly, so the node compares like with like.
         # (The earlier unit_turns/24 was the same idea with a rounding step in the middle.)
@@ -478,9 +515,12 @@ def deviation(state):
     live = read(state)
     day = int(state.day)
     rows = []
+    _deploy_on = bool(params.at("DEPLOY_NODE", day))
     for node, ours in live.items():
         if not active(node, state):
             continue
+        if node == "deploy" and not _deploy_on:
+            continue          # gated so the node A/Bs without editing code
         spec = NODES[node]
         tgt = target_of(node, day)
         if tgt is None:
@@ -525,13 +565,61 @@ def pressures(state, cap=6.0):
     which is what lets the seed buy be decided by the graph instead of by a day offset.
     """
     out = {}
-    for node, _o, _t, p, u, _up in roots(state):
-        eff = min(cap, 1.0 + (p - 1.0) * u)
+    _lw = None
+    if params.at("GRAPH_WEIGHTS", state.day):
+        try:
+            from . import graph_weights as _gw
+            _lw = _gw.W
+        except Exception:                                      # noqa: BLE001
+            _lw = None
+    # WHICH NODES MAY PRESS. Without learned weights: only ROOTS (a symptom must not press its own
+    # cause). WITH them: every live node, because the FIT learned its edges against `deviation`
+    # (all nodes) and the strongest learned edges land on SYMPTOMS -- `output_per_day` and
+    # `revenue_per_day` are not roots, so iterating `roots()` applied none of the learned weights
+    # and the normalised set measured byte-identical. The licensing boundary (`NODES[node].ops`)
+    # still prevents an unrelated op firing.
+    _src = deviation(state) if _lw is not None else roots(state)
+    for row in _src:
+        node, _o, _t, p, u = row[0], row[1], row[2], row[3], row[4]
+        gain = (p - 1.0) * u
         for op in NODES[node].ops:
-            out[op] = max(out.get(op, 1.0), eff)
+            # LEARNED EDGE STRENGTH: the fitted weight says whether this node->op edge carries
+            # signal at all, and how much. `NODES[node].ops` stays the LICENSING boundary, so a
+            # learned weight can never make an unrelated op fire.
+            g = gain * float(_lw.get(op, {}).get(node, 0.0)) if _lw is not None else gain
+            if g <= 0.0:
+                continue
+            out[op] = max(out.get(op, 1.0), min(cap, 1.0 + g))
     for op, p in preposition(state).items():
         out[op] = max(out.get(op, 1.0), min(cap, p))
     return out
+
+
+def deploy_pressure(state):
+    """Capital-deployment pressure: > 1 when we hold cash the reference already turned into
+    capacity (see NODES["deploy"]). THE ONE NUMBER every acquisition veto consults.
+
+    The graph could already COMPUTE this and nothing acted on it: the pressure reached
+    `apply_to_market` (which only orders the market list), while the real vetoes sat downstream
+    in the layers' own gates. MEASURED: ungraded it destroyed -$15,500 (0/4) by jumping the whole
+    queue; graded it was byte-identical (+$0) because the gates still said no. Pressure and
+    permission have to move together, so they read the same function.
+    """
+    if not params.at("DEPLOY_NODE", state.day):
+        return 1.0
+    try:
+        # `deviation` yields 5-tuples (node, ours, tgt, pressure, urgency); `roots` yields 6. An
+        # earlier 6-field unpack here raised on every call and the bare `except` returned 1.0, so
+        # BOTH pressure-aware gates were dead and the graded node read byte-identical (+$0).
+        for node, _o, _t, p, _u in deviation(state):
+            if node == "deploy":
+                # CLAMP AT 1.0: this is a "lower is better" node, so holding LESS than the
+                # reference (d12: priors $14.5k, ours $5.5k) is not a deficiency. Unclamped the
+                # raw ratio goes negative (-3.44 measured), which is meaningless as a pressure.
+                return max(1.0, float(p))
+    except Exception:                                          # noqa: BLE001
+        pass
+    return 1.0
 
 
 def apply_to_jobs(jobs, state):
@@ -603,6 +691,222 @@ def apply_to_market(market, state):
         return (1, -float(pr.get(op, 1.0)), i)
 
     return [o for _i, o in sorted(enumerate(market), key=key)]
+
+
+# ============================================================================ WORK ORDERS
+# THE CREW ACTUATOR. `deficit_jobs` below is DIG-only; this is the general form, driven by the
+# weights LEARNED from the reference's replays (`tools/phases/fit_graph.py` -> `graph_weights.W`).
+_WO_OPS = ("WATER", "FERTILIZE", "HARVEST", "FEED", "COLLECT_FERTILIZER", "DIG")
+
+
+def _wo_positions(state, op):
+    """Positions where `op` CAN be performed -- the object already exists.
+
+    This is the rule `deficit_jobs` measured the hard way: fabricating BUILD jobs for animals never
+    bought cost 58,209 -> 27,622. An actuator may only act on something that is really there.
+    """
+    out = []
+    for y, row in enumerate(state.tiles):
+        for x, t in enumerate(row):
+            if not isinstance(t, dict):
+                continue
+            if op == "WATER":
+                if t.get("kind") == "PLANT" and state.needs_water(t):
+                    out.append((x, y))
+            elif op == "FERTILIZE":
+                if t.get("kind") == "PLANT" and state.in_water_window(t):
+                    out.append((x, y))
+            elif op == "HARVEST":
+                if state.plant_ready(t):
+                    out.append((x, y))
+            elif op == "DIG":
+                if t.get("kind") == "WEED":
+                    out.append((x, y))
+            elif "animal" in t:
+                if op == "FEED" and not t.get("fed_today"):
+                    out.append((x, y))
+                elif op == "COLLECT_FERTILIZER" and t.get("fertilizer_available"):
+                    out.append((x, y))
+    return out
+
+
+def _wo_band(op):
+    from .job import (P_COLLECT_FERT, P_DIG, P_FEED, P_FERTILIZE, P_HARVEST, P_WATER_BONUS)
+    return {"WATER": P_WATER_BONUS, "FERTILIZE": P_FERTILIZE, "HARVEST": P_HARVEST,
+            "FEED": P_FEED, "COLLECT_FERTILIZER": P_COLLECT_FERT, "DIG": P_DIG}[op]
+
+
+def _op_weights(op, day):
+    """`node -> weight` for one op at one day, tolerating BOTH codegen shapes.
+
+    `fit_graph --windows` emits `W[op][window][node]`; a global fit emits `W[op][node]`. The
+    windowed table is the one that measured better (median R2 +0.486 vs +0.224), so the day picks
+    the window; the flat shape is kept working so an old table degrades to "one window" instead of
+    to silence -- a wrong weight is visible, an empty `W` is not.
+    """
+    try:
+        from . import graph_weights as _gw
+    except Exception:                                          # noqa: BLE001
+        return {}
+    ws = _gw.W.get(op) or {}
+    if not ws:
+        return {}
+    if hasattr(_gw, "weights_for"):
+        try:
+            return _gw.weights_for(op, day) or {}
+        except Exception:                                      # noqa: BLE001
+            return {}
+    return ws
+
+
+def turn_budget(state):
+    """op -> how many CREW TURNS of that op class the graph licenses THIS TURN.
+
+    The learned weights give a gain per op from the live deviations:
+
+        gain(op) = sum_node W[win(day)][op][node] * max(0, pressure_node - 1) * urgency
+
+    and the gains are scaled to the CREW, so the budget is a **share**, never an absolute ceiling:
+
+        cap[op] = ceil(n_units * gain[op] / sum_op gain)
+
+    WHY A SHARE AND NOT A CEILING. An absolute cap can only *remove* jobs, and the layers already
+    emit one job per precondition object, so a cap strictly below demand manufactures idle turns --
+    measured `TURN_BUDGET` + absolute caps: **-$32,378 with 40.4% idle**. Because the shares are
+    scaled to the crew size, `sum_op cap[op] >= n_units`, so every crew turn still has a licensed
+    job whenever a layer issued one; an op is trimmed only when it is *over-represented against the
+    graph's own demand*, and the turns it gives up go to the ops that are under-served. That is an
+    allocation, not a clip -- and it leaves `job.py`'s survival bands deciding WHO takes what.
+
+    Ops with no learned weight, and every op when no gain is positive, are UNCAPPED: the graph
+    bounds only what it has an opinion about.
+    """
+    try:
+        dev = list(deviation(state))
+        n_units = max(1, int(state.unit_count()))
+    except Exception:                                          # noqa: BLE001
+        return {}
+    try:
+        from . import graph_weights as _gw
+    except Exception:                                          # noqa: BLE001
+        return {}
+    gains = {}
+    for op in _gw.W:
+        ws = _op_weights(op, state.day)
+        if not ws:
+            continue
+        gain = 0.0
+        for node, _o, _t, p, u in dev:
+            w = float(ws.get(node, 0.0))
+            if w > 0.0:
+                gain += w * max(0.0, p - 1.0) * u
+        if gain > 0.0:
+            gains[op] = gain
+    total = math.fsum(gains.values())
+    if total <= 0.0:
+        return {}
+    return {op: max(1, int(math.ceil(n_units * g / total))) for op, g in gains.items()}
+
+
+def allocate(jobs, state):
+    """The graph's crew allocation: trim `jobs` to its per-op shares, but NEVER starve the crew.
+
+    `turn_budget`'s shares say which op classes are *over-represented* against the graph's own
+    demand. Applied as a bare clip they are a disaster -- the layers emit one job per precondition
+    object, so a clip below demand manufactures idle turns (measured: absolute caps gave
+    **-$32,378 with 40.4% idle**). So the clip is followed by a RESTORE:
+
+        target = min(n_units, len(jobs))
+        after the clip, if fewer than `target` jobs survive, the dropped jobs come back,
+        ops furthest below their share first, and then in their original layer order.
+
+    Two properties fall out, and they are the whole point:
+
+    * **The crew is never idled by the graph.** `len(out) >= min(n_units, len(jobs))` always, so
+      every unit that has any job at all still has one. The graph cannot create idle time.
+    * **The graph re-allocates the SURPLUS, not the deficit.** Where an op class is over-subscribed
+      relative to its learned share, its excess turns go to whatever the layers emitted for the
+      other ops -- which is exactly the allocation decision that was missing, and it needs no
+      fabricated jobs and no re-ranking of `job.py`'s survival bands.
+
+    Ops with no learned weight are uncapped; when no gain is positive `turn_budget` is empty and
+    this is the identity, so the graph is silent rather than wrong.
+    """
+    caps = turn_budget(state)
+    if not caps or not jobs:
+        return jobs
+    try:
+        n_units = max(1, int(state.unit_count()))
+    except Exception:                                          # noqa: BLE001
+        return jobs
+    target = min(n_units, len(jobs))
+    kept, dropped = [], []
+    seen = collections.Counter()
+    for i, j in enumerate(jobs):
+        op = str(getattr(j, "op", ""))
+        c = caps.get(op)
+        if c is not None and seen[op] >= c:
+            dropped.append((i, j, op))
+            continue
+        seen[op] += 1
+        kept.append((i, j))
+    if len(kept) < target:
+        # furthest below share first, then the layers' own order -- never an invented job
+        for i, j, op in sorted(dropped, key=lambda t: (seen[t[2]] - caps.get(t[2], 0), t[0])):
+            if len(kept) >= target:
+                break
+            kept.append((i, j))
+            seen[op] += 1
+    kept.sort(key=lambda t: t[0])
+    return [j for _i, j in kept]
+
+
+def work_orders(state, jobs):
+    """The graph's work orders: WHICH ops and HOW MANY, from the learned weights.
+
+    quantity(op) = WO_SCALE * sum_node W[op][node] * (pressure_node - 1) * urgency
+    shortfall    = quantity - what the layers already issued today
+    and the shortfall is emitted on real precondition objects, within a crew-turn budget.
+    """
+    try:
+        from . import graph_weights as _gw
+        from .job import Job
+    except Exception:                                          # noqa: BLE001
+        return []
+    have = collections.Counter(str(getattr(j, "op", "")) for j in jobs)
+    try:
+        dev = list(deviation(state))
+    except Exception:                                          # noqa: BLE001
+        return []
+    try:
+        turns = state.unit_count() * max(0, 24 - int(state.hour))
+    except Exception:                                          # noqa: BLE001
+        turns = 0
+    budget = int(turns * float(params.at("WORK_ORDER_TURN_FRAC", state.day) or 0.0))
+    scale = float(params.at("WO_SCALE", state.day) or 0.0)
+    out = []
+    for op in _WO_OPS:
+        if budget <= 0:
+            break
+        pos = _wo_positions(state, op)
+        if not pos:
+            continue
+        ws = _op_weights(op, state.day)
+        gain = 0.0
+        for node, _o, _t, p, u in dev:
+            w = float(ws.get(node, 0.0))
+            if w > 0.0:
+                gain += w * max(0.0, p - 1.0) * u
+        if gain <= 0.0:
+            continue
+        need = int(round(gain * scale)) - int(have.get(op, 0))
+        if need <= 0:
+            continue
+        take = min(need, len(pos), budget)
+        for pos_ in pos[:take]:
+            out.append(Job(_wo_band(op), pos_, op, None))
+        budget -= take
+    return out
 
 
 def deficit_jobs(state, jobs):

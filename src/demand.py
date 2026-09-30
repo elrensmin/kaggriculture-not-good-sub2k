@@ -178,7 +178,7 @@ def counts_empty(farm_tiles):
 
 
 def best_sell_now(item, inventory, have, shops, steps_left, floor=1,
-                  opp_rate=0.0):
+                  opp_rate=0.0, headroom=None, band=0.05):
     """Sell now or hold?  Marginal-revenue greedy with the town's drain priced in.
 
     The town will remove `drain_per_step` units every 4 steps, which raises the price; a
@@ -186,7 +186,22 @@ def best_sell_now(item, inventory, have, shops, steps_left, floor=1,
     now if today's price beats the best price we expect to see within the horizon, else we
     hold. `opp_rate` is the opponent's observed sell rate per step, which lowers the future
     price and is therefore subtracted from the expected gain.
+
+    TWO CORRECTIONS, both measured. The original rule was `now >= future` exactly, and with
+    ANY positive drain `future` (the horizon MAX) sits above `now` on essentially every turn,
+    so the function answered HOLD always. Switching it on
+    (`SELL_LOOKAHEAD=1`, 24-game field) lost **median -$10,753, 1/24, p=0.0000** with
+    `floor_sales` +55.5 (**24/24 worse**): the goods piled up in the shed and were dumped at
+    the $1 floor. So:
+
+      * `headroom` -- free shed space. With no room to hold, the sale is FORCED; holding past
+        capacity does not earn the future price, it earns the floor.
+      * `band` -- a hold is only worth taking if the expected gain clears this margin. Selling
+        within `band` of the horizon peak keeps the pipe clear for a few percent of price.
     """
+    # MUST-SELL: no capacity to hold into.
+    if headroom is not None and have > headroom:
+        return int(have)
     now = market.price(item, inventory)
     held = []
     inv = float(inventory)
@@ -195,6 +210,6 @@ def best_sell_now(item, inventory, have, shops, steps_left, floor=1,
         inv += opp_rate
         held.append(market.price(item, max(0.0, inv)))
     future = max(held) if held else 0
-    if now >= future or now <= floor:
+    if now >= future * (1.0 - band) or now <= floor:
         return int(have)
     return 0

@@ -1,8 +1,0 @@
-
-=== step10-ship   (96 games) ===
-  W/L/T          0/96/0   win rate 0%
-  median margin  $     -92,400   mean $     -93,576
-  median WIN     $           0   (best $0)
-  median LOSS    $     -92,400   (worst $-129,875)
-  p10/p25/p75/p90 $ -107,911 $ -102,394 $  -85,940 $  -82,265
-  guards         floor u 4,225  discard u 762  ovf days 95  escapes 15  idle% 2.4  stranded $122,436

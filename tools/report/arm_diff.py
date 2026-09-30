@@ -1,193 +1,172 @@
 #!/usr/bin/env python
-"""arm_diff — matched-pair diff of two harness run dirs (A vs B).
+"""arm_diff -- matched-pair diff of two run directories, judged on `result`, not on a mean.
 
-The anti-goal is explicit: never trust a cross-game mean, and never compare two
-arms unless the *seeds and opponents* are identical. A code change cannot be
-A/B'd by a single run, so the workflow is:
+Why this exists
+---------------
+`tools/diagnose` draws RANDOM seeds when `--seed` is not given, so two arms run without an explicit
+seed are **not comparable** -- and the failure is silent: both runs produce plausible-looking
+`games.csv` files, and a careless diff of their pooled means reports a difference that is pure seed
+noise. This tool refuses to do that: it joins on `(opponent, seed)`, and when the seed sets are
+disjoint it says so and stops rather than printing a number.
 
-    SCRATCH_PARAMS='...'  python -m tools.diagnose --scratch ... --run-dir diag-replays/arm-a
-                          python -m tools.diagnose --scratch ... --run-dir diag-replays/arm-b
-    PYTHONPATH=. python -m tools.report.arm_diff --a diag-replays/arm-a \
-        --b diag-replays/arm-b --label-a 'old' --label-b 'new'
+What it reports, and why in this order
+--------------------------------------
+1. **`result` (WIN/LOSS) and the verdict flips.** AGENTS.md: the ladder pays for wins, so a change
+   can raise the median bank and still lose more games. Count wins first.
+2. **The margin delta ladder + a sign test.** The ladder is the readout; the sign test is the
+   verdict on whether the direction is real at this sample size.
+3. **Per-opponent table.** Aggregate per opponent, then average -- never the reverse: a pooled rate
+   folds between-opponent spread into sigma and flatters the result by ~4pt.
+4. **A defect watchlist**, so a bank change can be attributed to a *mechanism* instead of accepted
+   on faith. Each row names the mechanism it belongs to.
 
-It joins the two `games.csv` on ``(opponent, seed)`` and reports, per pair and
-per opponent:
-
-  * ``final_money`` delta (B - A) — the low-noise readout;
-  * WIN/LOSS for each arm (the actual objective) and how the verdict flipped;
-  * a sign test over the deltas (how many pairs B won, and a binomial p);
-  * the defect columns that must not regress (idle, floor sales, escapes,
-    plants died, unwatered, discarded, stranded, premium below base, revenue).
-
-Only pairs present in BOTH dirs are used; anything else is reported as unmatched
-so a partial run can never silently flatter an arm.
-
-Usage:
-  PYTHONPATH=. python -m tools.report.arm_diff --a D1 --b D2 [--csv out.csv]
+Usage
+-----
+  PYTHONPATH=. python -m tools.report.arm_diff --a diag-replays/arm-a --b diag-replays/arm-b
+  PYTHONPATH=. python -m tools.report.arm_diff --a A --b B --quiet     # verdict lines only
 """
 from __future__ import annotations
 
 import argparse
 import csv
-import math
-import os
 import statistics as st
+from math import comb
+from pathlib import Path
 
-MONEY = "final_money"
-DEFECTS = [
-    ("idle_share_pct", "worse"),
-    ("idle_units_ready_total", "worse"),
-    ("idle_units_total", "worse"),
-    ("floor_sales", "worse"),
-    ("discarded_units_total", "worse"),
-    ("stranded_at_bell", "worse"),
-    ("premium_below_base_frac", "worse"),
-    ("animal_escapes", "worse"),
-    ("plants_died", "worse"),
-    ("unwatered_eod", "worse"),
-    ("missed_harvest_eod", "worse"),
-    ("shed_overflow_days", "worse"),
-    ("sell_revenue_total", "better"),
-]
+# The watchlist: each defect is a *mechanism*, not a metric. A change that moves the bank must move
+# one of these or it is not understood. `lower` says which direction is the good one.
+#
+# DELIBERATELY ABSENT, both documented in AGENTS.md as untrustworthy:
+#   `unwatered_eod`    -- counts every crop without watered_today at hour 23, including plants
+#                         outside their water window that will never need water again (median 622
+#                         on the SHIPPED arm). Chase `plants_died` and `weeds_peak` instead.
+#   `land_cost_total`  -- the purchase order is re-issued every turn and re-charged, so it reports
+#                         $10,000 against a real $7,000 ceiling.
+WATCH = (
+    ("idle_share_pct", "labour efficiency", True),
+    ("idle_units_ready_total", "missed-harvest idling", True),
+    ("plants_died", "crop lifecycle", True),
+    ("weeds_peak", "weed encroachment", True),
+    ("animal_escapes", "herd loss", True),
+    ("at_risk_of_escape", "near-miss unfed", True),
+    ("shed_overflow_days", "shed overflow", True),
+    ("discarded_units_total", "overflow discards", True),
+    ("floor_sales", "dumping at the floor", True),
+    ("stranded_at_bell", "endgame hygiene", True),
+    ("missed_harvest_eod", "harvest timing", True),
+    ("premium_below_base_frac", "market timing", True),
+    ("sell_revenue_total", "throughput", False),
+    ("harvests", "throughput", False),
+)
 
 
-def _num(v):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _load(run_dir):
-    path = os.path.join(run_dir, "games.csv")
-    if not os.path.exists(path):
+def load(run_dir):
+    p = Path(run_dir) / "games.csv"
+    if not p.exists():
         raise SystemExit(f"no games.csv in {run_dir}")
-    rows = {}
-    with open(path, newline="") as fh:
-        for r in csv.DictReader(fh):
-            key = (r.get("opponent", ""), str(r.get("seed", "")))
-            rows[key] = r
-    return rows
+    out = {}
+    with p.open() as f:
+        for r in csv.DictReader(f):
+            out[(r["opponent"], r["seed"])] = r
+    return out
 
 
-def _binom_p(k, n):
-    """Two-sided sign-test p-value under p=0.5."""
+def num(row, col):
+    try:
+        return float(row[col])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def sign_test(deltas):
+    """Exact two-sided binomial p for `#positive` out of the nonzero deltas. No scipy needed."""
+    n = sum(1 for d in deltas if d != 0)
     if n == 0:
-        return 1.0
-    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / 2 ** n
-    return min(1.0, 2 * tail)
+        return 0, 0, 1.0
+    k = sum(1 for d in deltas if d > 0)
+
+    def pmf(i):
+        return comb(n, i) * 0.5 ** n
+
+    p0 = pmf(k)
+    return k, n, min(1.0, sum(pmf(i) for i in range(n + 1) if pmf(i) <= p0 + 1e-12))
 
 
-def _q(xs, f):
-    xs = sorted(xs)
-    if not xs:
-        return 0.0
-    i = min(len(xs) - 1, max(0, int(round(f * (len(xs) - 1)))))
-    return xs[i]
-
-
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--a", required=True)
-    ap.add_argument("--b", required=True)
-    ap.add_argument("--label-a", default="A")
-    ap.add_argument("--label-b", default="B")
-    ap.add_argument("--csv", default=None, help="write the per-pair table here")
-    args = ap.parse_args()
+    ap.add_argument("--a", required=True, help="baseline run dir")
+    ap.add_argument("--b", required=True, help="candidate run dir")
+    ap.add_argument("--quiet", action="store_true", help="verdict lines only")
+    a = ap.parse_args(argv)
 
-    A, B = _load(args.a), _load(args.b)
-    keys = sorted(set(A) & set(B), key=lambda k: (k[0], k[1]))
-    only_a, only_b = set(A) - set(B), set(B) - set(A)
-
+    A, B = load(a.a), load(a.b)
+    keys = sorted(set(A) & set(B))
     if not keys:
-        # Diagnose the usual cause instead of only reporting the symptom. `tools.diagnose`
-        # leaves `--seed` at None, which draws RANDOM seeds per run -- two arms of the same
-        # command then share no (opponent, seed) key at all, and a whole sweep is wasted.
-        # Always pass an explicit `--seed` to both arms.
-        sa = {k[1] for k in A}
-        sb = {k[1] for k in B}
-        shared_opp = {k[0] for k in A} & {k[0] for k in B}
-        msg = ["no matched (opponent, seed) pairs — arms are not comparable"]
-        if shared_opp and not (sa & sb):
-            msg.append(f"  the opponents overlap ({len(shared_opp)}) but the SEED SETS are "
-                       f"disjoint: A has {len(sa)} seeds, B has {len(sb)}, none shared.")
-            msg.append("  Cause: `tools.diagnose` defaults `--seed` to None and then draws "
-                       "RANDOM seeds. Re-run BOTH arms with the same explicit `--seed N`.")
-        elif not shared_opp:
-            msg.append("  the opponent sets do not overlap either — check `--pa`.")
-        raise SystemExit("\n".join(msg))
+        shared = {o for o, _s in A} & {o for o, _s in B}
+        print("no matched (opponent, seed) pairs -- arms are not comparable")
+        if shared:
+            print(f"  the opponents overlap ({len(shared)}) but the SEED SETS are disjoint: "
+                  f"A has {len({s for _o, s in A})} seeds, B has {len({s for _o, s in B})}, "
+                  f"none shared.")
+            print("  Cause: `tools.diagnose` defaults `--seed` to None and then draws RANDOM seeds. "
+                  "Re-run BOTH arms with the same explicit `--seed N`.")
+        else:
+            print("  the arms share no opponent at all -- check `--pa`.")
+        return 2
 
-    print(f"arm A = {args.label_a}  ({args.a})  {len(A)} games")
-    print(f"arm B = {args.label_b}  ({args.b})  {len(B)} games")
-    print(f"matched pairs: {len(keys)}   unmatched: {len(only_a)} only-A, "
-          f"{len(only_b)} only-B")
-    if only_a or only_b:
-        print("  !! partial run — verdict below uses matched pairs only")
+    print(f"A = {a.a}\nB = {a.b}\nmatched pairs: {len(keys)}")
+    d = [num(B[k], "final_money") - num(A[k], "final_money") for k in keys]
 
-    deltas, wa, wb, flips = [], 0, 0, []
-    per_opp: dict[str, list] = {}
-    rows_out = []
-    for k in keys:
-        a, b = A[k], B[k]
-        da, db = _num(a[MONEY]), _num(b[MONEY])
-        d = db - da
-        deltas.append(d)
-        ra, rb = a.get("result", ""), b.get("result", "")
-        wa += ra == "WIN"
-        wb += rb == "WIN"
-        if ra != rb:
-            flips.append((k, ra, rb, d))
-        per_opp.setdefault(k[0], []).append(d)
-        row = {"opponent": k[0], "seed": k[1], "a_money": da, "b_money": db,
-               "delta": d, "a_result": ra, "b_result": rb}
-        for col, _dir in DEFECTS:
-            row[f"d_{col}"] = _num(b.get(col)) - _num(a.get(col))
-        rows_out.append(row)
+    wins_a = sum(1 for k in keys if A[k]["result"] == "WIN")
+    wins_b = sum(1 for k in keys if B[k]["result"] == "WIN")
+    flips = [k for k in keys if A[k]["result"] != B[k]["result"]]
+    print(f"\nRESULT   A {wins_a}W-{len(keys) - wins_a}L   ->   B {wins_b}W-{len(keys) - wins_b}L")
+    print(f"verdict flips: {len(flips)}")
+    for k in flips:
+        print(f"    {k[0][:44]:<46}{k[1]:>11}  {A[k]['result']:>4} -> {B[k]['result']:<4}"
+              f"  {num(A[k], 'final_money'):>10,.0f} -> {num(B[k], 'final_money'):,.0f}")
 
-    n_up = sum(1 for d in deltas if d > 0)
-    n_dn = sum(1 for d in deltas if d < 0)
-    p = _binom_p(min(n_up, n_dn), n_up + n_dn)
+    k_pos, n_nz, p = sign_test(d)
+    print("\nMARGIN (B - A) -- the readout, not the score")
+    q = st.quantiles(d, n=4) if len(d) >= 2 else [d[0]] * 3
+    print(f"   min {min(d):>+11,.0f}   p25 {q[0]:>+11,.0f}   median {st.median(d):>+11,.0f}"
+          f"   p75 {q[2]:>+11,.0f}   max {max(d):>+11,.0f}")
+    print(f"   mean {st.mean(d):>+11,.0f}   B better in {k_pos}/{n_nz} nonzero"
+          f"   sign-test p = {p:.4f}{'  ** SIGNIFICANT' if p < 0.05 else '  (not significant)'}")
 
-    print(f"\n=== MARGIN (the low-noise readout, NOT the score) ===")
-    print(f"  {args.label_a}: W{wa}  {args.label_b}: W{wb}   (of {len(keys)} pairs)")
-    print(f"  delta money  median {st.median(deltas):+,.0f}   "
-          f"mean {st.mean(deltas):+,.0f}   min {min(deltas):+,.0f}   "
-          f"max {max(deltas):+,.0f}")
-    print(f"  p10 {_q(deltas,.1):+,.0f}  p25 {_q(deltas,.25):+,.0f}  "
-          f"p75 {_q(deltas,.75):+,.0f}  p90 {_q(deltas,.9):+,.0f}")
-    print(f"  sign test: B better in {n_up}/{n_up+n_dn} decided pairs   p={p:.4f}")
-    if flips:
-        print(f"  verdict flips ({len(flips)}):")
-        for (opp, seed), ra, rb, d in flips:
-            print(f"     {opp[:44]:<44} seed {seed:<6} {ra:>4} -> {rb:<4} "
-                  f"{d:+,.0f}")
+    if a.quiet:
+        return 0
 
-    print(f"\n=== per opponent (median delta, wins A -> B) ===")
-    for opp in sorted(per_opp):
-        ds = per_opp[opp]
-        w_a = sum(1 for k in keys if k[0] == opp and A[k].get("result") == "WIN")
-        w_b = sum(1 for k in keys if k[0] == opp and B[k].get("result") == "WIN")
-        print(f"  {opp[:44]:<44} n={len(ds):<2} median {st.median(ds):+9,.0f}  "
-              f"W {w_a} -> {w_b}")
+    per = {}
+    for k, dd in zip(keys, d):
+        per.setdefault(k[0], []).append(dd)
+    print("\nPER OPPONENT (median within opponent, then median across opponents)")
+    for opp in sorted(per):
+        w = sum(1 for k in keys if k[0] == opp and B[k]["result"] == "WIN")
+        n = len(per[opp])
+        print(f"   {opp[:44]:<46} n={n:<3} d_med {st.median(per[opp]):>+11,.0f}   B wins {w}/{n}")
+    print(f"   {'MEDIAN ACROSS OPPONENTS':<46}      "
+          f"{st.median([st.median(v) for v in per.values()]):>+11,.0f}")
 
-    print(f"\n=== defect columns (median delta; sign = B - A) ===")
-    for col, good in DEFECTS:
-        ds = [r[f"d_{col}"] for r in rows_out]
-        med = st.median(ds)
-        nbad = sum(1 for d in ds if (d > 0) == (good == "worse") and abs(d) > 1e-9)
-        flag = ""
-        if nbad > len(ds) / 2 and abs(med) > 1e-9:
-            flag = "  <-- majority moved the WRONG way"
-        print(f"  {col:<26} {med:+12,.3f}   ({nbad}/{len(ds)} worse){flag}")
-
-    if args.csv:
-        with open(args.csv, "w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=list(rows_out[0]))
-            w.writeheader()
-            w.writerows(rows_out)
-        print(f"\nwrote {args.csv}")
+    print("\nDEFECT WATCHLIST (paired median A -> B)")
+    moved = 0
+    for col, why, lower in WATCH:
+        va = [num(A[k], col) for k in keys]
+        vb = [num(B[k], col) for k in keys]
+        if any(x is None for x in va) or any(x is None for x in vb):
+            continue
+        ma, mb = st.median(va), st.median(vb)
+        tol = max(1.0, 0.2 * abs(ma))
+        if abs(mb - ma) <= tol:
+            print(f"   {col:<26}{ma:>12,.1f} -> {mb:>12,.1f}   {why}")
+            continue
+        moved += 1
+        verdict = "BETTER" if (mb < ma) == lower else "WORSE"
+        print(f"   {col:<26}{ma:>12,.1f} -> {mb:>12,.1f}   {why:<22} <<< {verdict}")
+    print(f"   {moved} of {len(WATCH)} defect metrics moved materially.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

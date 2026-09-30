@@ -1,1 +1,0 @@
-no games.csv in diag-replays/sc-tape

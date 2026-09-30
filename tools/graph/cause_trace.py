@@ -46,8 +46,35 @@ from tools.diagnose.games import load_replay                        # noqa: E402
 DAY = 24
 
 
+def _node_series(rep, seat):
+    """{day: {node: value}} read through the REAL `state_graph._LIVE` readers.
+
+    The trace used to reimplement each node's reader over the extracted rec, which silently
+    drifted: `unfed` and `dry_plants` are not in that rec at all, so they read 0 and the
+    node printed "not deficient" while `graph_diag --section break` showed `unfed` deficient
+    on 9/25 days. Building a real `State` from the observation and calling the same readers
+    the live agent calls removes the whole drift class -- there is now one implementation.
+    """
+    from src.state import State
+    steps = rep["steps"] if isinstance(rep, dict) else rep.steps
+    out = {}
+    for t in range(len(steps)):
+        frame = steps[t]
+        if len(frame) <= seat:
+            continue
+        obs = frame[seat].get("observation")
+        if not obs or int(obs.get("hour", 0)) < 23:
+            continue                      # day-end reading only, as the graph uses
+        try:
+            st = State(obs)
+            out[t // DAY] = {k: float(fn(st)) for k, fn in sg._LIVE.items()}
+        except Exception:                 # noqa: BLE001
+            continue
+    return out
+
+
 def _load(run_dir, glob, max_games):
-    """List of games, each {day: rec} with flow (ops) + stock + seeds + money."""
+    """List of games, each {day: rec} with flow (ops) + stock + seeds + money + nodes."""
     paths = sorted(globmod.glob(str(Path(run_dir) / glob)))
     if max_games:
         paths = paths[:max_games]
@@ -57,8 +84,10 @@ def _load(run_dir, glob, max_games):
         seat = _seat_of(rep, "auto")
         base = extract_replays([p], seat)[0]          # {day: rec with flow+stock+money}
         extra = _augment(rep, seat)                   # seeds, shed_items, owned_animals
+        nodes = _node_series(rep, seat)               # the REAL node readers
         for d, rec in base.items():
             rec.update(extra.get(d, {}))
+            rec["nodes"] = nodes.get(d, {})
         games.append(base)
     return games
 
@@ -136,6 +165,11 @@ PRECONDITIONS = {
         ("wheat tiles (feed gate)", lambda r: r["stock"].get("plant_WHEAT", 0)),
         ("structures built", _structs),
     ],
+    "DIG": [
+        ("weeds standing", _weeds),
+        ("idle unit-turns", _idle),
+        ("DIG ops done", lambda r: r["flow"].get("DIG", 0)),
+    ],
     "HARVEST": [
         ("ripe tiles", lambda r: r["flow"].get("HARVEST", 0)),   # proxy: what we did
         ("idle unit-turns", _idle),
@@ -173,26 +207,41 @@ def spec(node):
     return sg.NODES[node]
 
 
-def _first_break(games, node, lo, hi):
-    """(first break day, median ours at that day, target at that day)."""
+def _break_profile(games, node, lo, hi):
+    """How the node fails: PERSISTENT (breaks and stays), FLAPPING, or none.
+
+    The old version required 3 consecutive deficient days and returned None otherwise, so a
+    node deficient on 9 of 25 days (`unfed`) printed "not deficient" and the trace walked
+    past a real defect. `graph_diag --section break` calls that case "a priority race"; the
+    tracer has to see it too, or it mis-directs the next hypothesis (measured: an A2 feed
+    hypothesis was skipped this way).
+    """
     ours = _series(games, _live_of(node))
+    def_days = []
     for d in range(lo, hi + 1):
         if d not in ours:
             continue
         bad, t = _deficient(node, ours[d], d)
         if bad:
-            # confirm it stays deficient for the next 2 sampled days
-            later = [dd for dd in range(d, min(hi, d + 2) + 1) if dd in ours
-                     and _deficient(node, ours[dd], dd)[0]]
-            if len(later) >= 2:
-                return d, ours[d], t
-    return None, None, None
+            def_days.append((d, ours[d], t))
+    if not def_days:
+        return None
+    for i, (d, v, t) in enumerate(def_days):
+        run = len([x for x in def_days if d <= x[0] <= d + 2])
+        if run >= 3:
+            return dict(kind="PERSISTENT", day=d, ours=v, target=t,
+                        n_def=len(def_days), n_days=len(ours))
+    d, v, t = def_days[0]
+    return dict(kind="FLAPPING", day=d, ours=v, target=t,
+                n_def=len(def_days), n_days=len(ours))
 
 
 def _live_of(node):
     def fn(rec):
-        live = _live_value(node, rec)
-        return live
+        nodes = rec.get("nodes") or {}
+        if node in nodes:
+            return nodes[node]           # the REAL reader (state_graph._LIVE)
+        return _live_value(node, rec)    # fallback when nodes were not sampled
     return fn
 
 
@@ -285,17 +334,22 @@ def _median(xs):
 def trace(games, node, lo, hi):
     """Print the full cause trace for one node."""
     spec = sg.NODES[node]
-    ours = _series(games, _live_of(node))
-    d0, v, t = _first_break(games, node, lo, hi)
+    prof = _break_profile(games, node, lo, hi)
     print(f"\n===== {node}  (better={spec.better}, deadline={spec.deadline}, "
           f"ops={','.join(spec.ops)}) =====")
     ctrl = getattr(sgd, "CONTROLS", {}).get(node)
     if ctrl:
         print(f"  KNOBS: {ctrl}")
-    if d0 is None:
+    if prof is None:
         print(f"  not deficient in window d{lo}-{hi}")
         return
-    print(f"  first break: d{d0}   ours={v:.1f}  target={t if t is not None else '?'}")
+    d0, v, t = prof["day"], prof["ours"], prof["target"]
+    if prof["kind"] == "FLAPPING":
+        print(f"  FLAPPING: first d{d0}, deficient {prof['n_def']}/{prof['n_days']} days "
+              f"(a priority race, not a persistent break)")
+    else:
+        print(f"  first break: d{d0}")
+    print(f"  at d{d0}:  ours={v:.1f}  target={t if t is not None else '?'}")
 
     # 1. upstream causes: is this node a root or a symptom?
     parents = _parents(node)
@@ -317,6 +371,19 @@ def trace(games, node, lo, hi):
             s = _series(games, fn)
             vv = s.get(d0)
             print(f"      {label:<22} {vv if vv is None else round(vv,1):>8}")
+    # 3. PER-CROP resolution. A global seed/plant knob is measured to starve the feed
+    # budget (`SEED_FILL_BUFFER=1;SEED_FROM_EMPTY=1` -> -$16,524 median, idle +96 6/8,
+    # sell_revenue -$3,572). The aggregate "seed held 8" hid that WHEAT held ~0 while
+    # STRAWBERRY held 12 -- so the fix has to name the crop, and the tool has to show it.
+    if node in ("empty", "planted"):
+        held = _series(games, lambda r: (r.get("seeds") or {}).get("WHEAT", 0))
+        straw = _series(games, lambda r: (r.get("seeds") or {}).get("STRAWBERRY", 0))
+        melon = _series(games, lambda r: (r.get("seeds") or {}).get("MELON", 0))
+        print(f"  per-crop seed held at d{d0}:  WHEAT={held.get(d0)}  "
+              f"STRAWBERRY={straw.get(d0)}  MELON={melon.get(d0)}")
+        print(f"  per-crop tiles  at d{d0}:  WHEAT={_series(games, lambda r: r['stock'].get('plant_WHEAT', 0)).get(d0)}  "
+              f"STRAWBERRY={_series(games, lambda r: r['stock'].get('plant_STRAWBERRY', 0)).get(d0)}  "
+              f"MELON={_series(games, lambda r: r['stock'].get('plant_MELON', 0)).get(d0)}")
     print()
 
 

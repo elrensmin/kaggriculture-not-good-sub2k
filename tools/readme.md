@@ -9,30 +9,74 @@ puts it on `sys.path` itself).
 |---|---|
 | `tools/diagnose/` | run the agent, write replays + CSVs, re-diagnose saves, render graphs |
 | `graph/` | **is the state graph actually driving the agent, and where do we diverge from Boey?** See `graph/README.md` |
-| `audit/` | which decisions have more than one owner, and what is dead? |
-| `gates/` | did this change help, and what else did it break? |
-| `report/` | what does the #1 actually do, and where by day do we lose? |
-| `market/` | what did we sell, at what price, and who bought it? |
-| `labour/` | where are the wasted turns? |
+| `phases/` | what is the ROOT of this, and how do we parse/fit the reference corpus? |
+| `report/` | matched-pair A/B: did this change help? |
 | `fetch/` | pull live tournament opponents and their replays from Kaggle |
+| ~~`audit/`~~ ~~`gates/`~~ ~~`market/`~~ ~~`labour/`~~ | **DELETED — see the inventory below. Do not follow commands that use them.** |
 
-### The graph tools — start here when the agent "feels wrong"
+### INVENTORY — several documented directories no longer exist
 
-`tools/graph/` and `tools/audit/` are the diagnostics for the decision engine itself. They find
-**structural** bugs — a node with no reader, a demand with no actuator, a knob nobody reads, a
-decision with two owners — which no CSV column can show you.
+**This README (and AGENTS.md) describes tools that have been deleted.** Verified by existence
+check, not by reading. Check here before running anything below:
+
+| documented | actual state |
+|---|---|
+| `tools/gates/` (`margin.py`, `balance.py`) | **MISSING — whole directory** |
+| `tools/labour/` (`op_patterns.py`, `ready_idle.py`) | **MISSING — whole directory** |
+| `tools/market/` (`shop_response.py`) | **MISSING — whole directory** |
+| `tools/audit/` (`duplicate_owners.py`) | **MISSING — whole directory** |
+| `tools/report/` | only **`arm_diff.py`** (rebuilt) — `day_gap.py`, `dsm_profile.py` are gone |
+| `tools/phases/` | `shadow_prices.py`, `state_value.py`, `boey_model.py`, `state_sheet.py` are gone |
+| `tools/graph/cause_trace.py` | exists but **BROKEN** — imports the deleted `tools.phases.state_sheet`. Use `graph_audit` instead |
+| `tools/phases/priors_codegen.py` | **STALE** — regenerates a `src/priors.py` missing 13 names `src/` imports. It now REFUSES to write; do not defeat the guard |
+
+The corpus extractors `boey_priors.py` / `boey_model.py` / `boey_bench.py` — which produced
+`docs/boey_priors.json` and `docs/boey_bench.json`, the evidence behind the whole targeted-IL
+strategy — are deleted too, leaving only `__pycache__/*.pyc`. **Write new tools self-contained**
+(import only `src/` and a replay dir) so they cannot rot this way.
+
+### The tools added this round
 
 ```bash
-PYTHONPATH=. python -m tools.graph.graph_diag   --run-dir diag-replays/<arm> --section break
-PYTHONPATH=. python -m tools.graph.transplant_diff --max-games 8 --days 4-12 --section diff
-PYTHONPATH=. python -m tools.audit.duplicate_owners --section ops
+# IS THE GRAPH HEARD?  per node: can it press / does it press / does any ENABLED path read it
+PYTHONPATH=. python -m tools.graph.graph_audit --run-dir diag-replays/<arm>
+
+# the reference corpus -> three tidy parquet tables (states / unit_ops / market_orders)
+PYTHONPATH=. python -m tools.phases.parse_replays --out-dir artifacts/parsed
+
+# does a node's deficiency COST anything? within-game, within-farm paired panel
+PYTHONPATH=. python -m tools.phases.causal_panel --parsed artifacts/parsed --horizons 1,3,5
+
+# per-step policy fit: graph-licensed nodes vs raw state vs an intercept baseline
+PYTHONPATH=. python -m tools.phases.fit_policy --parsed artifacts/parsed --target unit
+
+# matched-pair A/B. PASS THE SAME EXPLICIT --seed TO BOTH ARMS or it refuses.
+PYTHONPATH=. python -m tools.report.arm_diff --a diag-replays/arm-a --b diag-replays/arm-b
 ```
 
-Full usage, the invariants to re-check after any change, and the measured findings behind them are
-in **`tools/graph/README.md`**. The headline results so far: only 4 of 27 `src/` modules imported the
-graph and none of the market layers; two graph nodes were **dead** (silently removing SELL, HARVEST
-and HIRE from its reach); `dry_plants` counted *every plant at hour 0* and stayed broken from d1 in
-16/17 games; and `BUY_SEED` had **seven** competing owners.
+**`graph_audit` is the one to run first.** Its headline finding: **7 of 15 nodes press and are
+MUTE** — nothing enabled reads their pressure. It asks the third question every other diagnostic
+skips, and it is the question that decides whether tuning a node can do anything at all.
+
+**The graph tools — start here when the agent "feels wrong"**
+
+`tools/graph/` holds the diagnostics for the decision engine itself. They find **structural**
+bugs — a node that cannot press, a node nobody listens to, a demand with no actuator, a decision
+with two owners — which no CSV column can show you.
+
+```bash
+PYTHONPATH=. python -m tools.graph.graph_audit --run-dir diag-replays/<arm>   # START HERE
+PYTHONPATH=. python -m tools.graph.graph_diag  --run-dir diag-replays/<arm> --section health
+PYTHONPATH=. python -m tools.graph.graph_diag  --run-dir diag-replays/<arm> --section break
+```
+
+Full usage and the measured findings behind them are in **`tools/graph/README.md`**. Headline
+results: only 4 of 27 `src/` modules imported the graph and none of the market layers; two nodes
+were **dead** (`revenue_per_day`, `labour`, silently removing SELL/HARVEST/HIRE from its reach);
+then **two more were dead in a way no check caught** — `dry_plants` read `t.get("age")` on a tile
+schema with no `age` key and `melon_tiles` had a metric that was never a `priors.CROPS` key, so
+**both reported p == 1.000 on all 259,559 reference state-rows**; and `BUY_SEED` had **seven**
+competing owners.
 
 ## Read this before quoting any number
 

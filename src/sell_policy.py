@@ -88,9 +88,12 @@ def market_intents(state):
         # the timed half -- sell at the peak, hold through the trough.
         if not liquidating and params.at("SELL_LOOKAHEAD", state.day):
             from . import demand
+            # HEADROOM: free shed space. Without it the look-ahead holds indefinitely and
+            # the goods are dumped at the floor (measured: floor_sales +55.5, 24/24 worse).
+            headroom = max(0, int(getattr(params, "SHED_CAPACITY", 100)) - state.shed_total())
             sell_now = demand.best_sell_now(item, inv, n, state.shops,
                                             max(1, 24 - state.hour),
-                                            floor=market.base(item))
+                                            floor=market.base(item), headroom=headroom)
             if sell_now <= 0:
                 continue
         # ADAPTIVE RATE. `TRICKLE` is a per-turn cap, and MEASURED it is BELOW our own

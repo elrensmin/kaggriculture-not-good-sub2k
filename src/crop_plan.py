@@ -124,6 +124,27 @@ def plant_queue(state):
             if crop_f:
                 rest[crop_f] = rest.get(crop_f, 0) + empty
 
+    # SHOP-RESPONSIVE CROP MIX (params.CROP_SHOP_RESPONSIVE): give a slot bonus to crops whose
+    # product has a volume buyer among the unlocked shops, so the mix follows demand instead of
+    # over-planting a product only the 1/day town centre absorbs.
+    if params.at("CROP_SHOP_RESPONSIVE", state.day) and rest:
+        from . import market
+        _shops = getattr(state, "shops", []) or []
+        _boost = float(params.at("CROP_SHOP_BOOST", state.day))
+        for _c in list(rest):
+            if market.has_volume_buyer(_shops, _c):
+                rest[_c] = max(1, int(rest[_c] * _boost))
+
+    # FEED BASE FIRST. See params.WHEAT_LEADS_FEED_BASE: while the standing wheat base is below
+    # the herd's feed gate, wheat leads the interleave instead of trailing it, so MELON/
+    # STRAWBERRY cannot preempt the feed the herd needs to grow.
+    if params.at("WHEAT_LEADS_FEED_BASE", state.day) and "WHEAT" in rest:
+        _herd = sum(herd_plan._animal_counts(state).values())
+        _gate = params.at("WHEAT_TILES_PER_ANIMAL", state.day) * (_herd + 1)
+        if _crop_count(state, "WHEAT") < _gate:
+            rest = {"WHEAT": rest["WHEAT"],
+                    **{k: v for k, v in rest.items() if k != "WHEAT"}}
+
     queue = list(urgent)
     while rest:
         for crop in list(rest):
